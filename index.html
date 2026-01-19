@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Icon Forge — Image Resizer & Converter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0a0b;
+            --bg-card: #141416;
+            --bg-hover: #1a1a1d;
+            --border: #2a2a2e;
+            --border-focus: #4a4a52;
+            --text-primary: #f0f0f2;
+            --text-secondary: #888892;
+            --text-muted: #5a5a64;
+            --accent: #f97316;
+            --accent-hover: #fb923c;
+            --accent-glow: rgba(249, 115, 22, 0.15);
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #eab308;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-top: 2rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent) 0%, #dc2626 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 8px 32px var(--accent-glow);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tagline {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-top: 0.5rem;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1.25rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-header h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+        }
+
+        .panel-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+        }
+
+        /* Drop Zone */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(255,255,255,0.01) 10px,
+                rgba(255,255,255,0.01) 20px
+            );
+        }
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--accent);
+            background: var(--accent-glow);
+        }
+
+        .drop-zone-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.6;
+        }
+
+        .drop-zone-text {
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .drop-zone-formats {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* Preview */
+        .preview-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .preview-container.active {
+            display: flex;
+        }
+
+        .preview-image-wrapper {
+            position: relative;
+            background: repeating-conic-gradient(#1a1a1d 0% 25%, #222225 0% 50%) 50% / 16px 16px;
+            border-radius: 12px;
+            padding: 1rem;
+            max-width: 100%;
+            overflow: hidden;
+        }
+
+        .preview-image {
+            max-width: 300px;
+            max-height: 300px;
+            display: block;
+            border-radius: 4px;
+        }
+
+        .preview-info {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        .preview-info span {
+            color: var(--accent);
+        }
+
+        .btn-change {
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-change:hover {
+            border-color: var(--border-focus);
+            color: var(--text-primary);
+        }
+
+        /* Size Options */
+        .size-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .size-option {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .size-option:hover {
+            border-color: var(--border-focus);
+        }
+
+        .size-option.selected {
+            border-color: var(--accent);
+            background: var(--accent-glow);
+        }
+
+        .size-option input {
+            display: none;
+        }
+
+        .size-checkbox {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .size-option.selected .size-checkbox {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .size-checkbox svg {
+            width: 12px;
+            height: 12px;
+            stroke: var(--bg-dark);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .size-option.selected .size-checkbox svg {
+            opacity: 1;
+        }
+
+        .size-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .size-label small {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        /* Custom Size */
+        .custom-size-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .section-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .custom-size-input {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .custom-size-input input {
+            width: 80px;
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .custom-size-input input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .custom-size-input span {
+            color: var(--text-muted);
+        }
+
+        .btn-add-size {
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-add-size:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Format Options */
+        .format-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .format-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .format-option {
+            padding: 0.5rem 1rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .format-option:hover {
+            border-color: var(--border-focus);
+        }
+
+        .format-option.selected {
+            border-color: var(--accent);
+            background: var(--accent-glow);
+            color: var(--accent);
+        }
+
+        .format-option input {
+            display: none;
+        }
+
+        /* Generate Button */
+        .btn-generate {
+            width: 100%;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, var(--accent) 0%, #dc2626 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 24px var(--accent-glow);
+        }
+
+        .btn-generate:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px var(--accent-glow);
+        }
+
+        .btn-generate:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Output Section */
+        .output-section {
+            margin-top: 2rem;
+        }
+
+        .output-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 1rem;
+        }
+
+        .output-item {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .output-item:hover {
+            border-color: var(--border-focus);
+        }
+
+        .output-preview {
+            background: repeating-conic-gradient(#1a1a1d 0% 25%, #222225 0% 50%) 50% / 8px 8px;
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .output-preview img {
+            max-width: 64px;
+            max-height: 64px;
+            image-rendering: pixelated;
+        }
+
+        .output-info {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .btn-download {
+            width: 100%;
+            padding: 0.5rem;
+            background: transparent;
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            color: var(--accent);
+            font-family: inherit;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-download:hover {
+            background: var(--accent);
+            color: var(--bg-dark);
+        }
+
+        /* Download All */
+        .download-all-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn-download-all {
+            width: 100%;
+            padding: 0.875rem 1.5rem;
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-download-all:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Status Messages */
+        .status {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .status.visible {
+            display: block;
+        }
+
+        .status.info {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #60a5fa;
+        }
+
+        .status.success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: var(--success);
+        }
+
+        .status.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: var(--error);
+        }
+
+        .status.warning {
+            background: rgba(234, 179, 8, 0.1);
+            border: 1px solid rgba(234, 179, 8, 0.3);
+            color: var(--warning);
+        }
+
+        /* Supported Formats Info */
+        .formats-info {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: var(--bg-dark);
+            border-radius: 8px;
+            font-size: 0.8rem;
+        }
+
+        .formats-info h4 {
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .formats-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .format-badge {
+            padding: 0.25rem 0.5rem;
+            background: var(--bg-card);
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .format-badge.native {
+            color: var(--success);
+        }
+
+        .format-badge.limited {
+            color: var(--warning);
+        }
+
+        /* Loading spinner */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">🔥</div>
+                <h1>Icon Forge</h1>
+            </div>
+            <p class="tagline">Resize images to multiple sizes and formats — entirely in your browser</p>
+        </header>
+
+        <div class="main-grid">
+            <!-- Left Panel - Input -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                    </div>
+                    <h2>Source Image</h2>
+                </div>
+
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-icon">📁</div>
+                    <p class="drop-zone-text">Drop an image here or click to browse</p>
+                    <p class="drop-zone-formats">PNG, JPG, GIF, WebP, SVG, BMP, TIFF</p>
+                    <input type="file" class="file-input" id="fileInput" accept="image/*,.svg">
+                </div>
+
+                <div class="preview-container" id="previewContainer">
+                    <div class="preview-image-wrapper">
+                        <img class="preview-image" id="previewImage" alt="Preview">
+                    </div>
+                    <div class="preview-info" id="previewInfo"></div>
+                    <button class="btn-change" id="btnChange">Choose Different Image</button>
+                </div>
+
+                <div class="formats-info">
+                    <h4>Supported Input Formats</h4>
+                    <div class="formats-list">
+                        <span class="format-badge native">PNG</span>
+                        <span class="format-badge native">JPG</span>
+                        <span class="format-badge native">GIF</span>
+                        <span class="format-badge native">WebP</span>
+                        <span class="format-badge native">SVG</span>
+                        <span class="format-badge native">BMP</span>
+                        <span class="format-badge native">TIFF</span>
+                        <span class="format-badge limited" title="Limited support">ICO</span>
+                    </div>
+                    <p style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.75rem;">
+                        Note: EPS and AI files require conversion to SVG first (use Adobe Illustrator, Inkscape, or an online converter)
+                    </p>
+                </div>
+            </div>
+
+            <!-- Right Panel - Options & Output -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                    </div>
+                    <h2>Output Options</h2>
+                </div>
+
+                <label class="section-label">Standard Icon Sizes</label>
+                <div class="size-grid" id="sizeGrid">
+                    <label class="size-option selected">
+                        <input type="checkbox" value="16" checked>
+                        <span class="size-checkbox">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </span>
+                        <span class="size-label">16×16 <small>favicon</small></span>
+                    </label>
+                    <label class="size-option selected">
+                        <input type="checkbox" value="32" checked>
+                        <span class="size-checkbox">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </span>
+                        <span class="size-label">32×32 <small>favicon</small></span>
+                    </label>
+                    <label class="size-option selected">
+                        <input type="checkbox" value="48" checked>
+                        <span class="size-checkbox">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </span>
+                        <span class="size-label">48×48 <small>extension</small></span>
+                    </label>
+                    <label class="size-option selected">
+                        <input type="checkbox" value="128" checked>
+                        <span class="size-checkbox">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </span>
+                        <span class="size-label">128×128 <small>extension</small></span>
+                    </label>
+                    <label class="size-option">
+                        <input type="checkbox" value="64">
+                        <span class="size-checkbox">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </span>
+                        <span class="size-label">64×64</span>
+                    </label>
+                    <label class="size-option">
+                        <input type="checkbox" value="96">
+                        <span class="size-checkbox">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </span>
+                        <span class="size-label">96×96</span>
+                    </label>
+                    <label class="size-option">
+                        <input type="checkbox" value="192">
+                        <span class="size-checkbox">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </span>
+                        <span class="size-label">192×192 <small>PWA</small></span>
+                    </label>
+                    <label class="size-option">
+                        <input type="checkbox" value="512">
+                        <span class="size-checkbox">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </span>
+                        <span class="size-label">512×512 <small>PWA</small></span>
+                    </label>
+                </div>
+
+                <div class="custom-size-section">
+                    <label class="section-label">Custom Size</label>
+                    <div class="custom-size-input">
+                        <input type="number" id="customWidth" placeholder="256" min="1" max="4096">
+                        <span>×</span>
+                        <input type="number" id="customHeight" placeholder="256" min="1" max="4096">
+                        <button class="btn-add-size" id="btnAddSize">Add</button>
+                    </div>
+                </div>
+
+                <div class="format-section">
+                    <label class="section-label">Output Formats</label>
+                    <div class="format-options" id="formatOptions">
+                        <label class="format-option selected">
+                            <input type="checkbox" value="png" checked>
+                            PNG
+                        </label>
+                        <label class="format-option selected">
+                            <input type="checkbox" value="ico" checked>
+                            ICO
+                        </label>
+                        <label class="format-option">
+                            <input type="checkbox" value="jpg">
+                            JPG
+                        </label>
+                        <label class="format-option">
+                            <input type="checkbox" value="webp">
+                            WebP
+                        </label>
+                    </div>
+                </div>
+
+                <button class="btn-generate" id="btnGenerate" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                    Generate Icons
+                </button>
+
+                <div class="status" id="status"></div>
+
+                <div class="output-section" id="outputSection" style="display: none;">
+                    <div class="panel-header" style="margin-top: 1rem;">
+                        <div class="panel-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                        </div>
+                        <h2>Generated Icons</h2>
+                    </div>
+                    <div class="output-grid" id="outputGrid"></div>
+                    <div class="download-all-section">
+                        <button class="btn-download-all" id="btnDownloadAll">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            Download All as ZIP
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Icon Forge — 100% client-side, no uploads, your images stay private</p>
+        </footer>
+    </div>
+
+    <!-- JSZip for ZIP downloads -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <script>
+        // State
+        let sourceImage = null;
+        let sourceFileName = '';
+        let generatedFiles = [];
+
+        // DOM Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewImage = document.getElementById('previewImage');
+        const previewInfo = document.getElementById('previewInfo');
+        const btnChange = document.getElementById('btnChange');
+        const sizeGrid = document.getElementById('sizeGrid');
+        const customWidth = document.getElementById('customWidth');
+        const customHeight = document.getElementById('customHeight');
+        const btnAddSize = document.getElementById('btnAddSize');
+        const formatOptions = document.getElementById('formatOptions');
+        const btnGenerate = document.getElementById('btnGenerate');
+        const status = document.getElementById('status');
+        const outputSection = document.getElementById('outputSection');
+        const outputGrid = document.getElementById('outputGrid');
+        const btnDownloadAll = document.getElementById('btnDownloadAll');
+
+        // Event Listeners
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', handleDragOver);
+        dropZone.addEventListener('dragleave', handleDragLeave);
+        dropZone.addEventListener('drop', handleDrop);
+        fileInput.addEventListener('change', handleFileSelect);
+        btnChange.addEventListener('click', resetInput);
+        btnAddSize.addEventListener('click', addCustomSize);
+        btnGenerate.addEventListener('click', generateIcons);
+        btnDownloadAll.addEventListener('click', downloadAll);
+
+        // Size option toggles
+        sizeGrid.addEventListener('change', (e) => {
+            if (e.target.type === 'checkbox') {
+                e.target.closest('.size-option').classList.toggle('selected', e.target.checked);
+            }
+        });
+
+        // Format option toggles
+        formatOptions.addEventListener('change', (e) => {
+            if (e.target.type === 'checkbox') {
+                e.target.closest('.format-option').classList.toggle('selected', e.target.checked);
+            }
+        });
+
+        // Drag and Drop handlers
+        function handleDragOver(e) {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                loadImage(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            if (e.target.files.length > 0) {
+                loadImage(e.target.files[0]);
+            }
+        }
+
+        function loadImage(file) {
+            if (!file.type.startsWith('image/') && !file.name.endsWith('.svg')) {
+                showStatus('Please select a valid image file', 'error');
+                return;
+            }
+
+            sourceFileName = file.name.replace(/\.[^/.]+$/, '');
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    sourceImage = img;
+                    previewImage.src = e.target.result;
+                    previewInfo.innerHTML = `<span>${file.name}</span> — ${img.naturalWidth} × ${img.naturalHeight}`;
+                    dropZone.style.display = 'none';
+                    previewContainer.classList.add('active');
+                    btnGenerate.disabled = false;
+                    outputSection.style.display = 'none';
+                    showStatus('', '');
+                };
+                img.onerror = () => {
+                    showStatus('Failed to load image. Make sure it\'s a valid image file.', 'error');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function resetInput() {
+            sourceImage = null;
+            sourceFileName = '';
+            fileInput.value = '';
+            dropZone.style.display = '';
+            previewContainer.classList.remove('active');
+            btnGenerate.disabled = true;
+            outputSection.style.display = 'none';
+            generatedFiles = [];
+        }
+
+        function addCustomSize() {
+            const w = parseInt(customWidth.value) || parseInt(customHeight.value);
+            const h = parseInt(customHeight.value) || parseInt(customWidth.value);
+            
+            if (!w || !h || w < 1 || h < 1 || w > 4096 || h > 4096) {
+                showStatus('Please enter valid dimensions (1-4096)', 'warning');
+                return;
+            }
+
+            // Check if size already exists
+            const existing = sizeGrid.querySelector(`input[value="${w}"]`);
+            if (existing && w === h) {
+                existing.checked = true;
+                existing.closest('.size-option').classList.add('selected');
+                showStatus(`Size ${w}×${h} already exists and has been selected`, 'info');
+                return;
+            }
+
+            const label = document.createElement('label');
+            label.className = 'size-option selected';
+            label.innerHTML = `
+                <input type="checkbox" value="${w}" data-height="${h}" checked>
+                <span class="size-checkbox">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                </span>
+                <span class="size-label">${w}×${h} <small>custom</small></span>
+            `;
+            sizeGrid.appendChild(label);
+            
+            customWidth.value = '';
+            customHeight.value = '';
+            showStatus(`Added custom size ${w}×${h}`, 'success');
+        }
+
+        function getSelectedSizes() {
+            const sizes = [];
+            sizeGrid.querySelectorAll('input:checked').forEach(input => {
+                const w = parseInt(input.value);
+                const h = parseInt(input.dataset.height) || w;
+                sizes.push({ width: w, height: h });
+            });
+            return sizes;
+        }
+
+        function getSelectedFormats() {
+            const formats = [];
+            formatOptions.querySelectorAll('input:checked').forEach(input => {
+                formats.push(input.value);
+            });
+            return formats;
+        }
+
+        async function generateIcons() {
+            if (!sourceImage) return;
+
+            const sizes = getSelectedSizes();
+            const formats = getSelectedFormats();
+
+            if (sizes.length === 0) {
+                showStatus('Please select at least one size', 'warning');
+                return;
+            }
+
+            if (formats.length === 0) {
+                showStatus('Please select at least one output format', 'warning');
+                return;
+            }
+
+            btnGenerate.disabled = true;
+            btnGenerate.innerHTML = '<span class="spinner"></span> Generating...';
+            showStatus('Generating icons...', 'info');
+
+            generatedFiles = [];
+            outputGrid.innerHTML = '';
+
+            try {
+                // Generate each size/format combination
+                for (const size of sizes) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = size.width;
+                    canvas.height = size.height;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Use high-quality scaling
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    
+                    // Draw centered and scaled
+                    const scale = Math.min(size.width / sourceImage.naturalWidth, size.height / sourceImage.naturalHeight);
+                    const scaledWidth = sourceImage.naturalWidth * scale;
+                    const scaledHeight = sourceImage.naturalHeight * scale;
+                    const x = (size.width - scaledWidth) / 2;
+                    const y = (size.height - scaledHeight) / 2;
+                    
+                    ctx.drawImage(sourceImage, x, y, scaledWidth, scaledHeight);
+
+                    for (const format of formats) {
+                        if (format === 'ico') continue; // Handle ICO separately
+                        
+                        const mimeType = format === 'jpg' ? 'image/jpeg' : `image/${format}`;
+                        const quality = format === 'jpg' ? 0.92 : undefined;
+                        const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, quality));
+                        const dataUrl = canvas.toDataURL(mimeType, quality);
+                        
+                        const fileName = `${sourceFileName}-${size.width}x${size.height}.${format}`;
+                        generatedFiles.push({ name: fileName, blob, dataUrl, size, format });
+                        
+                        addOutputItem(fileName, dataUrl, size, format);
+                    }
+                }
+
+                // Generate ICO if selected
+                if (formats.includes('ico')) {
+                    const icoSizes = sizes.filter(s => s.width === s.height && s.width <= 256);
+                    if (icoSizes.length > 0) {
+                        const icoBlob = await generateICO(sourceImage, icoSizes);
+                        const icoDataUrl = await blobToDataURL(icoBlob);
+                        const icoFileName = `${sourceFileName}.ico`;
+                        generatedFiles.push({ name: icoFileName, blob: icoBlob, dataUrl: icoDataUrl, size: { width: 'multi', height: 'multi' }, format: 'ico' });
+                        addOutputItem(icoFileName, icoDataUrl, { width: 'multi', height: 'multi' }, 'ico', icoSizes);
+                    } else {
+                        showStatus('ICO format requires square sizes ≤256px. Skipped ICO generation.', 'warning');
+                    }
+                }
+
+                outputSection.style.display = 'block';
+                showStatus(`Generated ${generatedFiles.length} icons successfully!`, 'success');
+
+            } catch (error) {
+                console.error(error);
+                showStatus(`Error generating icons: ${error.message}`, 'error');
+            }
+
+            btnGenerate.disabled = false;
+            btnGenerate.innerHTML = `
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+                Generate Icons
+            `;
+        }
+
+        function addOutputItem(fileName, dataUrl, size, format, icoSizes = null) {
+            const item = document.createElement('div');
+            item.className = 'output-item';
+            
+            const sizeText = size.width === 'multi' 
+                ? icoSizes.map(s => `${s.width}`).join(', ')
+                : `${size.width}×${size.height}`;
+            
+            item.innerHTML = `
+                <div class="output-preview">
+                    <img src="${dataUrl}" alt="${fileName}">
+                </div>
+                <div class="output-info">${sizeText}<br>${format.toUpperCase()}</div>
+                <button class="btn-download" data-filename="${fileName}">Download</button>
+            `;
+            
+            item.querySelector('.btn-download').addEventListener('click', () => {
+                downloadFile(fileName, dataUrl);
+            });
+            
+            outputGrid.appendChild(item);
+        }
+
+        function downloadFile(fileName, dataUrl) {
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = fileName;
+            link.click();
+        }
+
+        async function downloadAll() {
+            if (generatedFiles.length === 0) return;
+
+            btnDownloadAll.disabled = true;
+            btnDownloadAll.innerHTML = '<span class="spinner"></span> Creating ZIP...';
+
+            try {
+                const zip = new JSZip();
+                
+                for (const file of generatedFiles) {
+                    zip.file(file.name, file.blob);
+                }
+
+                const content = await zip.generateAsync({ type: 'blob' });
+                const url = URL.createObjectURL(content);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${sourceFileName}-icons.zip`;
+                link.click();
+                
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                showStatus(`Error creating ZIP: ${error.message}`, 'error');
+            }
+
+            btnDownloadAll.disabled = false;
+            btnDownloadAll.innerHTML = `
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download All as ZIP
+            `;
+        }
+
+        // ICO Generation
+        async function generateICO(img, sizes) {
+            const images = [];
+            
+            for (const size of sizes) {
+                const canvas = document.createElement('canvas');
+                canvas.width = size.width;
+                canvas.height = size.height;
+                const ctx = canvas.getContext('2d');
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                
+                const scale = Math.min(size.width / img.naturalWidth, size.height / img.naturalHeight);
+                const scaledWidth = img.naturalWidth * scale;
+                const scaledHeight = img.naturalHeight * scale;
+                const x = (size.width - scaledWidth) / 2;
+                const y = (size.height - scaledHeight) / 2;
+                
+                ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
+                
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                const arrayBuffer = await blob.arrayBuffer();
+                images.push({
+                    width: size.width,
+                    height: size.height,
+                    data: new Uint8Array(arrayBuffer)
+                });
+            }
+            
+            return createICO(images);
+        }
+
+        function createICO(images) {
+            // ICO file format:
+            // ICONDIR (6 bytes) + ICONDIRENTRY array (16 bytes each) + image data
+            
+            const headerSize = 6;
+            const entrySize = 16;
+            const entriesSize = images.length * entrySize;
+            
+            // Calculate total size and offsets
+            let dataOffset = headerSize + entriesSize;
+            const entries = images.map(img => {
+                const entry = {
+                    width: img.width >= 256 ? 0 : img.width,
+                    height: img.height >= 256 ? 0 : img.height,
+                    dataSize: img.data.length,
+                    dataOffset: dataOffset
+                };
+                dataOffset += img.data.length;
+                return entry;
+            });
+            
+            const totalSize = dataOffset;
+            const buffer = new ArrayBuffer(totalSize);
+            const view = new DataView(buffer);
+            
+            // ICONDIR header
+            view.setUint16(0, 0, true);           // Reserved
+            view.setUint16(2, 1, true);           // Type (1 = ICO)
+            view.setUint16(4, images.length, true); // Number of images
+            
+            // ICONDIRENTRY array
+            let offset = headerSize;
+            for (let i = 0; i < images.length; i++) {
+                const entry = entries[i];
+                view.setUint8(offset, entry.width);      // Width
+                view.setUint8(offset + 1, entry.height); // Height
+                view.setUint8(offset + 2, 0);            // Color palette
+                view.setUint8(offset + 3, 0);            // Reserved
+                view.setUint16(offset + 4, 1, true);     // Color planes
+                view.setUint16(offset + 6, 32, true);    // Bits per pixel
+                view.setUint32(offset + 8, entry.dataSize, true);   // Image data size
+                view.setUint32(offset + 12, entry.dataOffset, true); // Image data offset
+                offset += entrySize;
+            }
+            
+            // Image data (PNG format)
+            const uint8View = new Uint8Array(buffer);
+            for (let i = 0; i < images.length; i++) {
+                uint8View.set(images[i].data, entries[i].dataOffset);
+            }
+            
+            return new Blob([buffer], { type: 'image/x-icon' });
+        }
+
+        function blobToDataURL(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        function showStatus(message, type) {
+            if (!message) {
+                status.className = 'status';
+                status.textContent = '';
+                return;
+            }
+            status.className = `status visible ${type}`;
+            status.textContent = message;
+        }
+    </script>
+</body>
+</html>
