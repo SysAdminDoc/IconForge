@@ -431,7 +431,7 @@
 
         .output-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
             gap: 1rem;
         }
 
@@ -488,6 +488,77 @@
         .btn-download:hover {
             background: var(--accent);
             color: var(--bg-dark);
+        }
+
+        .base64-section {
+            margin-top: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .base64-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-align: left;
+        }
+
+        .base64-container {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .base64-input {
+            flex: 1;
+            padding: 0.35rem 0.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6rem;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .base64-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            color: var(--text-secondary);
+        }
+
+        .btn-copy {
+            padding: 0.35rem 0.5rem;
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.65rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .btn-copy:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-copy.copied {
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .btn-copy svg {
+            width: 10px;
+            height: 10px;
         }
 
         /* Download All */
@@ -1113,7 +1184,9 @@
             
             const sizeText = size.width === 'multi' 
                 ? icoSizes.map(s => `${s.width}`).join(', ')
-                : `${size.width}×${size.height}`;
+                : `${size.width}x${size.height}`;
+            
+            const uniqueId = `base64-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             
             item.innerHTML = `
                 <div class="output-preview">
@@ -1121,10 +1194,27 @@
                 </div>
                 <div class="output-info">${sizeText}<br>${format.toUpperCase()}</div>
                 <button class="btn-download" data-filename="${fileName}">Download</button>
+                <div class="base64-section">
+                    <span class="base64-label">Base64:</span>
+                    <div class="base64-container">
+                        <input type="text" class="base64-input" id="${uniqueId}" value="${dataUrl}" readonly>
+                        <button class="btn-copy" data-target="${uniqueId}" title="Copy base64">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            Copy
+                        </button>
+                    </div>
+                </div>
             `;
             
             item.querySelector('.btn-download').addEventListener('click', () => {
                 downloadFile(fileName, dataUrl);
+            });
+            
+            item.querySelector('.btn-copy').addEventListener('click', (e) => {
+                copyBase64(e.currentTarget);
             });
             
             outputGrid.appendChild(item);
@@ -1135,6 +1225,46 @@
             link.href = dataUrl;
             link.download = fileName;
             link.click();
+        }
+
+        function copyBase64(button) {
+            const targetId = button.dataset.target;
+            const input = document.getElementById(targetId);
+            const base64Value = input.value;
+            
+            navigator.clipboard.writeText(base64Value).then(() => {
+                const originalText = button.innerHTML;
+                button.classList.add('copied');
+                button.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Copied!
+                `;
+                
+                setTimeout(() => {
+                    button.classList.remove('copied');
+                    button.innerHTML = originalText;
+                }, 1500);
+            }).catch(err => {
+                // Fallback for older browsers
+                input.select();
+                document.execCommand('copy');
+                
+                const originalText = button.innerHTML;
+                button.classList.add('copied');
+                button.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Copied!
+                `;
+                
+                setTimeout(() => {
+                    button.classList.remove('copied');
+                    button.innerHTML = originalText;
+                }, 1500);
+            });
         }
 
         async function downloadAll() {
