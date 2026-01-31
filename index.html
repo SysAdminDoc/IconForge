@@ -23,6 +23,7 @@
             --success: #22c55e;
             --error: #ef4444;
             --warning: #eab308;
+            --crop-color: #3b82f6;
         }
 
         * {
@@ -230,6 +231,159 @@
             border-color: var(--border-focus);
             color: var(--text-primary);
         }
+
+        /* ==================== CROP SECTION ==================== */
+        .crop-section {
+            display: none;
+            margin-top: 1.5rem;
+            padding: 1.25rem;
+            background: var(--bg-dark);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .crop-section.active {
+            display: block;
+        }
+
+        .crop-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .crop-header h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--crop-color);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .crop-header svg {
+            color: var(--crop-color);
+        }
+
+        .crop-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .btn-crop {
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn-crop:hover {
+            border-color: var(--crop-color);
+            color: var(--crop-color);
+        }
+
+        .btn-crop.active {
+            border-color: var(--crop-color);
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--crop-color);
+        }
+
+        .btn-crop.primary {
+            background: var(--crop-color);
+            border-color: var(--crop-color);
+            color: white;
+        }
+
+        .btn-crop.primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-crop svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .crop-canvas-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: repeating-conic-gradient(#1a1a1d 0% 25%, #222225 0% 50%) 50% / 12px 12px;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+            max-height: 400px;
+        }
+
+        #cropCanvas {
+            max-width: 100%;
+            max-height: 400px;
+            cursor: crosshair;
+        }
+
+        .crop-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .crop-info .dimensions {
+            color: var(--crop-color);
+        }
+
+        .crop-tolerance {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .crop-tolerance label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .crop-tolerance input[type="range"] {
+            flex: 1;
+            max-width: 120px;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            -webkit-appearance: none;
+        }
+
+        .crop-tolerance input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--crop-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .crop-tolerance .tolerance-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--crop-color);
+            min-width: 30px;
+        }
+
+        /* ==================== END CROP SECTION ==================== */
 
         /* Size Options */
         .size-grid {
@@ -703,7 +857,7 @@
     <div class="container">
         <header>
             <div class="logo">
-                <div class="logo-icon">🔥</div>
+                <div class="logo-icon">&#128293;</div>
                 <h1>Icon Forge</h1>
             </div>
             <p class="tagline">Resize images to multiple sizes and formats — entirely in your browser</p>
@@ -724,7 +878,7 @@
                 </div>
 
                 <div class="drop-zone" id="dropZone">
-                    <div class="drop-zone-icon">📁</div>
+                    <div class="drop-zone-icon">&#128193;</div>
                     <p class="drop-zone-text">Drop an image here or click to browse</p>
                     <p class="drop-zone-formats">PNG, JPG, GIF, WebP, SVG, BMP, TIFF</p>
                     <input type="file" class="file-input" id="fileInput" accept="image/*,.svg">
@@ -736,6 +890,61 @@
                     </div>
                     <div class="preview-info" id="previewInfo"></div>
                     <button class="btn-change" id="btnChange">Choose Different Image</button>
+                </div>
+
+                <!-- CROP SECTION -->
+                <div class="crop-section" id="cropSection">
+                    <div class="crop-header">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/>
+                            <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"/>
+                        </svg>
+                        <h3>Crop Image</h3>
+                    </div>
+                    
+                    <div class="crop-controls">
+                        <button class="btn-crop primary" id="btnAutoCrop">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"/>
+                                <path d="M21 21l-4.35-4.35"/>
+                            </svg>
+                            Auto-Crop
+                        </button>
+                        <button class="btn-crop" id="btnManualCrop">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            </svg>
+                            Manual Crop
+                        </button>
+                        <button class="btn-crop" id="btnResetCrop">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                                <path d="M3 3v5h5"/>
+                            </svg>
+                            Reset
+                        </button>
+                        <button class="btn-crop" id="btnApplyCrop" style="display:none;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Apply Crop
+                        </button>
+                    </div>
+
+                    <div class="crop-canvas-container">
+                        <canvas id="cropCanvas"></canvas>
+                    </div>
+
+                    <div class="crop-info">
+                        <span>Crop Region: <span class="dimensions" id="cropDimensions">Full image</span></span>
+                        <span id="cropStatus"></span>
+                    </div>
+
+                    <div class="crop-tolerance">
+                        <label>Tolerance:</label>
+                        <input type="range" id="toleranceSlider" min="0" max="50" value="10">
+                        <span class="tolerance-value" id="toleranceValue">10</span>
+                    </div>
                 </div>
 
                 <div class="formats-info">
@@ -777,7 +986,7 @@
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </span>
-                        <span class="size-label">16×16 <small>favicon</small></span>
+                        <span class="size-label">16x16 <small>favicon</small></span>
                     </label>
                     <label class="size-option selected">
                         <input type="checkbox" value="32" checked>
@@ -786,7 +995,7 @@
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </span>
-                        <span class="size-label">32×32 <small>favicon</small></span>
+                        <span class="size-label">32x32 <small>favicon</small></span>
                     </label>
                     <label class="size-option selected">
                         <input type="checkbox" value="48" checked>
@@ -795,7 +1004,7 @@
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </span>
-                        <span class="size-label">48×48 <small>extension</small></span>
+                        <span class="size-label">48x48 <small>extension</small></span>
                     </label>
                     <label class="size-option selected">
                         <input type="checkbox" value="128" checked>
@@ -804,7 +1013,7 @@
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </span>
-                        <span class="size-label">128×128 <small>extension</small></span>
+                        <span class="size-label">128x128 <small>extension</small></span>
                     </label>
                     <label class="size-option">
                         <input type="checkbox" value="64">
@@ -813,7 +1022,7 @@
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </span>
-                        <span class="size-label">64×64</span>
+                        <span class="size-label">64x64</span>
                     </label>
                     <label class="size-option">
                         <input type="checkbox" value="96">
@@ -822,7 +1031,7 @@
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </span>
-                        <span class="size-label">96×96</span>
+                        <span class="size-label">96x96</span>
                     </label>
                     <label class="size-option">
                         <input type="checkbox" value="192">
@@ -831,7 +1040,7 @@
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </span>
-                        <span class="size-label">192×192 <small>PWA</small></span>
+                        <span class="size-label">192x192 <small>PWA</small></span>
                     </label>
                     <label class="size-option">
                         <input type="checkbox" value="512">
@@ -840,7 +1049,7 @@
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </span>
-                        <span class="size-label">512×512 <small>PWA</small></span>
+                        <span class="size-label">512x512 <small>PWA</small></span>
                     </label>
                 </div>
 
@@ -848,7 +1057,7 @@
                     <label class="section-label">Custom Size</label>
                     <div class="custom-size-input">
                         <input type="number" id="customWidth" placeholder="256" min="1" max="4096">
-                        <span>×</span>
+                        <span>x</span>
                         <input type="number" id="customHeight" placeholder="256" min="1" max="4096">
                         <button class="btn-add-size" id="btnAddSize">Add</button>
                     </div>
@@ -912,7 +1121,7 @@
         </div>
 
         <footer>
-            <p>Icon Forge — 100% client-side, no uploads, your images stay private</p>
+            <p>Icon Forge - 100% client-side, no uploads, your images stay private</p>
         </footer>
     </div>
 
@@ -924,6 +1133,14 @@
         let sourceImage = null;
         let sourceFileName = '';
         let generatedFiles = [];
+        
+        // Crop state
+        let originalImageData = null;  // Store original for reset
+        let cropRegion = null;  // {x, y, width, height}
+        let isManualCropMode = false;
+        let isDragging = false;
+        let dragStart = null;
+        let currentCropRect = null;
 
         // DOM Elements
         const dropZone = document.getElementById('dropZone');
@@ -943,6 +1160,19 @@
         const outputGrid = document.getElementById('outputGrid');
         const btnDownloadAll = document.getElementById('btnDownloadAll');
 
+        // Crop DOM Elements
+        const cropSection = document.getElementById('cropSection');
+        const cropCanvas = document.getElementById('cropCanvas');
+        const cropCtx = cropCanvas.getContext('2d');
+        const btnAutoCrop = document.getElementById('btnAutoCrop');
+        const btnManualCrop = document.getElementById('btnManualCrop');
+        const btnResetCrop = document.getElementById('btnResetCrop');
+        const btnApplyCrop = document.getElementById('btnApplyCrop');
+        const cropDimensions = document.getElementById('cropDimensions');
+        const cropStatus = document.getElementById('cropStatus');
+        const toleranceSlider = document.getElementById('toleranceSlider');
+        const toleranceValue = document.getElementById('toleranceValue');
+
         // Event Listeners
         dropZone.addEventListener('click', () => fileInput.click());
         dropZone.addEventListener('dragover', handleDragOver);
@@ -953,6 +1183,35 @@
         btnAddSize.addEventListener('click', addCustomSize);
         btnGenerate.addEventListener('click', generateIcons);
         btnDownloadAll.addEventListener('click', downloadAll);
+
+        // Crop Event Listeners
+        btnAutoCrop.addEventListener('click', performAutoCrop);
+        btnManualCrop.addEventListener('click', toggleManualCropMode);
+        btnResetCrop.addEventListener('click', resetCrop);
+        btnApplyCrop.addEventListener('click', applyCrop);
+        toleranceSlider.addEventListener('input', (e) => {
+            toleranceValue.textContent = e.target.value;
+        });
+
+        // Canvas crop interaction
+        cropCanvas.addEventListener('mousedown', startCropDrag);
+        cropCanvas.addEventListener('mousemove', updateCropDrag);
+        cropCanvas.addEventListener('mouseup', endCropDrag);
+        cropCanvas.addEventListener('mouseleave', endCropDrag);
+
+        // Touch support for mobile
+        cropCanvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = cropCanvas.getBoundingClientRect();
+            startCropDrag({ clientX: touch.clientX, clientY: touch.clientY });
+        });
+        cropCanvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            updateCropDrag({ clientX: touch.clientX, clientY: touch.clientY });
+        });
+        cropCanvas.addEventListener('touchend', endCropDrag);
 
         // Size option toggles
         sizeGrid.addEventListener('change', (e) => {
@@ -1007,13 +1266,19 @@
                 const img = new Image();
                 img.onload = () => {
                     sourceImage = img;
+                    originalImageData = e.target.result;
                     previewImage.src = e.target.result;
-                    previewInfo.innerHTML = `<span>${file.name}</span> — ${img.naturalWidth} × ${img.naturalHeight}`;
+                    previewInfo.innerHTML = `<span>${file.name}</span> - ${img.naturalWidth} x ${img.naturalHeight}`;
                     dropZone.style.display = 'none';
                     previewContainer.classList.add('active');
                     btnGenerate.disabled = false;
                     outputSection.style.display = 'none';
                     showStatus('', '');
+                    
+                    // Initialize crop section
+                    cropSection.classList.add('active');
+                    cropRegion = null;
+                    initCropCanvas();
                 };
                 img.onerror = () => {
                     showStatus('Failed to load image. Make sure it\'s a valid image file.', 'error');
@@ -1026,13 +1291,361 @@
         function resetInput() {
             sourceImage = null;
             sourceFileName = '';
+            originalImageData = null;
+            cropRegion = null;
             fileInput.value = '';
             dropZone.style.display = '';
             previewContainer.classList.remove('active');
+            cropSection.classList.remove('active');
             btnGenerate.disabled = true;
             outputSection.style.display = 'none';
             generatedFiles = [];
+            isManualCropMode = false;
+            btnManualCrop.classList.remove('active');
+            btnApplyCrop.style.display = 'none';
         }
+
+        // ==================== CROP FUNCTIONS ====================
+        
+        function initCropCanvas() {
+            if (!sourceImage) return;
+            
+            // Calculate display size (fit within container)
+            const maxWidth = 450;
+            const maxHeight = 400;
+            const scale = Math.min(maxWidth / sourceImage.naturalWidth, maxHeight / sourceImage.naturalHeight, 1);
+            
+            cropCanvas.width = sourceImage.naturalWidth * scale;
+            cropCanvas.height = sourceImage.naturalHeight * scale;
+            cropCanvas.dataset.scale = scale;
+            
+            drawCropCanvas();
+            updateCropInfo();
+        }
+
+        function drawCropCanvas() {
+            if (!sourceImage) return;
+            
+            const scale = parseFloat(cropCanvas.dataset.scale) || 1;
+            
+            // Clear and draw image
+            cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+            cropCtx.drawImage(sourceImage, 0, 0, cropCanvas.width, cropCanvas.height);
+            
+            // Draw crop overlay if we have a crop region
+            if (cropRegion || currentCropRect) {
+                const region = currentCropRect || cropRegion;
+                const x = region.x * scale;
+                const y = region.y * scale;
+                const w = region.width * scale;
+                const h = region.height * scale;
+                
+                // Darken areas outside crop
+                cropCtx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                // Top
+                cropCtx.fillRect(0, 0, cropCanvas.width, y);
+                // Bottom
+                cropCtx.fillRect(0, y + h, cropCanvas.width, cropCanvas.height - y - h);
+                // Left
+                cropCtx.fillRect(0, y, x, h);
+                // Right
+                cropCtx.fillRect(x + w, y, cropCanvas.width - x - w, h);
+                
+                // Draw crop border
+                cropCtx.strokeStyle = '#3b82f6';
+                cropCtx.lineWidth = 2;
+                cropCtx.setLineDash([5, 5]);
+                cropCtx.strokeRect(x, y, w, h);
+                cropCtx.setLineDash([]);
+                
+                // Draw corner handles
+                const handleSize = 8;
+                cropCtx.fillStyle = '#3b82f6';
+                // Corners
+                cropCtx.fillRect(x - handleSize/2, y - handleSize/2, handleSize, handleSize);
+                cropCtx.fillRect(x + w - handleSize/2, y - handleSize/2, handleSize, handleSize);
+                cropCtx.fillRect(x - handleSize/2, y + h - handleSize/2, handleSize, handleSize);
+                cropCtx.fillRect(x + w - handleSize/2, y + h - handleSize/2, handleSize, handleSize);
+            }
+            
+            // Show manual crop mode indicator
+            if (isManualCropMode && !currentCropRect && !cropRegion) {
+                cropCtx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+                cropCtx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
+                cropCtx.strokeStyle = '#3b82f6';
+                cropCtx.lineWidth = 2;
+                cropCtx.setLineDash([10, 5]);
+                cropCtx.strokeRect(2, 2, cropCanvas.width - 4, cropCanvas.height - 4);
+                cropCtx.setLineDash([]);
+            }
+        }
+
+        function updateCropInfo() {
+            if (cropRegion) {
+                cropDimensions.textContent = `${cropRegion.width} x ${cropRegion.height} (from ${sourceImage.naturalWidth} x ${sourceImage.naturalHeight})`;
+            } else {
+                cropDimensions.textContent = `Full image (${sourceImage.naturalWidth} x ${sourceImage.naturalHeight})`;
+            }
+        }
+
+        function performAutoCrop() {
+            if (!sourceImage) return;
+            
+            cropStatus.textContent = 'Analyzing...';
+            
+            // Use setTimeout to allow UI to update
+            setTimeout(() => {
+                const tolerance = parseInt(toleranceSlider.value);
+                const bounds = detectContentBounds(sourceImage, tolerance);
+                
+                if (bounds) {
+                    cropRegion = bounds;
+                    currentCropRect = null;
+                    drawCropCanvas();
+                    updateCropInfo();
+                    cropStatus.textContent = 'Auto-crop applied!';
+                    
+                    // Update preview
+                    updatePreviewWithCrop();
+                } else {
+                    cropStatus.textContent = 'No empty space detected';
+                }
+                
+                setTimeout(() => { cropStatus.textContent = ''; }, 2000);
+            }, 50);
+        }
+
+        function detectContentBounds(img, tolerance = 10) {
+            // Create a temporary canvas to analyze pixels
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            let minX = width;
+            let minY = height;
+            let maxX = 0;
+            let maxY = 0;
+            let foundContent = false;
+            
+            // Scan all pixels to find content bounds
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = (y * width + x) * 4;
+                    const r = data[idx];
+                    const g = data[idx + 1];
+                    const b = data[idx + 2];
+                    const a = data[idx + 3];
+                    
+                    // Check if pixel is "content" (not transparent/near-white)
+                    const isTransparent = a < (255 - tolerance * 5);
+                    const isNearWhite = (r > 255 - tolerance && g > 255 - tolerance && b > 255 - tolerance);
+                    const isNearBlack = (r < tolerance && g < tolerance && b < tolerance && a < tolerance * 5);
+                    
+                    // Consider as content if:
+                    // - Not fully transparent
+                    // - Not near-white (for white backgrounds)
+                    // - Has some opacity
+                    const isContent = a > tolerance * 5 && !(isNearWhite && a > 250);
+                    
+                    if (isContent) {
+                        foundContent = true;
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+            
+            if (!foundContent) return null;
+            
+            // Add small padding (2px)
+            const padding = 2;
+            minX = Math.max(0, minX - padding);
+            minY = Math.max(0, minY - padding);
+            maxX = Math.min(width - 1, maxX + padding);
+            maxY = Math.min(height - 1, maxY + padding);
+            
+            const cropWidth = maxX - minX + 1;
+            const cropHeight = maxY - minY + 1;
+            
+            // Only return if we actually found something to crop
+            if (cropWidth >= width - padding * 2 && cropHeight >= height - padding * 2) {
+                return null; // No significant cropping needed
+            }
+            
+            return {
+                x: minX,
+                y: minY,
+                width: cropWidth,
+                height: cropHeight
+            };
+        }
+
+        function toggleManualCropMode() {
+            isManualCropMode = !isManualCropMode;
+            btnManualCrop.classList.toggle('active', isManualCropMode);
+            btnApplyCrop.style.display = isManualCropMode ? 'flex' : 'none';
+            
+            if (isManualCropMode) {
+                cropStatus.textContent = 'Draw a crop rectangle on the image';
+                currentCropRect = null;
+            } else {
+                cropStatus.textContent = '';
+            }
+            
+            drawCropCanvas();
+        }
+
+        function startCropDrag(e) {
+            if (!isManualCropMode) return;
+            
+            const rect = cropCanvas.getBoundingClientRect();
+            const scale = parseFloat(cropCanvas.dataset.scale) || 1;
+            
+            isDragging = true;
+            dragStart = {
+                x: (e.clientX - rect.left) / scale,
+                y: (e.clientY - rect.top) / scale
+            };
+            currentCropRect = null;
+        }
+
+        function updateCropDrag(e) {
+            if (!isDragging || !isManualCropMode) return;
+            
+            const rect = cropCanvas.getBoundingClientRect();
+            const scale = parseFloat(cropCanvas.dataset.scale) || 1;
+            
+            const currentX = (e.clientX - rect.left) / scale;
+            const currentY = (e.clientY - rect.top) / scale;
+            
+            // Calculate crop rectangle
+            const x = Math.max(0, Math.min(dragStart.x, currentX));
+            const y = Math.max(0, Math.min(dragStart.y, currentY));
+            const width = Math.min(sourceImage.naturalWidth - x, Math.abs(currentX - dragStart.x));
+            const height = Math.min(sourceImage.naturalHeight - y, Math.abs(currentY - dragStart.y));
+            
+            currentCropRect = {
+                x: Math.round(x),
+                y: Math.round(y),
+                width: Math.round(width),
+                height: Math.round(height)
+            };
+            
+            drawCropCanvas();
+            
+            // Update dimensions display
+            if (currentCropRect.width > 0 && currentCropRect.height > 0) {
+                cropDimensions.textContent = `${currentCropRect.width} x ${currentCropRect.height}`;
+            }
+        }
+
+        function endCropDrag() {
+            if (!isDragging) return;
+            isDragging = false;
+            
+            if (currentCropRect && currentCropRect.width > 10 && currentCropRect.height > 10) {
+                cropStatus.textContent = 'Click "Apply Crop" to confirm';
+            } else {
+                currentCropRect = null;
+                drawCropCanvas();
+            }
+        }
+
+        function applyCrop() {
+            if (currentCropRect && currentCropRect.width > 0 && currentCropRect.height > 0) {
+                cropRegion = { ...currentCropRect };
+                currentCropRect = null;
+                isManualCropMode = false;
+                btnManualCrop.classList.remove('active');
+                btnApplyCrop.style.display = 'none';
+                
+                drawCropCanvas();
+                updateCropInfo();
+                updatePreviewWithCrop();
+                
+                cropStatus.textContent = 'Crop applied!';
+                setTimeout(() => { cropStatus.textContent = ''; }, 2000);
+            }
+        }
+
+        function resetCrop() {
+            cropRegion = null;
+            currentCropRect = null;
+            isManualCropMode = false;
+            btnManualCrop.classList.remove('active');
+            btnApplyCrop.style.display = 'none';
+            
+            // Reset preview to original
+            if (originalImageData && sourceImage) {
+                previewImage.src = originalImageData;
+                previewInfo.innerHTML = `<span>${sourceFileName}</span> - ${sourceImage.naturalWidth} x ${sourceImage.naturalHeight}`;
+            }
+            
+            drawCropCanvas();
+            updateCropInfo();
+            cropStatus.textContent = 'Crop reset';
+            setTimeout(() => { cropStatus.textContent = ''; }, 2000);
+        }
+
+        function updatePreviewWithCrop() {
+            if (!cropRegion || !sourceImage) return;
+            
+            // Create cropped preview
+            const canvas = document.createElement('canvas');
+            canvas.width = cropRegion.width;
+            canvas.height = cropRegion.height;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.drawImage(
+                sourceImage,
+                cropRegion.x, cropRegion.y, cropRegion.width, cropRegion.height,
+                0, 0, cropRegion.width, cropRegion.height
+            );
+            
+            previewImage.src = canvas.toDataURL('image/png');
+            previewInfo.innerHTML = `<span>${sourceFileName}</span> - ${cropRegion.width} x ${cropRegion.height} <small>(cropped)</small>`;
+        }
+
+        function getCroppedImage() {
+            if (!sourceImage) return null;
+            
+            if (!cropRegion) {
+                return sourceImage;
+            }
+            
+            // Create cropped image
+            const canvas = document.createElement('canvas');
+            canvas.width = cropRegion.width;
+            canvas.height = cropRegion.height;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.drawImage(
+                sourceImage,
+                cropRegion.x, cropRegion.y, cropRegion.width, cropRegion.height,
+                0, 0, cropRegion.width, cropRegion.height
+            );
+            
+            const croppedImg = new Image();
+            croppedImg.src = canvas.toDataURL('image/png');
+            croppedImg.naturalWidth = cropRegion.width;
+            croppedImg.naturalHeight = cropRegion.height;
+            
+            return {
+                element: sourceImage,
+                crop: cropRegion
+            };
+        }
+
+        // ==================== END CROP FUNCTIONS ====================
 
         function addCustomSize() {
             const w = parseInt(customWidth.value) || parseInt(customHeight.value);
@@ -1048,7 +1661,7 @@
             if (existing && w === h) {
                 existing.checked = true;
                 existing.closest('.size-option').classList.add('selected');
-                showStatus(`Size ${w}×${h} already exists and has been selected`, 'info');
+                showStatus(`Size ${w}x${h} already exists and has been selected`, 'info');
                 return;
             }
 
@@ -1061,13 +1674,13 @@
                         <polyline points="20 6 9 17 4 12"/>
                     </svg>
                 </span>
-                <span class="size-label">${w}×${h} <small>custom</small></span>
+                <span class="size-label">${w}x${h} <small>custom</small></span>
             `;
             sizeGrid.appendChild(label);
             
             customWidth.value = '';
             customHeight.value = '';
-            showStatus(`Added custom size ${w}×${h}`, 'success');
+            showStatus(`Added custom size ${w}x${h}`, 'success');
         }
 
         function getSelectedSizes() {
@@ -1100,7 +1713,7 @@
             }
 
             if (formats.length === 0) {
-                showStatus('Please select at least one output format', 'warning');
+                showStatus('Please select at least one format', 'warning');
                 return;
             }
 
@@ -1108,65 +1721,40 @@
             btnGenerate.innerHTML = '<span class="spinner"></span> Generating...';
             showStatus('Generating icons...', 'info');
 
-            generatedFiles = [];
             outputGrid.innerHTML = '';
+            generatedFiles = [];
 
             try {
-                // Generate each size/format combination
-                for (const size of sizes) {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = size.width;
-                    canvas.height = size.height;
-                    const ctx = canvas.getContext('2d');
-                    
-                    // Use high-quality scaling
-                    ctx.imageSmoothingEnabled = true;
-                    ctx.imageSmoothingQuality = 'high';
-                    
-                    // Draw centered and scaled
-                    const scale = Math.min(size.width / sourceImage.naturalWidth, size.height / sourceImage.naturalHeight);
-                    const scaledWidth = sourceImage.naturalWidth * scale;
-                    const scaledHeight = sourceImage.naturalHeight * scale;
-                    const x = (size.width - scaledWidth) / 2;
-                    const y = (size.height - scaledHeight) / 2;
-                    
-                    ctx.drawImage(sourceImage, x, y, scaledWidth, scaledHeight);
+                // Get the image to use (cropped or original)
+                const imgSource = sourceImage;
+                const crop = cropRegion;
 
-                    for (const format of formats) {
-                        if (format === 'ico') continue; // Handle ICO separately
-                        
-                        const mimeType = format === 'jpg' ? 'image/jpeg' : `image/${format}`;
-                        const quality = format === 'jpg' ? 0.92 : undefined;
-                        const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, quality));
-                        const dataUrl = canvas.toDataURL(mimeType, quality);
-                        
-                        const fileName = `${sourceFileName}-${size.width}x${size.height}.${format}`;
-                        generatedFiles.push({ name: fileName, blob, dataUrl, size, format });
-                        
-                        addOutputItem(fileName, dataUrl, size, format);
-                    }
-                }
-
-                // Generate ICO if selected
-                if (formats.includes('ico')) {
-                    const icoSizes = sizes.filter(s => s.width === s.height && s.width <= 256);
-                    if (icoSizes.length > 0) {
-                        const icoBlob = await generateICO(sourceImage, icoSizes);
-                        const icoDataUrl = await blobToDataURL(icoBlob);
-                        const icoFileName = `${sourceFileName}.ico`;
-                        generatedFiles.push({ name: icoFileName, blob: icoBlob, dataUrl: icoDataUrl, size: { width: 'multi', height: 'multi' }, format: 'ico' });
-                        addOutputItem(icoFileName, icoDataUrl, { width: 'multi', height: 'multi' }, 'ico', icoSizes);
+                for (const format of formats) {
+                    if (format === 'ico') {
+                        // Generate multi-size ICO
+                        const icoSizes = sizes.filter(s => s.width <= 256 && s.width === s.height);
+                        if (icoSizes.length > 0) {
+                            const blob = await generateICO(imgSource, icoSizes, crop);
+                            const dataUrl = await blobToDataURL(blob);
+                            const fileName = `${sourceFileName}.ico`;
+                            generatedFiles.push({ name: fileName, blob });
+                            addOutputItem(fileName, dataUrl, { width: 'multi', height: 'multi' }, 'ico', icoSizes);
+                        }
                     } else {
-                        showStatus('ICO format requires square sizes ≤256px. Skipped ICO generation.', 'warning');
+                        for (const size of sizes) {
+                            const { blob, dataUrl } = await generateImage(imgSource, size, format, crop);
+                            const fileName = `${sourceFileName}-${size.width}x${size.height}.${format}`;
+                            generatedFiles.push({ name: fileName, blob });
+                            addOutputItem(fileName, dataUrl, size, format);
+                        }
                     }
                 }
 
                 outputSection.style.display = 'block';
-                showStatus(`Generated ${generatedFiles.length} icons successfully!`, 'success');
-
+                showStatus(`Generated ${generatedFiles.length} files successfully!`, 'success');
             } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
                 console.error(error);
-                showStatus(`Error generating icons: ${error.message}`, 'error');
             }
 
             btnGenerate.disabled = false;
@@ -1176,6 +1764,45 @@
                 </svg>
                 Generate Icons
             `;
+        }
+
+        async function generateImage(img, size, format, crop = null) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size.width;
+            canvas.height = size.height;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
+            // Source dimensions (use crop if available)
+            const srcX = crop ? crop.x : 0;
+            const srcY = crop ? crop.y : 0;
+            const srcW = crop ? crop.width : img.naturalWidth;
+            const srcH = crop ? crop.height : img.naturalHeight;
+
+            // Calculate scaling to fit while maintaining aspect ratio
+            const scale = Math.min(size.width / srcW, size.height / srcH);
+            const scaledWidth = srcW * scale;
+            const scaledHeight = srcH * scale;
+            const x = (size.width - scaledWidth) / 2;
+            const y = (size.height - scaledHeight) / 2;
+
+            // Fill with transparency for PNG/WebP or white for JPG
+            if (format === 'jpg') {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, size.width, size.height);
+            }
+
+            ctx.drawImage(img, srcX, srcY, srcW, srcH, x, y, scaledWidth, scaledHeight);
+
+            const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
+            const quality = format === 'png' ? undefined : 0.92;
+
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, quality));
+            const dataUrl = canvas.toDataURL(mimeType, quality);
+
+            return { blob, dataUrl };
         }
 
         function addOutputItem(fileName, dataUrl, size, format, icoSizes = null) {
@@ -1305,7 +1932,7 @@
         }
 
         // ICO Generation
-        async function generateICO(img, sizes) {
+        async function generateICO(img, sizes, crop = null) {
             const images = [];
             
             for (const size of sizes) {
@@ -1316,13 +1943,19 @@
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'high';
                 
-                const scale = Math.min(size.width / img.naturalWidth, size.height / img.naturalHeight);
-                const scaledWidth = img.naturalWidth * scale;
-                const scaledHeight = img.naturalHeight * scale;
+                // Source dimensions (use crop if available)
+                const srcX = crop ? crop.x : 0;
+                const srcY = crop ? crop.y : 0;
+                const srcW = crop ? crop.width : img.naturalWidth;
+                const srcH = crop ? crop.height : img.naturalHeight;
+                
+                const scale = Math.min(size.width / srcW, size.height / srcH);
+                const scaledWidth = srcW * scale;
+                const scaledHeight = srcH * scale;
                 const x = (size.width - scaledWidth) / 2;
                 const y = (size.height - scaledHeight) / 2;
                 
-                ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
+                ctx.drawImage(img, srcX, srcY, srcW, srcH, x, y, scaledWidth, scaledHeight);
                 
                 const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
                 const arrayBuffer = await blob.arrayBuffer();
