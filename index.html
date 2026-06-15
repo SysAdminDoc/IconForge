@@ -823,6 +823,34 @@
             color: var(--accent);
         }
 
+        /* Code Snippets */
+        .snippet-block {
+            margin-top: 0.75rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+        }
+
+        .snippet-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .snippet-code {
+            padding: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            overflow-x: auto;
+            white-space: pre;
+            margin: 0;
+        }
+
         /* Status Messages */
         .status {
             padding: 0.6rem 0.875rem;
@@ -1609,6 +1637,37 @@
                             </svg>
                             Save to Folder
                         </button>
+                    </div>
+
+                    <div id="snippetSection" style="display:none;">
+                        <div class="panel-header" style="margin-top: 1rem;">
+                            <div class="panel-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                            </div>
+                            <h2>Code Snippets</h2>
+                        </div>
+
+                        <div class="snippet-block">
+                            <div class="snippet-header">
+                                <span class="section-label" style="margin:0">HTML &lt;head&gt; Tags</span>
+                                <button class="btn-copy" id="btnCopyHtml" title="Copy HTML tags">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    Copy
+                                </button>
+                            </div>
+                            <pre class="snippet-code" id="htmlSnippet"></pre>
+                        </div>
+
+                        <div class="snippet-block" id="manifestSnippetBlock" style="display:none;">
+                            <div class="snippet-header">
+                                <span class="section-label" style="margin:0">manifest.webmanifest icons</span>
+                                <button class="btn-copy" id="btnCopyManifest" title="Copy manifest JSON">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    Copy
+                                </button>
+                            </div>
+                            <pre class="snippet-code" id="manifestSnippet"></pre>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2800,6 +2859,7 @@ self.onmessage = async function(e) {
                 outputSection.style.display = 'block';
                 const totalSize = generatedFiles.reduce((s, f) => s + f.blob.size, 0);
                 showStatus(`Generated ${generatedFiles.length} files (${formatFileSize(totalSize)} total)`, 'success');
+                generateSnippets(sizes, formats);
             } catch (error) {
                 showStatus(`Error: ${error.message}`, 'error');
                 console.error(error);
@@ -2928,6 +2988,69 @@ self.onmessage = async function(e) {
                 button.innerHTML = originalText;
             }, 1500);
         }
+
+        function generateSnippets(sizes, formats) {
+            const snippetSection = document.getElementById('snippetSection');
+            const htmlSnippet = document.getElementById('htmlSnippet');
+            const manifestSnippet = document.getElementById('manifestSnippet');
+            const manifestBlock = document.getElementById('manifestSnippetBlock');
+
+            const lines = [];
+            const hasIco = formats.includes('ico');
+            const hasSvg = formats.includes('svg');
+            const hasPng = formats.includes('png');
+            const sizeValues = sizes.map(s => s.width);
+
+            if (hasIco) {
+                lines.push(`<link rel="icon" href="/favicon.ico" sizes="32x32">`);
+            }
+            if (hasSvg) {
+                lines.push(`<link rel="icon" href="/icon.svg" type="image/svg+xml">`);
+            }
+            if (hasPng && sizeValues.includes(180)) {
+                lines.push(`<link rel="apple-touch-icon" href="/apple-touch-icon.png">`);
+            }
+            if (hasPng && (sizeValues.includes(192) || sizeValues.includes(512))) {
+                lines.push(`<link rel="manifest" href="/manifest.webmanifest">`);
+            }
+
+            htmlSnippet.textContent = lines.join('\n') || '<!-- No applicable tags for selected formats -->';
+            snippetSection.style.display = 'block';
+
+            // Manifest JSON — only if PWA-relevant sizes exist
+            const manifestSizes = sizes.filter(s =>
+                [192, 512].includes(s.width) && s.width === s.height && hasPng
+            );
+            if (manifestSizes.length > 0) {
+                const icons = [];
+                for (const s of manifestSizes) {
+                    icons.push({
+                        src: `/${sourceFileName}-${s.width}x${s.height}.png`,
+                        sizes: `${s.width}x${s.height}`,
+                        type: 'image/png',
+                        purpose: s.width >= 512 ? 'maskable' : 'any'
+                    });
+                }
+                manifestSnippet.textContent = JSON.stringify({ icons }, null, 2);
+                manifestBlock.style.display = 'block';
+            } else {
+                manifestBlock.style.display = 'none';
+            }
+        }
+
+        document.getElementById('btnCopyHtml').addEventListener('click', async function() {
+            try {
+                await navigator.clipboard.writeText(document.getElementById('htmlSnippet').textContent);
+                showCopyFeedback(this);
+            } catch { showStatus('Failed to copy', 'error'); }
+        });
+
+        document.getElementById('btnCopyManifest').addEventListener('click', async function() {
+            try {
+                await navigator.clipboard.writeText(document.getElementById('manifestSnippet').textContent);
+                showCopyFeedback(this);
+            } catch { showStatus('Failed to copy', 'error'); }
+        });
 
         async function downloadAll() {
             if (generatedFiles.length === 0) return;
