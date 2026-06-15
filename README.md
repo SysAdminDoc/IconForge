@@ -4,6 +4,8 @@
 
 Generate favicons, PWA icons, and browser extension assets — entirely in your browser. No uploads, no server, no tracking. Works offline.
 
+**[Launch Icon Forge](https://sysadmindoc.github.io/IconForge/)**
+
 ## Features
 
 - **Multiple input modes** — upload an image, paste from clipboard (Ctrl+V), create from text/letter, or pick an emoji
@@ -20,7 +22,7 @@ Generate favicons, PWA icons, and browser extension assets — entirely in your 
 
 ## Getting Started
 
-1. Open `index.html` in any modern browser
+1. Go to **[sysadmindoc.github.io/IconForge](https://sysadmindoc.github.io/IconForge/)** (or open `index.html` locally)
 2. Upload an image (or use text/emoji mode)
 3. Select sizes and formats (or pick a preset)
 4. Click **Generate Icons**
@@ -51,7 +53,7 @@ No build step, no package manager, no dependencies.
 | Extension | 16, 32, 48, 128 | Chrome/Firefox extension |
 | All Sizes | 16–512 (9 sizes) | Complete coverage |
 
-Custom sizes up to 4096×4096 can be added.
+Custom sizes up to 4096x4096 can be added.
 
 ## Browser Support
 
