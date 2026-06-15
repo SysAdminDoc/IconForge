@@ -1130,9 +1130,37 @@
     </div>
 
     <!-- JSZip for ZIP downloads -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
     
     <script>
+        const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
+
+        function limitImageSize(width, height) {
+            const pixels = width * height;
+            if (pixels <= MAX_CANVAS_PIXELS) return { width, height, scaled: false };
+            const scale = Math.sqrt(MAX_CANVAS_PIXELS / pixels);
+            return { width: Math.floor(width * scale), height: Math.floor(height * scale), scaled: true };
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function setPreviewInfo(name, width, height, suffix) {
+            previewInfo.textContent = '';
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = name;
+            previewInfo.appendChild(nameSpan);
+            previewInfo.appendChild(document.createTextNode(` — ${width} × ${height}`));
+            if (suffix) {
+                const small = document.createElement('small');
+                small.textContent = ` (${suffix})`;
+                previewInfo.appendChild(small);
+            }
+        }
+
         // State
         let sourceImage = null;
         let sourceFileName = '';
@@ -1269,16 +1297,45 @@
             reader.onload = (e) => {
                 const img = new Image();
                 img.onload = () => {
+                    // Downscale if image exceeds safe canvas limits
+                    const safeSize = limitImageSize(img.naturalWidth, img.naturalHeight);
+                    if (safeSize.scaled) {
+                        const tmpCanvas = document.createElement('canvas');
+                        tmpCanvas.width = safeSize.width;
+                        tmpCanvas.height = safeSize.height;
+                        const tmpCtx = tmpCanvas.getContext('2d');
+                        tmpCtx.drawImage(img, 0, 0, safeSize.width, safeSize.height);
+                        const scaledImg = new Image();
+                        scaledImg.onload = () => {
+                            sourceImage = scaledImg;
+                            originalImageData = tmpCanvas.toDataURL('image/png');
+                            previewImage.src = originalImageData;
+                            setPreviewInfo(file.name, safeSize.width, safeSize.height, `downscaled from ${img.naturalWidth}×${img.naturalHeight}`);
+                            showStatus(`Image was downscaled from ${img.naturalWidth}×${img.naturalHeight} to ${safeSize.width}×${safeSize.height} (browser canvas limit)`, 'warning');
+                            dropZone.style.display = 'none';
+                            previewContainer.classList.add('active');
+                            btnGenerate.disabled = false;
+                            outputSection.style.display = 'none';
+                            cropSection.classList.add('active');
+                            cropRegion = null;
+                            initCropCanvas();
+                            tmpCanvas.width = 0;
+                            tmpCanvas.height = 0;
+                        };
+                        scaledImg.src = tmpCanvas.toDataURL('image/png');
+                        return;
+                    }
+
                     sourceImage = img;
                     originalImageData = e.target.result;
                     previewImage.src = e.target.result;
-                    previewInfo.innerHTML = `<span>${file.name}</span> - ${img.naturalWidth} x ${img.naturalHeight}`;
+                    setPreviewInfo(file.name, img.naturalWidth, img.naturalHeight);
                     dropZone.style.display = 'none';
                     previewContainer.classList.add('active');
                     btnGenerate.disabled = false;
                     outputSection.style.display = 'none';
                     showStatus('', '');
-                    
+
                     // Initialize crop section
                     cropSection.classList.add('active');
                     cropRegion = null;
@@ -1591,7 +1648,7 @@
             // Reset preview to original
             if (originalImageData && sourceImage) {
                 previewImage.src = originalImageData;
-                previewInfo.innerHTML = `<span>${sourceFileName}</span> - ${sourceImage.naturalWidth} x ${sourceImage.naturalHeight}`;
+                setPreviewInfo(sourceFileName, sourceImage.naturalWidth, sourceImage.naturalHeight);
             }
             
             drawCropCanvas();
@@ -1616,37 +1673,13 @@
             );
             
             previewImage.src = canvas.toDataURL('image/png');
-            previewInfo.innerHTML = `<span>${sourceFileName}</span> - ${cropRegion.width} x ${cropRegion.height} <small>(cropped)</small>`;
+            setPreviewInfo(sourceFileName, cropRegion.width, cropRegion.height, 'cropped');
         }
 
         function getCroppedImage() {
             if (!sourceImage) return null;
-            
-            if (!cropRegion) {
-                return sourceImage;
-            }
-            
-            // Create cropped image
-            const canvas = document.createElement('canvas');
-            canvas.width = cropRegion.width;
-            canvas.height = cropRegion.height;
-            const ctx = canvas.getContext('2d');
-            
-            ctx.drawImage(
-                sourceImage,
-                cropRegion.x, cropRegion.y, cropRegion.width, cropRegion.height,
-                0, 0, cropRegion.width, cropRegion.height
-            );
-            
-            const croppedImg = new Image();
-            croppedImg.src = canvas.toDataURL('image/png');
-            croppedImg.naturalWidth = cropRegion.width;
-            croppedImg.naturalHeight = cropRegion.height;
-            
-            return {
-                element: sourceImage,
-                crop: cropRegion
-            };
+            if (!cropRegion) return { element: sourceImage, crop: null };
+            return { element: sourceImage, crop: cropRegion };
         }
 
         // ==================== END CROP FUNCTIONS ====================
@@ -1812,19 +1845,20 @@
         function addOutputItem(fileName, dataUrl, size, format, icoSizes = null) {
             const item = document.createElement('div');
             item.className = 'output-item';
-            
-            const sizeText = size.width === 'multi' 
+
+            const sizeText = size.width === 'multi'
                 ? icoSizes.map(s => `${s.width}`).join(', ')
                 : `${size.width}x${size.height}`;
-            
+
+            const safeName = escapeHtml(fileName);
             const uniqueId = `base64-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            
+
             item.innerHTML = `
                 <div class="output-preview">
-                    <img src="${dataUrl}" alt="${fileName}">
+                    <img src="${dataUrl}" alt="${safeName}">
                 </div>
                 <div class="output-info">${sizeText}<br>${format.toUpperCase()}</div>
-                <button class="btn-download" data-filename="${fileName}">Download</button>
+                <button class="btn-download" data-filename="${safeName}">Download</button>
                 <div class="base64-section">
                     <span class="base64-label">Base64:</span>
                     <div class="base64-container">
