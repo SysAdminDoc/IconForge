@@ -1273,6 +1273,12 @@
                             </svg>
                             Download All as ZIP
                         </button>
+                        <button class="btn-download-all" id="btnSaveToFolder" style="display:none; margin-top:0.5rem;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            Save to Folder
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1467,6 +1473,12 @@
         btnAddSize.addEventListener('click', addCustomSize);
         btnGenerate.addEventListener('click', generateIcons);
         btnDownloadAll.addEventListener('click', downloadAll);
+
+        const btnSaveToFolder = document.getElementById('btnSaveToFolder');
+        if ('showDirectoryPicker' in window) {
+            btnSaveToFolder.style.display = '';
+            btnSaveToFolder.addEventListener('click', saveToFolder);
+        }
 
         // Preset buttons
         const PRESETS = {
@@ -2360,6 +2372,24 @@
                 </svg>
                 Download All as ZIP
             `;
+        }
+
+        async function saveToFolder() {
+            if (generatedFiles.length === 0) return;
+            try {
+                const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                for (const file of generatedFiles) {
+                    const fileHandle = await dirHandle.getFileHandle(file.name, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(file.blob);
+                    await writable.close();
+                }
+                showStatus(`Saved ${generatedFiles.length} files to folder`, 'success');
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    showStatus(`Error saving: ${err.message}`, 'error');
+                }
+            }
         }
 
         // ICO Generation
