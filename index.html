@@ -2105,6 +2105,15 @@
                 return;
             }
 
+            const sizeMB = file.size / (1024 * 1024);
+            if (sizeMB > 200) {
+                showStatus(`File too large (${sizeMB.toFixed(0)} MB). Maximum is 200 MB.`, 'error');
+                return;
+            }
+            if (sizeMB > 50) {
+                showStatus(`Large file (${sizeMB.toFixed(0)} MB) — processing may be slow.`, 'warning');
+            }
+
             sourceFileName = file.name.replace(/\.[^/.]+$/, '');
             
             const reader = new FileReader();
@@ -2390,8 +2399,11 @@
                 }
             }
             
+            canvas.width = 0;
+            canvas.height = 0;
+
             if (!foundContent) return null;
-            
+
             // Add small padding (2px)
             const padding = 2;
             minX = Math.max(0, minX - padding);
@@ -2524,20 +2536,21 @@
 
         function updatePreviewWithCrop() {
             if (!cropRegion || !sourceImage) return;
-            
-            // Create cropped preview
+
             const canvas = document.createElement('canvas');
             canvas.width = cropRegion.width;
             canvas.height = cropRegion.height;
             const ctx = canvas.getContext('2d');
-            
+
             ctx.drawImage(
                 sourceImage,
                 cropRegion.x, cropRegion.y, cropRegion.width, cropRegion.height,
                 0, 0, cropRegion.width, cropRegion.height
             );
-            
+
             previewImage.src = canvas.toDataURL('image/png');
+            canvas.width = 0;
+            canvas.height = 0;
             setPreviewInfo(sourceFileName, cropRegion.width, cropRegion.height, 'cropped');
         }
 
