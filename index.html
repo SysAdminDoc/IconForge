@@ -857,6 +857,112 @@
             color: var(--accent);
         }
 
+        /* Input mode tabs */
+        .input-mode-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .mode-tab {
+            flex: 1;
+            padding: 0.5rem 1rem;
+            background: var(--bg-dark);
+            border: none;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .mode-tab + .mode-tab {
+            border-left: 1px solid var(--border);
+        }
+
+        .mode-tab:hover {
+            color: var(--text-primary);
+        }
+
+        .mode-tab.active {
+            background: var(--accent-glow);
+            color: var(--accent);
+        }
+
+        /* Text-to-favicon */
+        .text-favicon-section {
+            padding: 0.5rem 0;
+        }
+
+        .text-input {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .font-select {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.85rem;
+        }
+
+        .text-color-row {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .text-color-row label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .text-color-row input[type="color"] {
+            width: 36px;
+            height: 28px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: none;
+            cursor: pointer;
+        }
+
+        .shape-options {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .text-preview-area {
+            display: flex;
+            justify-content: center;
+        }
+
+        #textPreviewCanvas {
+            width: 128px;
+            height: 128px;
+            border-radius: 8px;
+            background: repeating-conic-gradient(#1a1a1d 0% 25%, #222225 0% 50%) 50% / 12px 12px;
+        }
+
         /* SVG dark mode section */
         .svg-darkmode-section {
             margin-bottom: 1.5rem;
@@ -1004,6 +1110,12 @@
                     <h2>Source Image</h2>
                 </div>
 
+                <div class="input-mode-tabs">
+                    <button class="mode-tab active" data-mode="upload">Upload</button>
+                    <button class="mode-tab" data-mode="text">Text</button>
+                </div>
+
+                <div id="uploadMode">
                 <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Drop, paste, or press Enter to browse for an image. Supported formats: PNG, JPG, GIF, WebP, SVG, BMP, TIFF">
                     <div class="drop-zone-icon" aria-hidden="true">&#128193;</div>
                     <p class="drop-zone-text">Drop an image, paste from clipboard, or click to browse</p>
@@ -1098,6 +1210,44 @@
                         Note: EPS and AI files require conversion to SVG first (use Adobe Illustrator, Inkscape, or an online converter)
                     </p>
                 </div>
+                </div><!-- /uploadMode -->
+
+                <div id="textMode" style="display:none;">
+                    <div class="text-favicon-section">
+                        <label class="section-label">Letter or Text</label>
+                        <input type="text" id="textInput" class="text-input" maxlength="3" value="A" placeholder="A">
+
+                        <label class="section-label" style="margin-top:1rem;">Font</label>
+                        <select id="fontSelect" class="font-select">
+                            <option value="'Space Grotesk', sans-serif">Space Grotesk</option>
+                            <option value="'Arial', sans-serif">Arial</option>
+                            <option value="'Georgia', serif">Georgia</option>
+                            <option value="'Courier New', monospace">Courier New</option>
+                            <option value="'Impact', sans-serif">Impact</option>
+                            <option value="system-ui, sans-serif">System UI</option>
+                            <option value="serif">Serif</option>
+                        </select>
+
+                        <div class="text-color-row" style="margin-top:1rem;">
+                            <label class="section-label">Text Color <input type="color" id="textColor" value="#ffffff"></label>
+                            <label class="section-label">Background <input type="color" id="textBgColor" value="#f97316"></label>
+                        </div>
+
+                        <label class="section-label" style="margin-top:1rem;">Shape</label>
+                        <div class="shape-options" id="shapeOptions">
+                            <button class="btn-crop active" data-shape="rounded">Rounded</button>
+                            <button class="btn-crop" data-shape="circle">Circle</button>
+                            <button class="btn-crop" data-shape="square">Square</button>
+                        </div>
+
+                        <div class="text-preview-area" style="margin-top:1rem;">
+                            <canvas id="textPreviewCanvas" width="256" height="256"></canvas>
+                        </div>
+
+                        <button class="btn-crop primary" id="btnUseTextIcon" style="margin-top:1rem; width:100%;">Use This as Source</button>
+                    </div>
+                </div><!-- /textMode -->
+
             </div>
 
             <!-- Right Panel - Options & Output -->
@@ -1442,6 +1592,105 @@
         const cropWInput = document.getElementById('cropW');
         const cropHInput = document.getElementById('cropH');
         const btnApplyNumericCrop = document.getElementById('btnApplyNumericCrop');
+
+        // Input mode tabs
+        const uploadMode = document.getElementById('uploadMode');
+        const textMode = document.getElementById('textMode');
+        document.querySelector('.input-mode-tabs').addEventListener('click', (e) => {
+            const tab = e.target.closest('.mode-tab');
+            if (!tab) return;
+            document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            const mode = tab.dataset.mode;
+            uploadMode.style.display = mode === 'upload' ? '' : 'none';
+            textMode.style.display = mode === 'text' ? '' : 'none';
+            if (mode === 'text') renderTextPreview();
+        });
+
+        // Text-to-favicon
+        const textPreviewCanvas = document.getElementById('textPreviewCanvas');
+        const textPreviewCtx = textPreviewCanvas.getContext('2d');
+        const textInput = document.getElementById('textInput');
+        const fontSelect = document.getElementById('fontSelect');
+        const textColor = document.getElementById('textColor');
+        const textBgColor = document.getElementById('textBgColor');
+        let textShape = 'rounded';
+
+        document.getElementById('shapeOptions').addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-shape]');
+            if (!btn) return;
+            document.querySelectorAll('#shapeOptions .btn-crop').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            textShape = btn.dataset.shape;
+            renderTextPreview();
+        });
+
+        [textInput, fontSelect, textColor, textBgColor].forEach(el => {
+            el.addEventListener('input', renderTextPreview);
+        });
+
+        function renderTextPreview() {
+            const size = 256;
+            textPreviewCanvas.width = size;
+            textPreviewCanvas.height = size;
+            const ctx = textPreviewCtx;
+            const bg = textBgColor.value;
+            const fg = textColor.value;
+            const font = fontSelect.value;
+            const letter = textInput.value || 'A';
+
+            ctx.clearRect(0, 0, size, size);
+
+            ctx.fillStyle = bg;
+            if (textShape === 'circle') {
+                ctx.beginPath();
+                ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (textShape === 'rounded') {
+                const r = size * 0.2;
+                ctx.beginPath();
+                ctx.roundRect(0, 0, size, size, r);
+                ctx.fill();
+            } else {
+                ctx.fillRect(0, 0, size, size);
+            }
+
+            ctx.fillStyle = fg;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const fontSize = letter.length === 1 ? size * 0.6 : letter.length === 2 ? size * 0.45 : size * 0.35;
+            ctx.font = `bold ${fontSize}px ${font}`;
+            ctx.fillText(letter, size / 2, size / 2 + fontSize * 0.04);
+        }
+
+        document.getElementById('btnUseTextIcon').addEventListener('click', () => {
+            renderTextPreview();
+            const img = new Image();
+            img.onload = () => {
+                sourceImage = img;
+                sourceFileName = `icon-${textInput.value || 'A'}`;
+                originalImageData = textPreviewCanvas.toDataURL('image/png');
+                previewImage.src = originalImageData;
+                setPreviewInfo(sourceFileName, 256, 256, 'text');
+
+                document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+                document.querySelector('.mode-tab[data-mode="upload"]').classList.add('active');
+                uploadMode.style.display = '';
+                textMode.style.display = 'none';
+
+                dropZone.style.display = 'none';
+                previewContainer.classList.add('active');
+                btnGenerate.disabled = false;
+                outputSection.style.display = 'none';
+                showStatus('', '');
+                cropSection.classList.add('active');
+                cropRegion = null;
+                initCropCanvas();
+            };
+            img.src = textPreviewCanvas.toDataURL('image/png');
+        });
+
+        renderTextPreview();
 
         // Clipboard paste support
         document.addEventListener('paste', (e) => {
