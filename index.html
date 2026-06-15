@@ -963,6 +963,40 @@
             background: repeating-conic-gradient(#1a1a1d 0% 25%, #222225 0% 50%) 50% / 12px 12px;
         }
 
+        /* Emoji grid */
+        .emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 0.25rem;
+            max-height: 200px;
+            overflow-y: auto;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.5rem;
+        }
+
+        .emoji-btn {
+            padding: 0.35rem;
+            background: none;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            line-height: 1;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+
+        .emoji-btn:hover {
+            background: var(--bg-hover);
+        }
+
+        .emoji-btn.selected {
+            border-color: var(--accent);
+            background: var(--accent-glow);
+        }
+
         /* SVG dark mode section */
         .svg-darkmode-section {
             margin-bottom: 1.5rem;
@@ -1113,6 +1147,7 @@
                 <div class="input-mode-tabs">
                     <button class="mode-tab active" data-mode="upload">Upload</button>
                     <button class="mode-tab" data-mode="text">Text</button>
+                    <button class="mode-tab" data-mode="emoji">Emoji</button>
                 </div>
 
                 <div id="uploadMode">
@@ -1247,6 +1282,30 @@
                         <button class="btn-crop primary" id="btnUseTextIcon" style="margin-top:1rem; width:100%;">Use This as Source</button>
                     </div>
                 </div><!-- /textMode -->
+
+                <div id="emojiMode" style="display:none;">
+                    <div class="text-favicon-section">
+                        <label class="section-label">Pick an Emoji</label>
+                        <div class="emoji-grid" id="emojiGrid"></div>
+
+                        <div class="text-color-row" style="margin-top:1rem;">
+                            <label class="section-label">Background <input type="color" id="emojiBgColor" value="#f97316"></label>
+                        </div>
+
+                        <label class="section-label" style="margin-top:1rem;">Shape</label>
+                        <div class="shape-options" id="emojiShapeOptions">
+                            <button class="btn-crop active" data-shape="rounded">Rounded</button>
+                            <button class="btn-crop" data-shape="circle">Circle</button>
+                            <button class="btn-crop" data-shape="square">Square</button>
+                        </div>
+
+                        <div class="text-preview-area" style="margin-top:1rem;">
+                            <canvas id="emojiPreviewCanvas" width="256" height="256"></canvas>
+                        </div>
+
+                        <button class="btn-crop primary" id="btnUseEmojiIcon" style="margin-top:1rem; width:100%;">Use This as Source</button>
+                    </div>
+                </div><!-- /emojiMode -->
 
             </div>
 
@@ -1600,6 +1659,7 @@
         // Input mode tabs
         const uploadMode = document.getElementById('uploadMode');
         const textMode = document.getElementById('textMode');
+        const emojiMode = document.getElementById('emojiMode');
         document.querySelector('.input-mode-tabs').addEventListener('click', (e) => {
             const tab = e.target.closest('.mode-tab');
             if (!tab) return;
@@ -1608,7 +1668,9 @@
             const mode = tab.dataset.mode;
             uploadMode.style.display = mode === 'upload' ? '' : 'none';
             textMode.style.display = mode === 'text' ? '' : 'none';
+            emojiMode.style.display = mode === 'emoji' ? '' : 'none';
             if (mode === 'text') renderTextPreview();
+            if (mode === 'emoji') renderEmojiPreview();
         });
 
         // Text-to-favicon
@@ -1695,6 +1757,102 @@
         });
 
         renderTextPreview();
+
+        // Emoji-to-favicon
+        const EMOJIS = ['🔥','⚡','🚀','💎','🎯','🎨','🔒','🌟','💡','🎵','🎮','🏆','💬','📦','🔧','⚙️',
+            '🌍','🌈','❤️','🍕','☕','🎲','🐱','🐶','🦊','🐸','🌸','🌺','🍀','🎄','⭐','🌙',
+            '✨','🎁','🎪','🛡️','⚔️','🏠','🔔','📱','💻','🖥️','📊','📈','🎓','📚','✏️','🔍',
+            '🗂️','📋','🎤','🎸','🎹','🎬','📷','🖼️','🧩','🏗️','🚗','✈️','🚢','🏔️','🌊','🔮'];
+
+        const emojiGrid = document.getElementById('emojiGrid');
+        let selectedEmoji = '🔥';
+
+        EMOJIS.forEach(em => {
+            const btn = document.createElement('button');
+            btn.className = 'emoji-btn' + (em === selectedEmoji ? ' selected' : '');
+            btn.textContent = em;
+            btn.addEventListener('click', () => {
+                emojiGrid.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+                selectedEmoji = em;
+                renderEmojiPreview();
+            });
+            emojiGrid.appendChild(btn);
+        });
+
+        const emojiPreviewCanvas = document.getElementById('emojiPreviewCanvas');
+        const emojiPreviewCtx = emojiPreviewCanvas.getContext('2d');
+        const emojiBgColor = document.getElementById('emojiBgColor');
+        let emojiShape = 'rounded';
+
+        document.getElementById('emojiShapeOptions').addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-shape]');
+            if (!btn) return;
+            document.querySelectorAll('#emojiShapeOptions .btn-crop').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            emojiShape = btn.dataset.shape;
+            renderEmojiPreview();
+        });
+
+        emojiBgColor.addEventListener('input', renderEmojiPreview);
+
+        function renderEmojiPreview() {
+            const size = 256;
+            emojiPreviewCanvas.width = size;
+            emojiPreviewCanvas.height = size;
+            const ctx = emojiPreviewCtx;
+            const bg = emojiBgColor.value;
+
+            ctx.clearRect(0, 0, size, size);
+            ctx.fillStyle = bg;
+
+            if (emojiShape === 'circle') {
+                ctx.beginPath();
+                ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (emojiShape === 'rounded') {
+                ctx.beginPath();
+                ctx.roundRect(0, 0, size, size, size * 0.2);
+                ctx.fill();
+            } else {
+                ctx.fillRect(0, 0, size, size);
+            }
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = `${size * 0.65}px serif`;
+            ctx.fillText(selectedEmoji, size / 2, size / 2 + size * 0.03);
+        }
+
+        document.getElementById('btnUseEmojiIcon').addEventListener('click', () => {
+            renderEmojiPreview();
+            const img = new Image();
+            img.onload = () => {
+                sourceImage = img;
+                sourceFileName = `icon-emoji`;
+                originalImageData = emojiPreviewCanvas.toDataURL('image/png');
+                previewImage.src = originalImageData;
+                setPreviewInfo('emoji icon', 256, 256, 'emoji');
+
+                document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+                document.querySelector('.mode-tab[data-mode="upload"]').classList.add('active');
+                uploadMode.style.display = '';
+                textMode.style.display = 'none';
+                emojiMode.style.display = 'none';
+
+                dropZone.style.display = 'none';
+                previewContainer.classList.add('active');
+                btnGenerate.disabled = false;
+                outputSection.style.display = 'none';
+                showStatus('', '');
+                cropSection.classList.add('active');
+                cropRegion = null;
+                initCropCanvas();
+            };
+            img.src = emojiPreviewCanvas.toDataURL('image/png');
+        });
+
+        renderEmojiPreview();
 
         // Clipboard paste support
         document.addEventListener('paste', (e) => {
