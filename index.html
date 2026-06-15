@@ -938,9 +938,9 @@
                     <h2>Source Image</h2>
                 </div>
 
-                <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Drop an image here or press Enter to browse. Supported formats: PNG, JPG, GIF, WebP, SVG, BMP, TIFF">
+                <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Drop, paste, or press Enter to browse for an image. Supported formats: PNG, JPG, GIF, WebP, SVG, BMP, TIFF">
                     <div class="drop-zone-icon" aria-hidden="true">&#128193;</div>
-                    <p class="drop-zone-text">Drop an image here or click to browse</p>
+                    <p class="drop-zone-text">Drop an image, paste from clipboard, or click to browse</p>
                     <p class="drop-zone-formats">PNG, JPG, GIF, WebP, SVG, BMP, TIFF</p>
                     <input type="file" class="file-input" id="fileInput" accept="image/*,.svg" aria-label="Choose image file">
                 </div>
@@ -1347,6 +1347,20 @@
         const cropWInput = document.getElementById('cropW');
         const cropHInput = document.getElementById('cropH');
         const btnApplyNumericCrop = document.getElementById('btnApplyNumericCrop');
+
+        // Clipboard paste support
+        document.addEventListener('paste', (e) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) loadImage(file);
+                    return;
+                }
+            }
+        });
 
         // Event Listeners
         dropZone.addEventListener('click', () => fileInput.click());
