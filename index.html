@@ -2283,6 +2283,54 @@
             return { element: sourceImage, crop: cropRegion };
         }
 
+        // ==================== RESIZE WORKER ====================
+
+        const workerCode = `
+self.onmessage = async function(e) {
+    const { id, bitmap, width, height, format, crop, quality } = e.data;
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    const srcX = crop ? crop.x : 0, srcY = crop ? crop.y : 0;
+    const srcW = crop ? crop.width : bitmap.width, srcH = crop ? crop.height : bitmap.height;
+    const scale = Math.min(width / srcW, height / srcH);
+    const sw = srcW * scale, sh = srcH * scale;
+    const dx = (width - sw) / 2, dy = (height - sh) / 2;
+    if (format === 'jpg') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, width, height); }
+    ctx.drawImage(bitmap, srcX, srcY, srcW, srcH, dx, dy, sw, sh);
+    const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
+    const blob = await canvas.convertToBlob({ type: mimeType, quality: format === 'png' ? undefined : quality || 0.92 });
+    self.postMessage({ id, blob });
+};`;
+
+        let resizeWorker = null;
+        let workerJobId = 0;
+        const workerCallbacks = new Map();
+
+        function initWorker() {
+            try {
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                const url = URL.createObjectURL(blob);
+                resizeWorker = new Worker(url);
+                resizeWorker.onmessage = (e) => {
+                    const cb = workerCallbacks.get(e.data.id);
+                    if (cb) { workerCallbacks.delete(e.data.id); cb(e.data.blob); }
+                };
+                resizeWorker.onerror = () => { resizeWorker = null; };
+                URL.revokeObjectURL(url);
+            } catch { resizeWorker = null; }
+        }
+        initWorker();
+
+        function resizeInWorker(bitmap, width, height, format, crop) {
+            return new Promise((resolve) => {
+                const id = ++workerJobId;
+                workerCallbacks.set(id, resolve);
+                resizeWorker.postMessage({ id, bitmap, width, height, format, crop });
+            });
+        }
+
         // ==================== END CROP FUNCTIONS ====================
 
         function addCustomSize() {
@@ -2400,8 +2448,10 @@
             outputGrid.innerHTML = '';
             generatedFiles = [];
 
+            const totalOps = formats.reduce((n, f) => n + (f === 'ico' || f === 'svg' ? 1 : sizes.length), 0);
+            let completedOps = 0;
+
             try {
-                // Get the image to use (cropped or original)
                 const imgSource = sourceImage;
                 const crop = cropRegion;
 
@@ -2415,6 +2465,8 @@
                             generatedFiles.push({ name: fileName, blob });
                             addOutputItem(fileName, dataUrl, { width: 'multi', height: 'multi' }, 'ico', icoSizes, blob.size);
                         }
+                        completedOps++;
+                        showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
                     } else if (format === 'svg') {
                         const svgStr = generateSvgFavicon(imgSource, crop);
                         const blob = new Blob([svgStr], { type: 'image/svg+xml' });
@@ -2422,12 +2474,16 @@
                         const fileName = `${sourceFileName}.svg`;
                         generatedFiles.push({ name: fileName, blob });
                         addOutputItem(fileName, dataUrl, { width: 'svg', height: '' }, 'svg', null, blob.size);
+                        completedOps++;
+                        showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
                     } else {
                         for (const size of sizes) {
                             const { blob, dataUrl } = await generateImage(imgSource, size, format, crop);
                             const fileName = `${sourceFileName}-${size.width}x${size.height}.${format}`;
                             generatedFiles.push({ name: fileName, blob });
                             addOutputItem(fileName, dataUrl, size, format, null, blob.size);
+                            completedOps++;
+                            showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
                         }
                     }
                 }
@@ -2450,28 +2506,33 @@
         }
 
         async function generateImage(img, size, format, crop = null) {
+            if (resizeWorker) {
+                const bitmap = await createImageBitmap(img);
+                const blob = await resizeInWorker(bitmap, size.width, size.height, format, crop);
+                bitmap.close();
+                const dataUrl = await blobToDataURL(blob);
+                await new Promise(r => setTimeout(r, 0));
+                return { blob, dataUrl };
+            }
+
             const canvas = document.createElement('canvas');
             canvas.width = size.width;
             canvas.height = size.height;
             const ctx = canvas.getContext('2d');
-            
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
 
-            // Source dimensions (use crop if available)
             const srcX = crop ? crop.x : 0;
             const srcY = crop ? crop.y : 0;
             const srcW = crop ? crop.width : img.naturalWidth;
             const srcH = crop ? crop.height : img.naturalHeight;
 
-            // Calculate scaling to fit while maintaining aspect ratio
             const scale = Math.min(size.width / srcW, size.height / srcH);
             const scaledWidth = srcW * scale;
             const scaledHeight = srcH * scale;
             const x = (size.width - scaledWidth) / 2;
             const y = (size.height - scaledHeight) / 2;
 
-            // Fill with transparency for PNG/WebP or white for JPG
             if (format === 'jpg') {
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, size.width, size.height);
@@ -2487,6 +2548,7 @@
 
             canvas.width = 0;
             canvas.height = 0;
+            await new Promise(r => setTimeout(r, 0));
             return { blob, dataUrl };
         }
 
