@@ -1,0 +1,17 @@
+{
+  "name": "Icon Forge",
+  "short_name": "IconForge",
+  "description": "Resize images to multiple sizes and formats — entirely in your browser",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0a0a0b",
+  "theme_color": "#0a0a0b",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
