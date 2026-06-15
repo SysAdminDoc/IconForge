@@ -2152,7 +2152,7 @@
                             const dataUrl = await blobToDataURL(blob);
                             const fileName = `${sourceFileName}.ico`;
                             generatedFiles.push({ name: fileName, blob });
-                            addOutputItem(fileName, dataUrl, { width: 'multi', height: 'multi' }, 'ico', icoSizes);
+                            addOutputItem(fileName, dataUrl, { width: 'multi', height: 'multi' }, 'ico', icoSizes, blob.size);
                         }
                     } else if (format === 'svg') {
                         const svgStr = generateSvgFavicon(imgSource, crop);
@@ -2160,19 +2160,20 @@
                         const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`;
                         const fileName = `${sourceFileName}.svg`;
                         generatedFiles.push({ name: fileName, blob });
-                        addOutputItem(fileName, dataUrl, { width: 'svg', height: '' }, 'svg');
+                        addOutputItem(fileName, dataUrl, { width: 'svg', height: '' }, 'svg', null, blob.size);
                     } else {
                         for (const size of sizes) {
                             const { blob, dataUrl } = await generateImage(imgSource, size, format, crop);
                             const fileName = `${sourceFileName}-${size.width}x${size.height}.${format}`;
                             generatedFiles.push({ name: fileName, blob });
-                            addOutputItem(fileName, dataUrl, size, format);
+                            addOutputItem(fileName, dataUrl, size, format, null, blob.size);
                         }
                     }
                 }
 
                 outputSection.style.display = 'block';
-                showStatus(`Generated ${generatedFiles.length} files successfully!`, 'success');
+                const totalSize = generatedFiles.reduce((s, f) => s + f.blob.size, 0);
+                showStatus(`Generated ${generatedFiles.length} files (${formatFileSize(totalSize)} total)`, 'success');
             } catch (error) {
                 showStatus(`Error: ${error.message}`, 'error');
                 console.error(error);
@@ -2228,7 +2229,12 @@
             return { blob, dataUrl };
         }
 
-        function addOutputItem(fileName, dataUrl, size, format, icoSizes = null) {
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            return (bytes / 1024).toFixed(1) + ' KB';
+        }
+
+        function addOutputItem(fileName, dataUrl, size, format, icoSizes = null, fileSize = 0) {
             const item = document.createElement('div');
             item.className = 'output-item';
 
@@ -2237,13 +2243,14 @@
                 : size.width === 'svg' ? 'Scalable' : `${size.width}x${size.height}`;
 
             const safeName = escapeHtml(fileName);
+            const sizeDisplay = fileSize > 0 ? `<br><span style="color:var(--text-muted)">${formatFileSize(fileSize)}</span>` : '';
             const uniqueId = `base64-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
             item.innerHTML = `
                 <div class="output-preview">
                     <img src="${dataUrl}" alt="${safeName}">
                 </div>
-                <div class="output-info">${sizeText}<br>${format.toUpperCase()}</div>
+                <div class="output-info">${sizeText}<br>${format.toUpperCase()}${sizeDisplay}</div>
                 <button class="btn-download" data-filename="${safeName}">Download</button>
                 <div class="base64-section">
                     <span class="base64-label">Base64:</span>
