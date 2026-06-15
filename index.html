@@ -857,6 +857,37 @@
             color: var(--accent);
         }
 
+        /* SVG dark mode section */
+        .svg-darkmode-section {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: var(--bg-dark);
+            border-radius: 8px;
+        }
+
+        .svg-color-row {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        .svg-color-row label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .svg-color-row input[type="color"] {
+            width: 36px;
+            height: 28px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: none;
+            cursor: pointer;
+        }
+
         /* Preset buttons */
         .preset-section {
             margin-bottom: 1.25rem;
@@ -1196,7 +1227,20 @@
                             <input type="checkbox" value="webp">
                             WebP
                         </label>
+                        <label class="format-option">
+                            <input type="checkbox" value="svg">
+                            SVG
+                        </label>
                     </div>
+                </div>
+
+                <div class="svg-darkmode-section" id="svgDarkmodeSection" style="display:none;">
+                    <label class="section-label">SVG Dark Mode Colors</label>
+                    <div class="svg-color-row">
+                        <label>Light: <input type="color" id="svgLightColor" value="#1a1a1a"></label>
+                        <label>Dark: <input type="color" id="svgDarkColor" value="#f0f0f0"></label>
+                    </div>
+                    <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">SVG favicon with embedded <code>prefers-color-scheme</code> CSS. Works in Chrome/Firefox; Safari uses light color.</p>
                 </div>
 
                 <button class="btn-generate" id="btnGenerate" disabled>
@@ -1495,10 +1539,13 @@
         });
 
         // Format option toggles
+        const svgDarkmodeSection = document.getElementById('svgDarkmodeSection');
         formatOptions.addEventListener('change', (e) => {
             if (e.target.type === 'checkbox') {
                 e.target.closest('.format-option').classList.toggle('selected', e.target.checked);
             }
+            const svgChecked = formatOptions.querySelector('input[value="svg"]')?.checked;
+            svgDarkmodeSection.style.display = svgChecked ? 'block' : 'none';
         });
 
         // Drag and Drop handlers
@@ -2023,6 +2070,43 @@
             return sizes;
         }
 
+        function generateSvgFavicon(img, crop) {
+            const svgSize = 32;
+            const canvas = document.createElement('canvas');
+            canvas.width = svgSize;
+            canvas.height = svgSize;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
+            const srcX = crop ? crop.x : 0;
+            const srcY = crop ? crop.y : 0;
+            const srcW = crop ? crop.width : img.naturalWidth;
+            const srcH = crop ? crop.height : img.naturalHeight;
+            const scale = Math.min(svgSize / srcW, svgSize / srcH);
+            const sw = srcW * scale, sh = srcH * scale;
+            const dx = (svgSize - sw) / 2, dy = (svgSize - sh) / 2;
+            ctx.drawImage(img, srcX, srcY, srcW, srcH, dx, dy, sw, sh);
+
+            const dataUrl = canvas.toDataURL('image/png');
+            canvas.width = 0;
+            canvas.height = 0;
+
+            const lightColor = document.getElementById('svgLightColor').value;
+            const darkColor = document.getElementById('svgDarkColor').value;
+
+            return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgSize} ${svgSize}">
+  <style>
+    rect { fill: ${lightColor}; }
+    @media (prefers-color-scheme: dark) {
+      rect { fill: ${darkColor}; }
+    }
+  </style>
+  <rect width="${svgSize}" height="${svgSize}" rx="6"/>
+  <image href="${dataUrl}" width="${svgSize}" height="${svgSize}"/>
+</svg>`;
+        }
+
         function getSelectedFormats() {
             const formats = [];
             formatOptions.querySelectorAll('input:checked').forEach(input => {
@@ -2062,7 +2146,6 @@
 
                 for (const format of formats) {
                     if (format === 'ico') {
-                        // Generate multi-size ICO
                         const icoSizes = sizes.filter(s => s.width <= 256 && s.width === s.height);
                         if (icoSizes.length > 0) {
                             const blob = await generateICO(imgSource, icoSizes, crop);
@@ -2071,6 +2154,13 @@
                             generatedFiles.push({ name: fileName, blob });
                             addOutputItem(fileName, dataUrl, { width: 'multi', height: 'multi' }, 'ico', icoSizes);
                         }
+                    } else if (format === 'svg') {
+                        const svgStr = generateSvgFavicon(imgSource, crop);
+                        const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+                        const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`;
+                        const fileName = `${sourceFileName}.svg`;
+                        generatedFiles.push({ name: fileName, blob });
+                        addOutputItem(fileName, dataUrl, { width: 'svg', height: '' }, 'svg');
                     } else {
                         for (const size of sizes) {
                             const { blob, dataUrl } = await generateImage(imgSource, size, format, crop);
@@ -2144,7 +2234,7 @@
 
             const sizeText = size.width === 'multi'
                 ? icoSizes.map(s => `${s.width}`).join(', ')
-                : `${size.width}x${size.height}`;
+                : size.width === 'svg' ? 'Scalable' : `${size.width}x${size.height}`;
 
             const safeName = escapeHtml(fileName);
             const uniqueId = `base64-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
