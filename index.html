@@ -1377,6 +1377,10 @@
                             <input type="checkbox" value="webp">
                             WebP
                         </label>
+                        <label class="format-option" id="avifFormatOption" style="display:none;">
+                            <input type="checkbox" value="avif">
+                            AVIF
+                        </label>
                         <label class="format-option">
                             <input type="checkbox" value="svg">
                             SVG
@@ -2299,7 +2303,7 @@ self.onmessage = async function(e) {
     const dx = (width - sw) / 2, dy = (height - sh) / 2;
     if (format === 'jpg') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, width, height); }
     ctx.drawImage(bitmap, srcX, srcY, srcW, srcH, dx, dy, sw, sh);
-    const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
+    const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : format === 'avif' ? 'image/avif' : 'image/png';
     const blob = await canvas.convertToBlob({ type: mimeType, quality: format === 'png' ? undefined : quality || 0.92 });
     self.postMessage({ id, blob });
 };`;
@@ -2322,6 +2326,18 @@ self.onmessage = async function(e) {
             } catch { resizeWorker = null; }
         }
         initWorker();
+
+        // Feature-detect AVIF encoding support
+        (function detectAvif() {
+            const c = document.createElement('canvas');
+            c.width = 1; c.height = 1;
+            c.toBlob((blob) => {
+                if (blob && blob.type === 'image/avif') {
+                    document.getElementById('avifFormatOption').style.display = '';
+                }
+                c.width = 0; c.height = 0;
+            }, 'image/avif');
+        })();
 
         function resizeInWorker(bitmap, width, height, format, crop) {
             return new Promise((resolve) => {
@@ -2540,7 +2556,7 @@ self.onmessage = async function(e) {
 
             ctx.drawImage(img, srcX, srcY, srcW, srcH, x, y, scaledWidth, scaledHeight);
 
-            const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
+            const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : format === 'avif' ? 'image/avif' : 'image/png';
             const quality = format === 'png' ? undefined : 0.92;
 
             const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, quality));
