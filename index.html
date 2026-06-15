@@ -1549,7 +1549,7 @@
                             <input type="checkbox" value="jpg">
                             JPG
                         </label>
-                        <label class="format-option">
+                        <label class="format-option" id="webpFormatOption" style="display:none;">
                             <input type="checkbox" value="webp">
                             WebP
                         </label>
@@ -1999,7 +1999,7 @@
             web:       { sizes: [32, 180],              formats: ['png', 'ico'] },
             pwa:       { sizes: [192, 512],             formats: ['png'] },
             extension: { sizes: [16, 32, 48, 128],      formats: ['png'] },
-            all:       { sizes: [16, 32, 48, 64, 96, 128, 192, 512], formats: ['png', 'ico'] }
+            all:       { sizes: [16, 32, 48, 64, 96, 128, 180, 192, 512], formats: ['png', 'ico'] }
         };
 
         document.getElementById('presetButtons').addEventListener('click', (e) => {
@@ -2552,20 +2552,25 @@
         const workerCode = `
 self.onmessage = async function(e) {
     const { id, bitmap, width, height, format, crop, quality } = e.data;
-    const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    const srcX = crop ? crop.x : 0, srcY = crop ? crop.y : 0;
-    const srcW = crop ? crop.width : bitmap.width, srcH = crop ? crop.height : bitmap.height;
-    const scale = Math.min(width / srcW, height / srcH);
-    const sw = srcW * scale, sh = srcH * scale;
-    const dx = (width - sw) / 2, dy = (height - sh) / 2;
-    if (format === 'jpg') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, width, height); }
-    ctx.drawImage(bitmap, srcX, srcY, srcW, srcH, dx, dy, sw, sh);
-    const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : format === 'avif' ? 'image/avif' : 'image/png';
-    const blob = await canvas.convertToBlob({ type: mimeType, quality: format === 'png' ? undefined : quality || 0.92 });
-    self.postMessage({ id, blob });
+    try {
+        const canvas = new OffscreenCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        const srcX = crop ? crop.x : 0, srcY = crop ? crop.y : 0;
+        const srcW = crop ? crop.width : bitmap.width, srcH = crop ? crop.height : bitmap.height;
+        const scale = Math.min(width / srcW, height / srcH);
+        const sw = srcW * scale, sh = srcH * scale;
+        const dx = (width - sw) / 2, dy = (height - sh) / 2;
+        if (format === 'jpg') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, width, height); }
+        ctx.drawImage(bitmap, srcX, srcY, srcW, srcH, dx, dy, sw, sh);
+        bitmap.close();
+        const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : format === 'avif' ? 'image/avif' : 'image/png';
+        const blob = await canvas.convertToBlob({ type: mimeType, quality: format === 'png' ? undefined : quality || 0.92 });
+        self.postMessage({ id, blob });
+    } catch (err) {
+        self.postMessage({ id, error: err.message });
+    }
 };`;
 
         let resizeWorker = null;
@@ -2579,7 +2584,11 @@ self.onmessage = async function(e) {
                 resizeWorker = new Worker(url);
                 resizeWorker.onmessage = (e) => {
                     const cb = workerCallbacks.get(e.data.id);
-                    if (cb) { workerCallbacks.delete(e.data.id); cb(e.data.blob); }
+                    if (cb) {
+                        workerCallbacks.delete(e.data.id);
+                        if (e.data.error) cb(null, e.data.error);
+                        else cb(e.data.blob);
+                    }
                 };
                 resizeWorker.onerror = () => { resizeWorker = null; };
                 URL.revokeObjectURL(url);
@@ -2587,23 +2596,36 @@ self.onmessage = async function(e) {
         }
         initWorker();
 
-        // Feature-detect AVIF encoding support
-        (function detectAvif() {
+        // Feature-detect WebP and AVIF encoding support
+        (function detectFormats() {
             const c = document.createElement('canvas');
             c.width = 1; c.height = 1;
             c.toBlob((blob) => {
-                if (blob && blob.type === 'image/avif') {
-                    document.getElementById('avifFormatOption').style.display = '';
+                if (blob && blob.type === 'image/webp') {
+                    document.getElementById('webpFormatOption').style.display = '';
                 }
-                c.width = 0; c.height = 0;
-            }, 'image/avif');
+                c.toBlob((blob2) => {
+                    if (blob2 && blob2.type === 'image/avif') {
+                        document.getElementById('avifFormatOption').style.display = '';
+                    }
+                    c.width = 0; c.height = 0;
+                }, 'image/avif');
+            }, 'image/webp');
         })();
 
         function resizeInWorker(bitmap, width, height, format, crop) {
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
                 const id = ++workerJobId;
-                workerCallbacks.set(id, resolve);
-                resizeWorker.postMessage({ id, bitmap, width, height, format, crop });
+                const timer = setTimeout(() => {
+                    workerCallbacks.delete(id);
+                    reject(new Error('Worker resize timed out after 30s'));
+                }, 30000);
+                workerCallbacks.set(id, (blobOrNull, errorMsg) => {
+                    clearTimeout(timer);
+                    if (errorMsg) reject(new Error(errorMsg));
+                    else resolve(blobOrNull);
+                });
+                resizeWorker.postMessage({ id, bitmap, width, height, format, crop }, [bitmap]);
             });
         }
 
@@ -2781,11 +2803,10 @@ self.onmessage = async function(e) {
             `;
         }
 
-        async function generateImage(img, size, format, crop = null) {
+        async function generateImage(img, size, format, crop = null, bitmap = null) {
             if (resizeWorker) {
-                const bitmap = await createImageBitmap(img);
-                const blob = await resizeInWorker(bitmap, size.width, size.height, format, crop);
-                bitmap.close();
+                const bmp = bitmap || await createImageBitmap(img);
+                const blob = await resizeInWorker(bmp, size.width, size.height, format, crop);
                 const dataUrl = await blobToDataURL(blob);
                 await new Promise(r => setTimeout(r, 0));
                 return { blob, dataUrl };
