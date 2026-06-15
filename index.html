@@ -2771,28 +2771,26 @@ self.onmessage = async function(e) {
                         const icoSizes = sizes.filter(s => s.width <= 256 && s.width === s.height);
                         if (icoSizes.length > 0) {
                             const blob = await generateICO(imgSource, icoSizes, crop);
-                            const dataUrl = await blobToDataURL(blob);
                             const fileName = `${sourceFileName}.ico`;
                             generatedFiles.push({ name: fileName, blob });
-                            addOutputItem(fileName, dataUrl, { width: 'multi', height: 'multi' }, 'ico', icoSizes, blob.size);
+                            addOutputItem(fileName, blob, { width: 'multi', height: 'multi' }, 'ico', icoSizes, blob.size);
                         }
                         completedOps++;
                         showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
                     } else if (format === 'svg') {
                         const svgStr = generateSvgFavicon(imgSource, crop);
                         const blob = new Blob([svgStr], { type: 'image/svg+xml' });
-                        const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`;
                         const fileName = `${sourceFileName}.svg`;
                         generatedFiles.push({ name: fileName, blob });
-                        addOutputItem(fileName, dataUrl, { width: 'svg', height: '' }, 'svg', null, blob.size);
+                        addOutputItem(fileName, blob, { width: 'svg', height: '' }, 'svg', null, blob.size);
                         completedOps++;
                         showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
                     } else {
                         for (const size of sizes) {
-                            const { blob, dataUrl } = await generateImage(imgSource, size, format, crop);
+                            const { blob } = await generateImage(imgSource, size, format, crop);
                             const fileName = `${sourceFileName}-${size.width}x${size.height}.${format}`;
                             generatedFiles.push({ name: fileName, blob });
-                            addOutputItem(fileName, dataUrl, size, format, null, blob.size);
+                            addOutputItem(fileName, blob, size, format, null, blob.size);
                             completedOps++;
                             showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
                         }
@@ -2820,9 +2818,8 @@ self.onmessage = async function(e) {
             if (resizeWorker) {
                 const bmp = bitmap || await createImageBitmap(img);
                 const blob = await resizeInWorker(bmp, size.width, size.height, format, crop);
-                const dataUrl = await blobToDataURL(blob);
                 await new Promise(r => setTimeout(r, 0));
-                return { blob, dataUrl };
+                return { blob };
             }
 
             const canvas = document.createElement('canvas');
@@ -2854,12 +2851,10 @@ self.onmessage = async function(e) {
             const quality = format === 'png' ? undefined : 0.92;
 
             const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, quality));
-            const dataUrl = canvas.toDataURL(mimeType, quality);
-
             canvas.width = 0;
             canvas.height = 0;
             await new Promise(r => setTimeout(r, 0));
-            return { blob, dataUrl };
+            return { blob };
         }
 
         function formatFileSize(bytes) {
@@ -2867,95 +2862,71 @@ self.onmessage = async function(e) {
             return (bytes / 1024).toFixed(1) + ' KB';
         }
 
-        function addOutputItem(fileName, dataUrl, size, format, icoSizes = null, fileSize = 0) {
+        function addOutputItem(fileName, blob, size, format, icoSizes = null, fileSize = 0) {
             const item = document.createElement('div');
             item.className = 'output-item';
 
+            const blobUrl = URL.createObjectURL(blob);
             const sizeText = size.width === 'multi'
                 ? icoSizes.map(s => `${s.width}`).join(', ')
                 : size.width === 'svg' ? 'Scalable' : `${size.width}x${size.height}`;
 
             const safeName = escapeHtml(fileName);
             const sizeDisplay = fileSize > 0 ? `<br><span style="color:var(--text-muted)">${formatFileSize(fileSize)}</span>` : '';
-            const uniqueId = `base64-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
             item.innerHTML = `
                 <div class="output-preview">
-                    <img src="${dataUrl}" alt="${safeName}">
+                    <img src="${blobUrl}" alt="${safeName}">
                 </div>
                 <div class="output-info">${sizeText}<br>${format.toUpperCase()}${sizeDisplay}</div>
                 <button class="btn-download" data-filename="${safeName}">Download</button>
                 <div class="base64-section">
-                    <span class="base64-label">Base64:</span>
                     <div class="base64-container">
-                        <input type="text" class="base64-input" id="${uniqueId}" value="${dataUrl}" readonly>
-                        <button class="btn-copy" data-target="${uniqueId}" title="Copy base64">
+                        <button class="btn-copy" title="Copy base64 data URL">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                             </svg>
-                            Copy
+                            Copy Base64
                         </button>
                     </div>
                 </div>
             `;
-            
+
             item.querySelector('.btn-download').addEventListener('click', () => {
-                downloadFile(fileName, dataUrl);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = fileName;
+                link.click();
             });
-            
-            item.querySelector('.btn-copy').addEventListener('click', (e) => {
-                copyBase64(e.currentTarget);
+
+            item.querySelector('.btn-copy').addEventListener('click', async (e) => {
+                const btn = e.currentTarget;
+                try {
+                    const dataUrl = await blobToDataURL(blob);
+                    await navigator.clipboard.writeText(dataUrl);
+                    showCopyFeedback(btn);
+                } catch {
+                    showStatus('Failed to copy — clipboard requires HTTPS', 'error');
+                }
             });
-            
+
             outputGrid.appendChild(item);
         }
 
-        function downloadFile(fileName, dataUrl) {
-            const link = document.createElement('a');
-            link.href = dataUrl;
-            link.download = fileName;
-            link.click();
-        }
-
-        function copyBase64(button) {
-            const targetId = button.dataset.target;
-            const input = document.getElementById(targetId);
-            const base64Value = input.value;
-            
-            navigator.clipboard.writeText(base64Value).then(() => {
-                const originalText = button.innerHTML;
-                button.classList.add('copied');
-                button.innerHTML = `
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                    Copied!
-                `;
-                
-                setTimeout(() => {
-                    button.classList.remove('copied');
-                    button.innerHTML = originalText;
-                }, 1500);
-            }).catch(err => {
-                // Fallback for older browsers
-                input.select();
-                document.execCommand('copy');
-                
-                const originalText = button.innerHTML;
-                button.classList.add('copied');
-                button.innerHTML = `
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                    Copied!
-                `;
-                
-                setTimeout(() => {
-                    button.classList.remove('copied');
-                    button.innerHTML = originalText;
-                }, 1500);
-            });
+        function showCopyFeedback(button) {
+            const originalText = button.innerHTML;
+            button.classList.add('copied');
+            button.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                Copied!
+            `;
+            setTimeout(() => {
+                button.classList.remove('copied');
+                button.innerHTML = originalText;
+            }, 1500);
         }
 
         async function downloadAll() {
