@@ -20,7 +20,7 @@
             --border-focus: #4a4a52;
             --text-primary: #f0f0f2;
             --text-secondary: #888892;
-            --text-muted: #5a5a64;
+            --text-muted: #78788a;
             --accent: #f97316;
             --accent-hover: #fb923c;
             --accent-glow: rgba(249, 115, 22, 0.15);
@@ -855,6 +855,63 @@
         footer a:hover {
             color: var(--accent);
         }
+
+        /* Accessibility: focus indicators */
+        :focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .drop-zone:focus-visible {
+            border-color: var(--accent);
+            background: var(--accent-glow);
+            outline: none;
+        }
+
+        .crop-numeric-inputs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .crop-numeric-inputs label {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .crop-numeric-inputs input[type="number"] {
+            width: 60px;
+            padding: 0.3rem 0.4rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+        }
+
+        .crop-numeric-inputs input[type="number"]:focus {
+            outline: none;
+            border-color: var(--crop-color);
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
     </style>
 </head>
 <body>
@@ -881,11 +938,11 @@
                     <h2>Source Image</h2>
                 </div>
 
-                <div class="drop-zone" id="dropZone">
-                    <div class="drop-zone-icon">&#128193;</div>
+                <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Drop an image here or press Enter to browse. Supported formats: PNG, JPG, GIF, WebP, SVG, BMP, TIFF">
+                    <div class="drop-zone-icon" aria-hidden="true">&#128193;</div>
                     <p class="drop-zone-text">Drop an image here or click to browse</p>
                     <p class="drop-zone-formats">PNG, JPG, GIF, WebP, SVG, BMP, TIFF</p>
-                    <input type="file" class="file-input" id="fileInput" accept="image/*,.svg">
+                    <input type="file" class="file-input" id="fileInput" accept="image/*,.svg" aria-label="Choose image file">
                 </div>
 
                 <div class="preview-container" id="previewContainer">
@@ -936,18 +993,26 @@
                     </div>
 
                     <div class="crop-canvas-container">
-                        <canvas id="cropCanvas"></canvas>
+                        <canvas id="cropCanvas" role="img" aria-label="Crop preview canvas. Use Manual Crop button then drag to select region, or use numeric inputs below."></canvas>
                     </div>
 
                     <div class="crop-info">
                         <span>Crop Region: <span class="dimensions" id="cropDimensions">Full image</span></span>
-                        <span id="cropStatus"></span>
+                        <span id="cropStatus" aria-live="polite"></span>
                     </div>
 
                     <div class="crop-tolerance">
-                        <label>Tolerance:</label>
-                        <input type="range" id="toleranceSlider" min="0" max="50" value="10">
-                        <span class="tolerance-value" id="toleranceValue">10</span>
+                        <label for="toleranceSlider">Tolerance:</label>
+                        <input type="range" id="toleranceSlider" min="0" max="50" value="10" aria-label="Auto-crop tolerance">
+                        <span class="tolerance-value" id="toleranceValue" aria-hidden="true">10</span>
+                    </div>
+
+                    <div class="crop-numeric-inputs">
+                        <label>X: <input type="number" id="cropX" min="0" value="0" aria-label="Crop X position"></label>
+                        <label>Y: <input type="number" id="cropY" min="0" value="0" aria-label="Crop Y position"></label>
+                        <label>W: <input type="number" id="cropW" min="1" value="0" aria-label="Crop width"></label>
+                        <label>H: <input type="number" id="cropH" min="1" value="0" aria-label="Crop height"></label>
+                        <button class="btn-crop" id="btnApplyNumericCrop">Apply</button>
                     </div>
                 </div>
 
@@ -1096,7 +1161,7 @@
                     Generate Icons
                 </button>
 
-                <div class="status" id="status"></div>
+                <div class="status" id="status" role="status" aria-live="polite"></div>
 
                 <div class="output-section" id="outputSection" style="display: none;">
                     <div class="panel-header" style="margin-top: 1rem;">
@@ -1205,8 +1270,21 @@
         const toleranceSlider = document.getElementById('toleranceSlider');
         const toleranceValue = document.getElementById('toleranceValue');
 
+        // Numeric crop DOM elements
+        const cropXInput = document.getElementById('cropX');
+        const cropYInput = document.getElementById('cropY');
+        const cropWInput = document.getElementById('cropW');
+        const cropHInput = document.getElementById('cropH');
+        const btnApplyNumericCrop = document.getElementById('btnApplyNumericCrop');
+
         // Event Listeners
         dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInput.click();
+            }
+        });
         dropZone.addEventListener('dragover', handleDragOver);
         dropZone.addEventListener('dragleave', handleDragLeave);
         dropZone.addEventListener('drop', handleDrop);
@@ -1244,6 +1322,9 @@
             updateCropDrag({ clientX: touch.clientX, clientY: touch.clientY });
         });
         cropCanvas.addEventListener('touchend', endCropDrag);
+
+        // Numeric crop input handler
+        btnApplyNumericCrop.addEventListener('click', applyNumericCrop);
 
         // Size option toggles
         sizeGrid.addEventListener('change', (e) => {
@@ -1447,6 +1528,50 @@
             } else {
                 cropDimensions.textContent = `Full image (${sourceImage.naturalWidth} x ${sourceImage.naturalHeight})`;
             }
+            syncCropInputs();
+        }
+
+        function syncCropInputs() {
+            if (cropRegion) {
+                cropXInput.value = cropRegion.x;
+                cropYInput.value = cropRegion.y;
+                cropWInput.value = cropRegion.width;
+                cropHInput.value = cropRegion.height;
+            } else if (sourceImage) {
+                cropXInput.value = 0;
+                cropYInput.value = 0;
+                cropWInput.value = sourceImage.naturalWidth;
+                cropHInput.value = sourceImage.naturalHeight;
+            }
+            if (sourceImage) {
+                cropXInput.max = sourceImage.naturalWidth - 1;
+                cropYInput.max = sourceImage.naturalHeight - 1;
+                cropWInput.max = sourceImage.naturalWidth;
+                cropHInput.max = sourceImage.naturalHeight;
+            }
+        }
+
+        function applyNumericCrop() {
+            if (!sourceImage) return;
+            const x = Math.max(0, parseInt(cropXInput.value) || 0);
+            const y = Math.max(0, parseInt(cropYInput.value) || 0);
+            const w = Math.min(parseInt(cropWInput.value) || sourceImage.naturalWidth, sourceImage.naturalWidth - x);
+            const h = Math.min(parseInt(cropHInput.value) || sourceImage.naturalHeight, sourceImage.naturalHeight - y);
+            if (w < 1 || h < 1) {
+                cropStatus.textContent = 'Invalid crop dimensions';
+                setTimeout(() => { cropStatus.textContent = ''; }, 2000);
+                return;
+            }
+            cropRegion = { x, y, width: w, height: h };
+            currentCropRect = null;
+            isManualCropMode = false;
+            btnManualCrop.classList.remove('active');
+            btnApplyCrop.style.display = 'none';
+            drawCropCanvas();
+            updateCropInfo();
+            updatePreviewWithCrop();
+            cropStatus.textContent = 'Crop applied!';
+            setTimeout(() => { cropStatus.textContent = ''; }, 2000);
         }
 
         function performAutoCrop() {
