@@ -32,9 +32,9 @@
             --warning: #eab308;
             --crop-color: #3b82f6;
             --radius-sm: 6px;
-            --radius-md: 10px;
-            --radius-lg: 14px;
-            --radius-xl: 18px;
+            --radius-md: 8px;
+            --radius-lg: 8px;
+            --radius-xl: 8px;
             --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
             --shadow-md: 0 4px 12px rgba(0,0,0,0.25);
             --shadow-lg: 0 8px 32px rgba(0,0,0,0.3);
@@ -98,7 +98,7 @@
         h1 {
             font-size: 2.25rem;
             font-weight: 700;
-            letter-spacing: -0.03em;
+            letter-spacing: 0;
             color: var(--text-primary);
         }
 
@@ -116,7 +116,7 @@
             padding: 0.3rem 0.75rem;
             background: rgba(34, 197, 94, 0.08);
             border: 1px solid rgba(34, 197, 94, 0.15);
-            border-radius: 20px;
+            border-radius: var(--radius-md);
             font-size: 0.75rem;
             color: var(--success);
             letter-spacing: 0.01em;
@@ -150,6 +150,8 @@
             .tagline { font-size: 0.85rem; }
             .size-grid { grid-template-columns: 1fr; }
             .emoji-grid { grid-template-columns: repeat(5, 1fr); }
+            .control-grid { grid-template-columns: 1fr; }
+            .mask-preview-wrap { grid-template-columns: 1fr; }
             .crop-numeric-inputs { flex-wrap: wrap; }
             .custom-size-input { flex-wrap: wrap; }
             .text-color-row { flex-direction: column; gap: 0.5rem; }
@@ -1148,6 +1150,114 @@
             padding: 1px;
         }
 
+        .processing-section {
+            margin-bottom: 1.25rem;
+            padding: 0.75rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.65rem;
+        }
+
+        .control-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            min-width: 0;
+        }
+
+        .control-field.full {
+            grid-column: 1 / -1;
+        }
+
+        .control-field label,
+        .toggle-field {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .control-field select,
+        .control-field input[type="file"] {
+            width: 100%;
+            min-height: 34px;
+            padding: 0.4rem 0.55rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.78rem;
+        }
+
+        .control-field input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent);
+        }
+
+        .color-pair {
+            display: flex;
+            gap: 0.4rem;
+        }
+
+        .color-pair input[type="color"] {
+            width: 100%;
+            height: 34px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: none;
+            cursor: pointer;
+            padding: 2px;
+        }
+
+        .toggle-field {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            min-height: 34px;
+            padding: 0.4rem 0.55rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+
+        .toggle-field input {
+            accent-color: var(--accent);
+        }
+
+        .range-value {
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .mask-preview-wrap {
+            display: grid;
+            grid-template-columns: 144px 1fr;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        #maskPreviewCanvas {
+            width: 144px;
+            height: 144px;
+            background: var(--checker);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+        }
+
+        .template-status {
+            min-height: 1rem;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+        }
+
         /* Preset buttons */
         .preset-section {
             margin-bottom: 1rem;
@@ -1378,7 +1488,7 @@
                         <span class="format-badge limited" title="Limited support">ICO</span>
                     </div>
                     <p style="margin-top:0.35rem; color:var(--text-muted); font-size:0.65rem;">
-                        EPS and AI files need conversion to SVG first
+                        EPS and Illustrator files need conversion to SVG first
                     </p>
                 </div>
                 </div><!-- /uploadMode -->
@@ -1461,8 +1571,11 @@
                     <label class="section-label">Quick Presets</label>
                     <div class="preset-buttons" id="presetButtons">
                         <button class="btn-preset" data-preset="web" title="favicon.ico (32) + apple-touch (180) + SVG">Modern Web</button>
-                        <button class="btn-preset" data-preset="pwa" title="192 + 512 any & maskable + manifest">PWA</button>
+                        <button class="btn-preset" data-preset="pwa" title="PWA icons, maskable icons, manifest, and splash images">PWA</button>
                         <button class="btn-preset" data-preset="extension" title="16 + 32 + 48 + 128 PNG">Extension</button>
+                        <button class="btn-preset" data-preset="android" title="Adaptive icon foreground, background, and XML">Android</button>
+                        <button class="btn-preset" data-preset="ios" title="AppIcon.appiconset PNGs and Contents.json">iOS</button>
+                        <button class="btn-preset" data-preset="windows" title="Windows tile PNGs and browserconfig.xml">Windows</button>
                         <button class="btn-preset" data-preset="all" title="All standard sizes">All Sizes</button>
                     </div>
                 </div>
@@ -1601,6 +1714,68 @@
                     <p style="font-size:0.7rem; color:var(--text-muted); margin-top:0.4rem;">Generates SVG with dark-mode media query. Supported in Chrome and Firefox.</p>
                 </div>
 
+                <div class="processing-section">
+                    <label class="section-label">Processing</label>
+                    <div class="control-grid">
+                        <div class="control-field">
+                            <label for="safePaddingSlider">Safe Padding <span class="range-value" id="safePaddingValue">8%</span></label>
+                            <input type="range" id="safePaddingSlider" min="0" max="30" value="8" aria-label="Safe padding percent">
+                        </div>
+                        <div class="control-field">
+                            <label for="resampleSelect">Resampling</label>
+                            <select id="resampleSelect">
+                                <option value="auto">Auto</option>
+                                <option value="hinted">Pixel hinted</option>
+                                <option value="nearest">Nearest</option>
+                            </select>
+                        </div>
+                        <div class="control-field">
+                            <label for="backgroundMode">Background</label>
+                            <select id="backgroundMode">
+                                <option value="transparent">Transparent</option>
+                                <option value="solid">Solid</option>
+                                <option value="gradient">Gradient</option>
+                            </select>
+                        </div>
+                        <div class="control-field">
+                            <label>Colors</label>
+                            <div class="color-pair">
+                                <input type="color" id="backgroundColor" value="#09090b" aria-label="Background color">
+                                <input type="color" id="backgroundColor2" value="#f97316" aria-label="Gradient color">
+                            </div>
+                        </div>
+                        <div class="control-field">
+                            <label for="effectSelect">Effect</label>
+                            <select id="effectSelect">
+                                <option value="none">None</option>
+                                <option value="tint">Brand tint</option>
+                                <option value="desaturate">Desaturate</option>
+                                <option value="glass">Glass</option>
+                            </select>
+                        </div>
+                        <label class="toggle-field">
+                            <input type="checkbox" id="dropShadowToggle">
+                            Drop shadow
+                        </label>
+                        <div class="control-field full">
+                            <label for="maskShapeSelect">Mask Preview</label>
+                            <div class="mask-preview-wrap">
+                                <canvas id="maskPreviewCanvas" width="288" height="288" aria-label="Mask preview"></canvas>
+                                <select id="maskShapeSelect">
+                                    <option value="circle">Circle</option>
+                                    <option value="squircle">Squircle</option>
+                                    <option value="rounded">Rounded square</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="control-field full">
+                            <label for="replaceInput">Replacement Template</label>
+                            <input type="file" id="replaceInput" multiple webkitdirectory accept=".zip,image/*,.json,.xml,.webmanifest,.txt">
+                            <div class="template-status" id="replaceStatus"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <button class="btn-generate" id="btnGenerate" disabled>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
@@ -1667,6 +1842,50 @@
                                 </button>
                             </div>
                             <pre class="snippet-code" id="manifestSnippet"></pre>
+                        </div>
+
+                        <div class="snippet-block" id="extensionSnippetBlock" style="display:none;">
+                            <div class="snippet-header">
+                                <span class="section-label" style="margin:0">Extension Manifest Icons</span>
+                                <button class="btn-copy" data-copy-target="extensionSnippet" title="Copy extension icon block">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    Copy
+                                </button>
+                            </div>
+                            <pre class="snippet-code" id="extensionSnippet"></pre>
+                        </div>
+
+                        <div class="snippet-block" id="androidSnippetBlock" style="display:none;">
+                            <div class="snippet-header">
+                                <span class="section-label" style="margin:0">Android Adaptive Icon XML</span>
+                                <button class="btn-copy" data-copy-target="androidSnippet" title="Copy Android XML">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    Copy
+                                </button>
+                            </div>
+                            <pre class="snippet-code" id="androidSnippet"></pre>
+                        </div>
+
+                        <div class="snippet-block" id="iosSnippetBlock" style="display:none;">
+                            <div class="snippet-header">
+                                <span class="section-label" style="margin:0">iOS Contents.json</span>
+                                <button class="btn-copy" data-copy-target="iosSnippet" title="Copy Contents.json">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    Copy
+                                </button>
+                            </div>
+                            <pre class="snippet-code" id="iosSnippet"></pre>
+                        </div>
+
+                        <div class="snippet-block" id="windowsSnippetBlock" style="display:none;">
+                            <div class="snippet-header">
+                                <span class="section-label" style="margin:0">Windows browserconfig.xml</span>
+                                <button class="btn-copy" data-copy-target="windowsSnippet" title="Copy browserconfig XML">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    Copy
+                                </button>
+                            </div>
+                            <pre class="snippet-code" id="windowsSnippet"></pre>
                         </div>
                     </div>
                 </div>
@@ -1785,6 +2004,9 @@
         let sourceImage = null;
         let sourceFileName = '';
         let generatedFiles = [];
+        let activePresetKey = null;
+        let replacementTargetNames = new Set();
+        let generatedSnippets = {};
         
         // Crop state
         let originalImageData = null;  // Store original for reset
@@ -1811,6 +2033,19 @@
         const outputSection = document.getElementById('outputSection');
         const outputGrid = document.getElementById('outputGrid');
         const btnDownloadAll = document.getElementById('btnDownloadAll');
+        const safePaddingSlider = document.getElementById('safePaddingSlider');
+        const safePaddingValue = document.getElementById('safePaddingValue');
+        const resampleSelect = document.getElementById('resampleSelect');
+        const backgroundMode = document.getElementById('backgroundMode');
+        const backgroundColor = document.getElementById('backgroundColor');
+        const backgroundColor2 = document.getElementById('backgroundColor2');
+        const effectSelect = document.getElementById('effectSelect');
+        const dropShadowToggle = document.getElementById('dropShadowToggle');
+        const maskPreviewCanvas = document.getElementById('maskPreviewCanvas');
+        const maskPreviewCtx = maskPreviewCanvas.getContext('2d');
+        const maskShapeSelect = document.getElementById('maskShapeSelect');
+        const replaceInput = document.getElementById('replaceInput');
+        const replaceStatus = document.getElementById('replaceStatus');
 
         // Crop DOM Elements
         const cropSection = document.getElementById('cropSection');
@@ -1845,6 +2080,170 @@
             } else {
                 ctx.fillRect(0, 0, size, size);
             }
+        }
+
+        function normalizeSizeEntry(entry) {
+            if (typeof entry === 'number') return { width: entry, height: entry };
+            return { width: entry.width, height: entry.height || entry.width };
+        }
+
+        function sizeKey(size) {
+            return `${size.width}x${size.height}`;
+        }
+
+        function cleanPathSegment(value) {
+            return (value || 'icon')
+                .toString()
+                .trim()
+                .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-|-$/g, '') || 'icon';
+        }
+
+        function baseName(path) {
+            return path.split(/[\\/]/).pop();
+        }
+
+        function normalizeTemplateName(path) {
+            return path.replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase();
+        }
+
+        function getProcessingOptions(overrides = {}) {
+            const options = {
+                paddingPercent: parseInt(safePaddingSlider.value, 10) || 0,
+                resample: resampleSelect.value,
+                backgroundMode: backgroundMode.value,
+                backgroundColor: backgroundColor.value,
+                backgroundColor2: backgroundColor2.value,
+                effect: effectSelect.value,
+                dropShadow: dropShadowToggle.checked
+            };
+            return { ...options, ...overrides };
+        }
+
+        function usesCustomProcessing(options) {
+            return options.paddingPercent > 0 ||
+                options.backgroundMode !== 'transparent' ||
+                options.effect !== 'none' ||
+                options.dropShadow ||
+                options.resample !== 'auto';
+        }
+
+        function fillIconBackground(ctx, width, height, options, forceFill = false) {
+            if (options.backgroundMode === 'transparent' && !forceFill) return;
+            if (options.backgroundMode === 'gradient') {
+                const grad = ctx.createLinearGradient(0, 0, width, height);
+                grad.addColorStop(0, options.backgroundColor);
+                grad.addColorStop(1, options.backgroundColor2);
+                ctx.fillStyle = grad;
+            } else {
+                ctx.fillStyle = options.backgroundMode === 'transparent'
+                    ? options.backgroundColor
+                    : options.backgroundColor;
+            }
+            ctx.fillRect(0, 0, width, height);
+        }
+
+        function drawIconToContext(ctx, img, width, height, crop = null, options = getProcessingOptions()) {
+            ctx.clearRect(0, 0, width, height);
+            const srcX = crop ? crop.x : 0;
+            const srcY = crop ? crop.y : 0;
+            const srcW = crop ? crop.width : img.naturalWidth;
+            const srcH = crop ? crop.height : img.naturalHeight;
+            const padding = Math.max(0, Math.min(0.45, (options.paddingPercent || 0) / 100));
+            const drawW = width * (1 - padding * 2);
+            const drawH = height * (1 - padding * 2);
+            const scale = Math.min(drawW / srcW, drawH / srcH);
+            let scaledWidth = srcW * scale;
+            let scaledHeight = srcH * scale;
+            let x = (width - scaledWidth) / 2;
+            let y = (height - scaledHeight) / 2;
+            const shouldHint = options.resample === 'hinted' || (options.resample === 'auto' && width <= 32 && height <= 32);
+
+            fillIconBackground(ctx, width, height, options);
+
+            ctx.imageSmoothingEnabled = options.resample !== 'nearest';
+            ctx.imageSmoothingQuality = options.resample === 'nearest' ? 'low' : 'high';
+
+            if (shouldHint) {
+                x = Math.round(x);
+                y = Math.round(y);
+                scaledWidth = Math.max(1, Math.round(scaledWidth));
+                scaledHeight = Math.max(1, Math.round(scaledHeight));
+            }
+
+            ctx.save();
+            if (options.dropShadow) {
+                ctx.shadowColor = 'rgba(0,0,0,0.42)';
+                ctx.shadowBlur = Math.max(3, width * 0.045);
+                ctx.shadowOffsetY = Math.max(1, width * 0.018);
+            }
+            if (options.effect === 'desaturate') {
+                ctx.filter = 'saturate(0.45) contrast(1.05)';
+            }
+            ctx.drawImage(img, srcX, srcY, srcW, srcH, x, y, scaledWidth, scaledHeight);
+            ctx.restore();
+
+            if (options.effect === 'tint') {
+                ctx.save();
+                ctx.globalCompositeOperation = 'source-atop';
+                ctx.fillStyle = `${options.backgroundColor2}88`;
+                ctx.fillRect(0, 0, width, height);
+                ctx.restore();
+            } else if (options.effect === 'glass') {
+                ctx.save();
+                ctx.globalCompositeOperation = 'source-atop';
+                const shine = ctx.createLinearGradient(0, 0, width, height);
+                shine.addColorStop(0, 'rgba(255,255,255,0.36)');
+                shine.addColorStop(0.44, 'rgba(255,255,255,0.08)');
+                shine.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = shine;
+                ctx.fillRect(0, 0, width, height);
+                ctx.restore();
+            }
+        }
+
+        function drawMaskOutline(ctx, width, height, shape) {
+            const pad = width * 0.08;
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255,255,255,0.88)';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([8, 6]);
+            if (shape === 'circle') {
+                ctx.beginPath();
+                ctx.arc(width / 2, height / 2, Math.min(width, height) * 0.42, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (shape === 'squircle') {
+                ctx.beginPath();
+                ctx.roundRect(pad, pad, width - pad * 2, height - pad * 2, width * 0.22);
+                ctx.stroke();
+            } else {
+                ctx.strokeRect(pad, pad, width - pad * 2, height - pad * 2);
+            }
+            ctx.setLineDash([]);
+            ctx.strokeStyle = 'rgba(34,197,94,0.9)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(width / 2, height / 2, width * 0.32, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function updateMaskPreview() {
+            const width = maskPreviewCanvas.width;
+            const height = maskPreviewCanvas.height;
+            maskPreviewCtx.clearRect(0, 0, width, height);
+            if (!sourceImage) {
+                maskPreviewCtx.fillStyle = '#131316';
+                maskPreviewCtx.fillRect(0, 0, width, height);
+                return;
+            }
+            const options = getProcessingOptions({
+                paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 10)
+            });
+            drawIconToContext(maskPreviewCtx, sourceImage, width, height, cropRegion, options);
+            drawMaskOutline(maskPreviewCtx, width, height, maskShapeSelect.value);
         }
 
         function switchToUploadMode() {
@@ -1931,6 +2330,7 @@
                 cropSection.classList.add('active');
                 cropRegion = null;
                 initCropCanvas();
+                updateMaskPreview();
             };
             img.src = textPreviewCanvas.toDataURL('image/png');
         });
@@ -2010,6 +2410,7 @@
                 cropSection.classList.add('active');
                 cropRegion = null;
                 initCropCanvas();
+                updateMaskPreview();
             };
             img.src = emojiPreviewCanvas.toDataURL('image/png');
         });
@@ -2046,6 +2447,17 @@
         btnAddSize.addEventListener('click', addCustomSize);
         btnGenerate.addEventListener('click', generateIcons);
         btnDownloadAll.addEventListener('click', downloadAll);
+        [safePaddingSlider, resampleSelect, backgroundMode, backgroundColor, backgroundColor2, effectSelect, dropShadowToggle, maskShapeSelect].forEach(el => {
+            el.addEventListener('input', () => {
+                safePaddingValue.textContent = `${safePaddingSlider.value}%`;
+                updateMaskPreview();
+            });
+            el.addEventListener('change', () => {
+                safePaddingValue.textContent = `${safePaddingSlider.value}%`;
+                updateMaskPreview();
+            });
+        });
+        replaceInput.addEventListener('change', handleReplacementTemplate);
 
         const btnSaveToFolder = document.getElementById('btnSaveToFolder');
         if ('showDirectoryPicker' in window) {
@@ -2055,10 +2467,13 @@
 
         // Preset buttons
         const PRESETS = {
-            web:       { sizes: [32, 180],              formats: ['png', 'ico'] },
-            pwa:       { sizes: [192, 512],             formats: ['png'] },
-            extension: { sizes: [16, 32, 48, 128],      formats: ['png'] },
-            all:       { sizes: [16, 32, 48, 64, 96, 128, 180, 192, 512], formats: ['png', 'ico'] }
+            web:       { sizes: [16, 32, 48, 180, 192, 512], formats: ['png', 'ico', 'svg'] },
+            pwa:       { sizes: [72, 96, 128, 144, 152, 192, 384, 512], formats: ['png'] },
+            extension: { sizes: [16, 32, 48, 128], formats: ['png'] },
+            android:   { sizes: [192, 512], formats: ['png'] },
+            ios:       { sizes: [180, 512], formats: ['png'] },
+            windows:   { sizes: [70, 150, 310, { width: 310, height: 150 }], formats: ['png', 'ico'] },
+            all:       { sizes: [16, 32, 48, 64, 72, 96, 128, 144, 152, 180, 192, 384, 512], formats: ['png', 'ico', 'svg'] }
         };
 
         document.getElementById('presetButtons').addEventListener('click', (e) => {
@@ -2067,12 +2482,16 @@
             const preset = PRESETS[btn.dataset.preset];
             if (!preset) return;
 
+            activePresetKey = btn.dataset.preset;
             document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
+            const presetSizes = preset.sizes.map(normalizeSizeEntry);
+            presetSizes.forEach(ensureSizeOption);
+
             sizeGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                const val = parseInt(cb.value);
-                const match = preset.sizes.includes(val);
+                const size = { width: parseInt(cb.value, 10), height: parseInt(cb.dataset.height, 10) || parseInt(cb.value, 10) };
+                const match = presetSizes.some(s => s.width === size.width && s.height === size.height);
                 cb.checked = match;
                 cb.closest('.size-option').classList.toggle('selected', match);
             });
@@ -2082,6 +2501,9 @@
                 cb.checked = match;
                 cb.closest('.format-option').classList.toggle('selected', match);
             });
+
+            svgDarkmodeSection.style.display = preset.formats.includes('svg') ? 'block' : 'none';
+            updateMaskPreview();
         });
 
         // Crop Event Listeners
@@ -2158,6 +2580,60 @@
             }
         }
 
+        async function handleReplacementTemplate(e) {
+            replacementTargetNames = new Set();
+            replaceStatus.textContent = '';
+            const files = Array.from(e.target.files || []);
+            if (files.length === 0) return;
+
+            try {
+                for (const file of files) {
+                    const rel = file.webkitRelativePath || file.name;
+                    if (/\.zip$/i.test(file.name)) {
+                        const names = await readZipFileNames(file);
+                        names.forEach(name => replacementTargetNames.add(normalizeTemplateName(name)));
+                    } else {
+                        replacementTargetNames.add(normalizeTemplateName(rel));
+                    }
+                }
+                replaceStatus.textContent = `${replacementTargetNames.size} target filenames loaded`;
+            } catch (error) {
+                replacementTargetNames = new Set();
+                replaceStatus.textContent = 'Template scan failed';
+                showStatus(`Replacement template error: ${error.message}`, 'error');
+            }
+        }
+
+        async function readZipFileNames(file) {
+            const buffer = await file.arrayBuffer();
+            const bytes = new Uint8Array(buffer);
+            const view = new DataView(buffer);
+            const min = Math.max(0, bytes.length - 65557);
+            let eocd = -1;
+            for (let i = bytes.length - 22; i >= min; i--) {
+                if (view.getUint32(i, true) === 0x06054b50) {
+                    eocd = i;
+                    break;
+                }
+            }
+            if (eocd < 0) throw new Error('ZIP directory not found');
+            const totalEntries = view.getUint16(eocd + 10, true);
+            let offset = view.getUint32(eocd + 16, true);
+            const decoder = new TextDecoder();
+            const names = [];
+
+            for (let i = 0; i < totalEntries; i++) {
+                if (view.getUint32(offset, true) !== 0x02014b50) break;
+                const nameLen = view.getUint16(offset + 28, true);
+                const extraLen = view.getUint16(offset + 30, true);
+                const commentLen = view.getUint16(offset + 32, true);
+                const nameStart = offset + 46;
+                names.push(decoder.decode(bytes.slice(nameStart, nameStart + nameLen)));
+                offset = nameStart + nameLen + extraLen + commentLen;
+            }
+            return names.filter(name => name && !name.endsWith('/'));
+        }
+
         function loadImage(file) {
             if (!file.type.startsWith('image/') && !file.name.endsWith('.svg')) {
                 showStatus('Please select a valid image file', 'error');
@@ -2201,6 +2677,7 @@
                             cropSection.classList.add('active');
                             cropRegion = null;
                             initCropCanvas();
+                            updateMaskPreview();
                             tmpCanvas.width = 0;
                             tmpCanvas.height = 0;
                         };
@@ -2222,6 +2699,7 @@
                     cropSection.classList.add('active');
                     cropRegion = null;
                     initCropCanvas();
+                    updateMaskPreview();
                 };
                 img.onerror = () => {
                     showStatus('Failed to load image. Make sure it\'s a valid image file.', 'error');
@@ -2243,10 +2721,12 @@
             btnGenerate.disabled = true;
             outputSection.style.display = 'none';
             generatedFiles = [];
+            generatedSnippets = {};
             isManualCropMode = false;
             btnManualCrop.classList.remove('active');
             btnApplyCrop.style.display = 'none';
             revokeOutputUrls();
+            updateMaskPreview();
         }
 
         function revokeOutputUrls() {
@@ -2378,6 +2858,7 @@
             drawCropCanvas();
             updateCropInfo();
             updatePreviewWithCrop();
+            updateMaskPreview();
             cropStatus.textContent = 'Crop applied!';
             setTimeout(() => { cropStatus.textContent = ''; }, 2000);
         }
@@ -2401,6 +2882,7 @@
                     
                     // Update preview
                     updatePreviewWithCrop();
+                    updateMaskPreview();
                 } else {
                     cropStatus.textContent = 'No empty space detected';
                 }
@@ -2463,8 +2945,8 @@
 
             if (!foundContent) return null;
 
-            // Add small padding (2px)
-            const padding = 2;
+            // Add configurable safe-area padding around detected content.
+            const padding = Math.max(2, Math.round(Math.min(width, height) * ((parseInt(safePaddingSlider.value, 10) || 0) / 100)));
             minX = Math.max(0, minX - padding);
             minY = Math.max(0, minY - padding);
             maxX = Math.min(width - 1, maxX + padding);
@@ -2568,6 +3050,7 @@
                 drawCropCanvas();
                 updateCropInfo();
                 updatePreviewWithCrop();
+                updateMaskPreview();
                 
                 cropStatus.textContent = 'Crop applied!';
                 setTimeout(() => { cropStatus.textContent = ''; }, 2000);
@@ -2589,6 +3072,7 @@
             
             drawCropCanvas();
             updateCropInfo();
+            updateMaskPreview();
             cropStatus.textContent = 'Crop reset';
             setTimeout(() => { cropStatus.textContent = ''; }, 2000);
         }
@@ -2611,6 +3095,7 @@
             canvas.width = 0;
             canvas.height = 0;
             setPreviewInfo(sourceFileName, cropRegion.width, cropRegion.height, 'cropped');
+            updateMaskPreview();
         }
 
         function getCroppedImage() {
@@ -2703,6 +3188,32 @@ self.onmessage = async function(e) {
 
         // ==================== END CROP FUNCTIONS ====================
 
+        function findSizeInput(size) {
+            return Array.from(sizeGrid.querySelectorAll('input[type="checkbox"]')).find(input => {
+                const w = parseInt(input.value, 10);
+                const h = parseInt(input.dataset.height, 10) || w;
+                return w === size.width && h === size.height;
+            });
+        }
+
+        function ensureSizeOption(entry) {
+            const size = normalizeSizeEntry(entry);
+            if (findSizeInput(size)) return;
+
+            const label = document.createElement('label');
+            label.className = 'size-option';
+            label.innerHTML = `
+                <input type="checkbox" value="${size.width}" data-height="${size.height}">
+                <span class="size-checkbox">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                </span>
+                <span class="size-label">${size.width}x${size.height} <small>preset</small></span>
+            `;
+            sizeGrid.appendChild(label);
+        }
+
         function addCustomSize() {
             const w = parseInt(customWidth.value) || parseInt(customHeight.value);
             const h = parseInt(customHeight.value) || parseInt(customWidth.value);
@@ -2712,9 +3223,8 @@ self.onmessage = async function(e) {
                 return;
             }
 
-            // Check if size already exists
-            const existing = sizeGrid.querySelector(`input[value="${w}"]`);
-            if (existing && w === h) {
+            const existing = findSizeInput({ width: w, height: h });
+            if (existing) {
                 existing.checked = true;
                 existing.closest('.size-option').classList.add('selected');
                 showStatus(`Size ${w}x${h} already exists and has been selected`, 'info');
@@ -2755,17 +3265,7 @@ self.onmessage = async function(e) {
             canvas.width = svgSize;
             canvas.height = svgSize;
             const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-
-            const srcX = crop ? crop.x : 0;
-            const srcY = crop ? crop.y : 0;
-            const srcW = crop ? crop.width : img.naturalWidth;
-            const srcH = crop ? crop.height : img.naturalHeight;
-            const scale = Math.min(svgSize / srcW, svgSize / srcH);
-            const sw = srcW * scale, sh = srcH * scale;
-            const dx = (svgSize - sw) / 2, dy = (svgSize - sh) / 2;
-            ctx.drawImage(img, srcX, srcY, srcW, srcH, dx, dy, sw, sh);
+            drawIconToContext(ctx, img, svgSize, svgSize, crop, getProcessingOptions({ paddingPercent: 0, backgroundMode: 'transparent' }));
 
             const dataUrl = canvas.toDataURL('image/png');
             canvas.width = 0;
@@ -2817,8 +3317,9 @@ self.onmessage = async function(e) {
             revokeOutputUrls();
             outputGrid.innerHTML = '';
             generatedFiles = [];
+            generatedSnippets = {};
 
-            const totalOps = formats.reduce((n, f) => n + (f === 'ico' || f === 'svg' ? 1 : sizes.length), 0);
+            const totalOps = Math.max(1, formats.reduce((n, f) => n + (f === 'ico' || f === 'svg' ? 1 : sizes.length), 0));
             let completedOps = 0;
 
             try {
@@ -2830,32 +3331,30 @@ self.onmessage = async function(e) {
                         const icoSizes = sizes.filter(s => s.width <= 256 && s.width === s.height);
                         if (icoSizes.length > 0) {
                             const blob = await generateICO(imgSource, icoSizes, crop);
-                            const fileName = `${sourceFileName}.ico`;
-                            generatedFiles.push({ name: fileName, blob });
-                            addOutputItem(fileName, blob, { width: 'multi', height: 'multi' }, 'ico', icoSizes, blob.size);
+                            const fileName = getOutputFileName({ format, size: { width: 'multi', height: 'multi' } });
+                            addGeneratedFile(fileName, blob, { width: 'multi', height: 'multi' }, 'ico', { icoSizes });
                         }
                         completedOps++;
                         showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
                     } else if (format === 'svg') {
                         const svgStr = generateSvgFavicon(imgSource, crop);
                         const blob = new Blob([svgStr], { type: 'image/svg+xml' });
-                        const fileName = `${sourceFileName}.svg`;
-                        generatedFiles.push({ name: fileName, blob });
-                        addOutputItem(fileName, blob, { width: 'svg', height: '' }, 'svg', null, blob.size);
+                        const fileName = getOutputFileName({ format, size: { width: 'svg', height: '' } });
+                        addGeneratedFile(fileName, blob, { width: 'svg', height: '' }, 'svg');
                         completedOps++;
                         showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
                     } else {
                         for (const size of sizes) {
                             const { blob } = await generateImage(imgSource, size, format, crop);
-                            const fileName = `${sourceFileName}-${size.width}x${size.height}.${format}`;
-                            generatedFiles.push({ name: fileName, blob });
-                            addOutputItem(fileName, blob, size, format, null, blob.size);
+                            const fileName = getOutputFileName({ format, size });
+                            addGeneratedFile(fileName, blob, size, format);
                             completedOps++;
                             showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
                         }
                     }
                 }
 
+                await generatePlatformBundle(imgSource, crop, sizes, formats);
                 outputSection.style.display = 'block';
                 const totalSize = generatedFiles.reduce((s, f) => s + f.blob.size, 0);
                 showStatus(`Generated ${generatedFiles.length} files (${formatFileSize(totalSize)} total)`, 'success');
@@ -2875,7 +3374,8 @@ self.onmessage = async function(e) {
         }
 
         async function generateImage(img, size, format, crop = null, bitmap = null) {
-            if (resizeWorker) {
+            const options = getProcessingOptions({ backgroundMode: format === 'jpg' && backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value });
+            if (resizeWorker && !usesCustomProcessing(options)) {
                 const bmp = bitmap || await createImageBitmap(img);
                 const blob = await resizeInWorker(bmp, size.width, size.height, format, crop);
                 await new Promise(r => setTimeout(r, 0));
@@ -2886,26 +3386,7 @@ self.onmessage = async function(e) {
             canvas.width = size.width;
             canvas.height = size.height;
             const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-
-            const srcX = crop ? crop.x : 0;
-            const srcY = crop ? crop.y : 0;
-            const srcW = crop ? crop.width : img.naturalWidth;
-            const srcH = crop ? crop.height : img.naturalHeight;
-
-            const scale = Math.min(size.width / srcW, size.height / srcH);
-            const scaledWidth = srcW * scale;
-            const scaledHeight = srcH * scale;
-            const x = (size.width - scaledWidth) / 2;
-            const y = (size.height - scaledHeight) / 2;
-
-            if (format === 'jpg') {
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, size.width, size.height);
-            }
-
-            ctx.drawImage(img, srcX, srcY, srcW, srcH, x, y, scaledWidth, scaledHeight);
+            drawIconToContext(ctx, img, size.width, size.height, crop, options);
 
             const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : format === 'avif' ? 'image/avif' : 'image/png';
             const quality = format === 'png' ? undefined : 0.92;
@@ -2922,6 +3403,197 @@ self.onmessage = async function(e) {
             return (bytes / 1024).toFixed(1) + ' KB';
         }
 
+        function addGeneratedFile(name, blob, size, format, meta = {}) {
+            const existingIndex = generatedFiles.findIndex(file => file.name === name);
+            const file = { name, blob, size, format, ...meta };
+            if (existingIndex >= 0) {
+                generatedFiles[existingIndex] = file;
+            } else {
+                generatedFiles.push(file);
+            }
+            addOutputItem(name, blob, size, format, meta.icoSizes || null, blob.size);
+        }
+
+        function getOutputFileName({ format, size }) {
+            const stem = cleanPathSegment(sourceFileName);
+            const isSquare = size.width === size.height;
+            const wh = isSquare ? `${size.width}` : `${size.width}x${size.height}`;
+
+            if (activePresetKey === 'web') {
+                if (format === 'ico') return 'favicon.ico';
+                if (format === 'svg') return 'icon.svg';
+                if (format === 'png' && size.width === 180 && isSquare) return 'apple-touch-icon.png';
+                if (format === 'png' && [192, 512].includes(size.width) && isSquare) return `icon-${size.width}.png`;
+            }
+            if (activePresetKey === 'extension' && format === 'png' && isSquare) {
+                return `extension/icons/icon${size.width}.png`;
+            }
+            if (activePresetKey === 'pwa' && format === 'png' && isSquare) {
+                return `pwa/icons/icon-${size.width}x${size.height}.png`;
+            }
+            if (activePresetKey === 'windows' && format === 'png') {
+                return `windows/mstile-${size.width}x${size.height}.png`;
+            }
+            if (activePresetKey === 'windows' && format === 'ico') {
+                return 'windows/favicon.ico';
+            }
+            if (format === 'ico') return `${stem}.ico`;
+            if (format === 'svg') return `${stem}.svg`;
+            return `${stem}-${wh}.${format}`;
+        }
+
+        function hasGeneratedFile(name) {
+            return generatedFiles.some(file => file.name === name);
+        }
+
+        async function renderIconBlob(img, width, height, crop, options, format = 'png') {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            drawIconToContext(ctx, img, width, height, crop, options);
+            const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : format === 'avif' ? 'image/avif' : 'image/png';
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, format === 'png' ? undefined : 0.92));
+            canvas.width = 0;
+            canvas.height = 0;
+            return blob;
+        }
+
+        async function renderSplashBlob(img, width, height, crop) {
+            const options = getProcessingOptions({
+                paddingPercent: 38,
+                backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value,
+                dropShadow: true
+            });
+            return renderIconBlob(img, width, height, crop, options, 'png');
+        }
+
+        async function renderBackgroundBlob(width, height) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            fillIconBackground(ctx, width, height, getProcessingOptions({
+                backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
+            }), true);
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            canvas.width = 0;
+            canvas.height = 0;
+            return blob;
+        }
+
+        async function generatePlatformBundle(img, crop, sizes, formats) {
+            if (activePresetKey === 'pwa') {
+                await generatePwaBundle(img, crop);
+            } else if (activePresetKey === 'android') {
+                await generateAndroidBundle(img, crop);
+            } else if (activePresetKey === 'ios') {
+                await generateIosBundle(img, crop);
+            } else if (activePresetKey === 'windows') {
+                await generateWindowsBundle(img, crop);
+            }
+        }
+
+        async function generatePwaBundle(img, crop) {
+            const pwaSizes = [72, 96, 128, 144, 152, 192, 384, 512];
+            for (const px of pwaSizes) {
+                const anyName = `pwa/icons/icon-${px}x${px}.png`;
+                if (!hasGeneratedFile(anyName)) {
+                    const blob = await renderIconBlob(img, px, px, crop, getProcessingOptions(), 'png');
+                    addGeneratedFile(anyName, blob, { width: px, height: px }, 'png', { purpose: 'any' });
+                }
+
+                const maskName = `pwa/icons/icon-maskable-${px}x${px}.png`;
+                const blob = await renderIconBlob(img, px, px, crop, getProcessingOptions({
+                    paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 12),
+                    backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
+                }), 'png');
+                addGeneratedFile(maskName, blob, { width: px, height: px }, 'png', { purpose: 'maskable' });
+            }
+
+            const splashSizes = [
+                { width: 640, height: 1136, name: 'iphone-se' },
+                { width: 750, height: 1334, name: 'iphone-8' },
+                { width: 828, height: 1792, name: 'iphone-11' },
+                { width: 1179, height: 2556, name: 'iphone-14-pro' },
+                { width: 1536, height: 2048, name: 'ipad' },
+                { width: 2048, height: 2732, name: 'ipad-pro' }
+            ];
+            for (const splash of splashSizes) {
+                const portraitName = `pwa/splash/apple-splash-${splash.name}-${splash.width}x${splash.height}.png`;
+                const portrait = await renderSplashBlob(img, splash.width, splash.height, crop);
+                addGeneratedFile(portraitName, portrait, splash, 'png', { role: 'splash' });
+
+                const landscapeName = `pwa/splash/apple-splash-${splash.name}-${splash.height}x${splash.width}.png`;
+                const landscape = await renderSplashBlob(img, splash.height, splash.width, crop);
+                addGeneratedFile(landscapeName, landscape, { width: splash.height, height: splash.width }, 'png', { role: 'splash' });
+            }
+        }
+
+        async function generateAndroidBundle(img, crop) {
+            const size = 432;
+            const foreground = await renderIconBlob(img, size, size, crop, getProcessingOptions({
+                paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 18),
+                backgroundMode: 'transparent'
+            }), 'png');
+            addGeneratedFile('android/mipmap-xxxhdpi/ic_launcher_foreground.png', foreground, { width: size, height: size }, 'png', { role: 'android-foreground' });
+
+            const background = await renderBackgroundBlob(size, size);
+            addGeneratedFile('android/mipmap-xxxhdpi/ic_launcher_background.png', background, { width: size, height: size }, 'png', { role: 'android-background' });
+
+            const legacy = await renderIconBlob(img, size, size, crop, getProcessingOptions({
+                paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 12),
+                backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
+            }), 'png');
+            addGeneratedFile('android/mipmap-xxxhdpi/ic_launcher.png', legacy, { width: size, height: size }, 'png', { role: 'android-legacy' });
+        }
+
+        const IOS_ICON_SPECS = [
+            ['iphone', '20x20', '2x', 40], ['iphone', '20x20', '3x', 60],
+            ['iphone', '29x29', '2x', 58], ['iphone', '29x29', '3x', 87],
+            ['iphone', '40x40', '2x', 80], ['iphone', '40x40', '3x', 120],
+            ['iphone', '60x60', '2x', 120], ['iphone', '60x60', '3x', 180],
+            ['ipad', '20x20', '1x', 20], ['ipad', '20x20', '2x', 40],
+            ['ipad', '29x29', '1x', 29], ['ipad', '29x29', '2x', 58],
+            ['ipad', '40x40', '1x', 40], ['ipad', '40x40', '2x', 80],
+            ['ipad', '76x76', '1x', 76], ['ipad', '76x76', '2x', 152],
+            ['ipad', '83.5x83.5', '2x', 167],
+            ['ios-marketing', '1024x1024', '1x', 1024]
+        ];
+
+        function iosIconFileName(size, scale) {
+            return `Icon-App-${size.replace('.', '-')}-${scale}.png`;
+        }
+
+        async function generateIosBundle(img, crop) {
+            for (const [idiom, pointSize, scale, pixels] of IOS_ICON_SPECS) {
+                const name = `ios/AppIcon.appiconset/${iosIconFileName(pointSize, scale)}`;
+                const blob = await renderIconBlob(img, pixels, pixels, crop, getProcessingOptions({
+                    paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 4),
+                    backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
+                }), 'png');
+                addGeneratedFile(name, blob, { width: pixels, height: pixels }, 'png', { role: 'ios', idiom, pointSize, scale });
+            }
+        }
+
+        async function generateWindowsBundle(img, crop) {
+            const tiles = [
+                { width: 70, height: 70 },
+                { width: 150, height: 150 },
+                { width: 310, height: 310 },
+                { width: 310, height: 150 }
+            ];
+            for (const tile of tiles) {
+                const name = `windows/mstile-${tile.width}x${tile.height}.png`;
+                if (hasGeneratedFile(name)) continue;
+                const blob = await renderIconBlob(img, tile.width, tile.height, crop, getProcessingOptions({
+                    paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 10),
+                    backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
+                }), 'png');
+                addGeneratedFile(name, blob, tile, 'png', { role: 'windows-tile' });
+            }
+        }
+
         function addOutputItem(fileName, blob, size, format, icoSizes = null, fileSize = 0) {
             const item = document.createElement('div');
             item.className = 'output-item';
@@ -2932,13 +3604,14 @@ self.onmessage = async function(e) {
                 : size.width === 'svg' ? 'Scalable' : `${size.width}x${size.height}`;
 
             const safeName = escapeHtml(fileName);
+            const shortName = escapeHtml(baseName(fileName));
             const sizeDisplay = fileSize > 0 ? `<br><span style="color:var(--text-muted)">${formatFileSize(fileSize)}</span>` : '';
 
             item.innerHTML = `
                 <div class="output-preview">
                     <img src="${blobUrl}" alt="${safeName}">
                 </div>
-                <div class="output-info">${sizeText}<br>${format.toUpperCase()}${sizeDisplay}</div>
+                <div class="output-info" title="${safeName}">${shortName}<br>${sizeText}<br>${format.toUpperCase()}${sizeDisplay}</div>
                 <button class="btn-download" data-filename="${safeName}">Download</button>
                 <div class="base64-section">
                     <div class="base64-container">
@@ -3038,6 +3711,131 @@ self.onmessage = async function(e) {
             }
         }
 
+        function hrefFor(name) {
+            return `/${name.replace(/\\/g, '/')}`;
+        }
+
+        function firstFile(predicate) {
+            return generatedFiles.find(predicate);
+        }
+
+        function setSnippetBlock(blockId, snippetId, value) {
+            const block = document.getElementById(blockId);
+            const snippet = document.getElementById(snippetId);
+            if (!value) {
+                block.style.display = 'none';
+                snippet.textContent = '';
+                return;
+            }
+            block.style.display = 'block';
+            snippet.textContent = value;
+        }
+
+        function buildManifestSnippet() {
+            const icons = generatedFiles
+                .filter(file => file.format === 'png' && file.size && file.size.width === file.size.height)
+                .filter(file => file.name.startsWith('pwa/') || file.name === 'icon-192.png' || file.name === 'icon-512.png' || [192, 512].includes(file.size.width))
+                .map(file => ({
+                    src: hrefFor(file.name),
+                    sizes: `${file.size.width}x${file.size.height}`,
+                    type: 'image/png',
+                    purpose: file.purpose || (file.name.includes('maskable') ? 'maskable' : 'any')
+                }));
+
+            if (icons.length === 0) return '';
+            return JSON.stringify({
+                name: cleanPathSegment(sourceFileName),
+                short_name: cleanPathSegment(sourceFileName).slice(0, 12),
+                theme_color: backgroundColor.value,
+                background_color: backgroundColor.value,
+                icons
+            }, null, 2);
+        }
+
+        function buildExtensionSnippet() {
+            if (activePresetKey !== 'extension' && activePresetKey !== 'all') return '';
+            const icons = {};
+            for (const size of [16, 32, 48, 128]) {
+                const file = firstFile(f => f.format === 'png' && f.size?.width === size && f.size?.height === size);
+                if (file) icons[size] = file.name.startsWith('extension/') ? file.name.replace(/^extension\//, '') : file.name;
+            }
+            return Object.keys(icons).length > 0 ? JSON.stringify({ icons }, null, 2) : '';
+        }
+
+        function buildAndroidSnippet() {
+            if (activePresetKey !== 'android') return '';
+            return `<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>`;
+        }
+
+        function buildIosContents() {
+            if (activePresetKey !== 'ios') return '';
+            const images = IOS_ICON_SPECS.map(([idiom, pointSize, scale]) => ({
+                idiom,
+                size: pointSize,
+                scale,
+                filename: iosIconFileName(pointSize, scale)
+            }));
+            return JSON.stringify({ images, info: { version: 1, author: 'xcode' } }, null, 2);
+        }
+
+        function buildWindowsBrowserConfig() {
+            if (activePresetKey !== 'windows') return '';
+            return `<?xml version="1.0" encoding="utf-8"?>
+<browserconfig>
+  <msapplication>
+    <tile>
+      <square70x70logo src="/windows/mstile-70x70.png"/>
+      <square150x150logo src="/windows/mstile-150x150.png"/>
+      <wide310x150logo src="/windows/mstile-310x150.png"/>
+      <square310x310logo src="/windows/mstile-310x310.png"/>
+      <TileColor>${backgroundColor.value}</TileColor>
+    </tile>
+  </msapplication>
+</browserconfig>`;
+        }
+
+        function generateSnippets(sizes, formats) {
+            const snippetSection = document.getElementById('snippetSection');
+            const htmlSnippet = document.getElementById('htmlSnippet');
+            const lines = [];
+            const icoFile = firstFile(file => file.format === 'ico');
+            const svgFile = firstFile(file => file.format === 'svg');
+            const appleFile = firstFile(file => file.format === 'png' && file.size?.width === 180 && file.size?.height === 180);
+            const manifest = buildManifestSnippet();
+            const splashFiles = generatedFiles.filter(file => file.role === 'splash');
+
+            if (icoFile) lines.push(`<link rel="icon" href="${hrefFor(icoFile.name)}" sizes="32x32">`);
+            if (svgFile) lines.push(`<link rel="icon" href="${hrefFor(svgFile.name)}" type="image/svg+xml">`);
+            if (appleFile) lines.push(`<link rel="apple-touch-icon" href="${hrefFor(appleFile.name)}">`);
+            if (manifest) lines.push(`<link rel="manifest" href="${activePresetKey === 'pwa' ? '/pwa/manifest.webmanifest' : '/manifest.webmanifest'}">`);
+            for (const splash of splashFiles.slice(0, 6)) {
+                lines.push(`<link rel="apple-touch-startup-image" href="${hrefFor(splash.name)}" media="(device-width: ${splash.size.width}px) and (device-height: ${splash.size.height}px)">`);
+            }
+            if (activePresetKey === 'windows') {
+                lines.push(`<meta name="msapplication-config" content="/windows/browserconfig.xml">`);
+            }
+
+            generatedSnippets = {
+                html: lines.join('\n') || '<!-- No applicable tags for selected formats -->',
+                manifest,
+                extension: buildExtensionSnippet(),
+                android: buildAndroidSnippet(),
+                ios: buildIosContents(),
+                windows: buildWindowsBrowserConfig()
+            };
+
+            htmlSnippet.textContent = generatedSnippets.html;
+            snippetSection.style.display = 'block';
+            setSnippetBlock('manifestSnippetBlock', 'manifestSnippet', generatedSnippets.manifest);
+            setSnippetBlock('extensionSnippetBlock', 'extensionSnippet', generatedSnippets.extension);
+            setSnippetBlock('androidSnippetBlock', 'androidSnippet', generatedSnippets.android);
+            setSnippetBlock('iosSnippetBlock', 'iosSnippet', generatedSnippets.ios);
+            setSnippetBlock('windowsSnippetBlock', 'windowsSnippet', generatedSnippets.windows);
+        }
+
         document.getElementById('btnCopyHtml').addEventListener('click', async function() {
             try {
                 await navigator.clipboard.writeText(document.getElementById('htmlSnippet').textContent);
@@ -3052,6 +3850,52 @@ self.onmessage = async function(e) {
             } catch { showStatus('Failed to copy', 'error'); }
         });
 
+        document.getElementById('snippetSection').addEventListener('click', async (e) => {
+            const btn = e.target.closest('[data-copy-target]');
+            if (!btn) return;
+            try {
+                await navigator.clipboard.writeText(document.getElementById(btn.dataset.copyTarget).textContent);
+                showCopyFeedback(btn);
+            } catch {
+                showStatus('Failed to copy', 'error');
+            }
+        });
+
+        function textSupportFile(name, text, type = 'text/plain') {
+            return { name, blob: new Blob([text], { type }), support: true };
+        }
+
+        function getSupportFiles() {
+            const support = [];
+            const manifestPath = activePresetKey === 'pwa' ? 'pwa/manifest.webmanifest' : 'manifest.webmanifest';
+            if (generatedSnippets.html) support.push(textSupportFile('snippets/head.html', generatedSnippets.html, 'text/html'));
+            if (generatedSnippets.manifest) support.push(textSupportFile(manifestPath, generatedSnippets.manifest, 'application/manifest+json'));
+            if (generatedSnippets.extension) support.push(textSupportFile('extension/manifest-icons.json', generatedSnippets.extension, 'application/json'));
+            if (generatedSnippets.android) support.push(textSupportFile('android/mipmap-anydpi-v26/ic_launcher.xml', generatedSnippets.android, 'application/xml'));
+            if (generatedSnippets.ios) support.push(textSupportFile('ios/AppIcon.appiconset/Contents.json', generatedSnippets.ios, 'application/json'));
+            if (generatedSnippets.windows) support.push(textSupportFile('windows/browserconfig.xml', generatedSnippets.windows, 'application/xml'));
+
+            const fileList = generatedFiles.map(file => `- ${file.name} (${formatFileSize(file.blob.size)})`).join('\n');
+            support.push(textSupportFile('README.txt', `Icon Forge export\n\nGenerated files:\n${fileList}\n`, 'text/plain'));
+            return support;
+        }
+
+        function matchesReplacementTarget(file) {
+            if (replacementTargetNames.size === 0) return true;
+            const normalized = normalizeTemplateName(file.name);
+            const short = normalizeTemplateName(baseName(file.name));
+            return replacementTargetNames.has(normalized) || replacementTargetNames.has(short);
+        }
+
+        function getExportFiles() {
+            let imageFiles = generatedFiles;
+            if (replacementTargetNames.size > 0) {
+                const matched = generatedFiles.filter(matchesReplacementTarget);
+                if (matched.length > 0) imageFiles = matched;
+            }
+            return [...imageFiles, ...getSupportFiles()];
+        }
+
         async function downloadAll() {
             if (generatedFiles.length === 0) return;
 
@@ -3060,7 +3904,8 @@ self.onmessage = async function(e) {
 
             try {
                 const zipFiles = [];
-                for (const file of generatedFiles) {
+                const exportFiles = getExportFiles();
+                for (const file of exportFiles) {
                     const buf = await file.blob.arrayBuffer();
                     zipFiles.push({ name: file.name, data: new Uint8Array(buf) });
                 }
@@ -3093,18 +3938,28 @@ self.onmessage = async function(e) {
             if (generatedFiles.length === 0) return;
             try {
                 const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-                for (const file of generatedFiles) {
-                    const fileHandle = await dirHandle.getFileHandle(file.name, { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(file.blob);
-                    await writable.close();
+                const exportFiles = getExportFiles();
+                for (const file of exportFiles) {
+                    await writeFileToDirectory(dirHandle, file.name, file.blob);
                 }
-                showStatus(`Saved ${generatedFiles.length} files to folder`, 'success');
+                showStatus(`Saved ${exportFiles.length} files to folder`, 'success');
             } catch (err) {
                 if (err.name !== 'AbortError') {
                     showStatus(`Error saving: ${err.message}`, 'error');
                 }
             }
+        }
+
+        async function writeFileToDirectory(rootHandle, path, blob) {
+            const parts = path.split('/').filter(Boolean);
+            let dir = rootHandle;
+            for (const part of parts.slice(0, -1)) {
+                dir = await dir.getDirectoryHandle(part, { create: true });
+            }
+            const fileHandle = await dir.getFileHandle(parts[parts.length - 1], { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
         }
 
         // ICO Generation
@@ -3116,22 +3971,7 @@ self.onmessage = async function(e) {
                 canvas.width = size.width;
                 canvas.height = size.height;
                 const ctx = canvas.getContext('2d');
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                
-                // Source dimensions (use crop if available)
-                const srcX = crop ? crop.x : 0;
-                const srcY = crop ? crop.y : 0;
-                const srcW = crop ? crop.width : img.naturalWidth;
-                const srcH = crop ? crop.height : img.naturalHeight;
-                
-                const scale = Math.min(size.width / srcW, size.height / srcH);
-                const scaledWidth = srcW * scale;
-                const scaledHeight = srcH * scale;
-                const x = (size.width - scaledWidth) / 2;
-                const y = (size.height - scaledHeight) / 2;
-                
-                ctx.drawImage(img, srcX, srcY, srcW, srcH, x, y, scaledWidth, scaledHeight);
+                drawIconToContext(ctx, img, size.width, size.height, crop, getProcessingOptions());
                 
                 const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
                 const arrayBuffer = await blob.arrayBuffer();
