@@ -21,7 +21,7 @@ IconForge is a zero-dependency static browser PWA for generating favicons, PWA i
 - Astro/webpack/PWA icon generators: do framework-ready placement and configuration well. Learn from framework-specific output paths and snippets; avoid framework lock-in.
 
 ## Security, Privacy, and Reliability
-- Verified: no runtime dependencies and no processing uploads are part of the repo design (`README.md`, `CLAUDE.md`); keep this as the product constraint for future work.
+- Verified: no runtime dependencies and no processing uploads are part of the repo design (`README.md`); keep this as the product constraint for future work.
 - Verified: the live generation path at `http://127.0.0.1:8765/index.html` generated a PWA text-icon bundle with no console warnings/errors, but there is no automated test that protects this behavior.
 - Verified: two same-scope `generateSnippets()` declarations exist in `index.html:3665` and `index.html:3800`; the second overrides the first, leaving dead snippet logic that can confuse future edits.
 - Verified: `buildManifestSnippet()` in `index.html:3734` emits icon metadata plus basic name/colors only; current manifest specs and PWA guidance support richer deployment metadata such as description, start URL, scope, display, categories, shortcuts, screenshots, and language/direction where relevant.
