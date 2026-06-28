@@ -216,8 +216,18 @@ function loadApp() {
     document,
     navigator: {
       clipboard: { writeText: async () => {} },
-      serviceWorker: { register: async () => {} }
+      serviceWorker: {
+        controller: null,
+        addEventListener() {},
+        register: async () => ({
+          waiting: null,
+          installing: null,
+          addEventListener() {},
+          update: async () => {}
+        })
+      }
     },
+    location: { reload() {} },
     URL: {
       createObjectURL: () => 'blob:iconforge-test',
       revokeObjectURL: () => {}

@@ -2,6 +2,15 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.3] - 2026-06-28
+
+### Added
+- Non-blocking update notice for installed PWA users when a new service worker is waiting or has activated in the background.
+- Reload action that tells the waiting service worker to activate before refreshing the tab.
+
+### Changed
+- Service worker cache version now tracks the app release and no longer force-activates updates without a visible recovery path.
+
 ## [v0.4.2] - 2026-06-28
 
 ### Added

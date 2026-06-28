@@ -6,13 +6,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ## Research-Driven Additions
 
-- [ ] P1 - Add visible service-worker update recovery
-  Why: Installed PWA users can remain on an old shell with no visible update/reload path even though `sw.js` handles cache replacement.
-  Evidence: `sw.js:1`, `index.html:4064`, Chrome Workbox service-worker update guidance
-  Touches: `index.html`, `sw.js`
-  Acceptance: When a new service worker is waiting or activated, the app shows a non-blocking update notice with a reload action and keeps offline behavior working.
-  Complexity: M
-
 - [ ] P1 - Fix unlabeled source and custom-size controls
   Why: Live DOM audit found visible inputs without accessible labels, weakening the current WCAG baseline.
   Evidence: `#textInput`, `#fontSelect`, `#customWidth`, `#customHeight`, WCAG 2.2 form-label expectations

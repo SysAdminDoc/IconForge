@@ -968,6 +968,73 @@
             color: var(--warning);
         }
 
+        /* Update notice */
+        .update-notice {
+            position: fixed;
+            right: 1rem;
+            bottom: 1rem;
+            z-index: 80;
+            width: min(360px, calc(100vw - 2rem));
+            padding: 0.85rem;
+            background: rgba(18, 18, 22, 0.96);
+            border: 1px solid rgba(249, 115, 22, 0.28);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 0.65rem;
+            align-items: center;
+            backdrop-filter: blur(12px);
+        }
+
+        .update-notice[hidden] {
+            display: none;
+        }
+
+        .update-notice strong {
+            display: block;
+            color: var(--text-primary);
+            font-size: 0.82rem;
+        }
+
+        .update-notice span {
+            display: block;
+            margin-top: 0.2rem;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            line-height: 1.4;
+        }
+
+        .update-action,
+        .update-dismiss {
+            border: 1px solid var(--border);
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all var(--transition);
+        }
+
+        .update-action {
+            padding: 0.45rem 0.65rem;
+            font-size: 0.76rem;
+            font-weight: 600;
+        }
+
+        .update-dismiss {
+            width: 2rem;
+            height: 2rem;
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        .update-action:hover,
+        .update-dismiss:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
         /* Supported Formats Info */
         .formats-info {
             margin-top: 1.25rem;
@@ -1980,6 +2047,15 @@
         <footer>
             <p>Icon Forge &middot; Open source &middot; No tracking &middot; Works offline</p>
         </footer>
+    </div>
+
+    <div class="update-notice" id="updateNotice" hidden>
+        <div>
+            <strong>Update ready</strong>
+            <span id="updateNoticeText">Reload to use the latest Icon Forge.</span>
+        </div>
+        <button class="update-action" id="btnReloadUpdate" type="button">Reload</button>
+        <button class="update-dismiss" id="btnDismissUpdate" type="button" aria-label="Dismiss update notice">&times;</button>
     </div>
 
     <script>
@@ -4373,6 +4449,54 @@ self.onmessage = async function(e) {
             status.textContent = message;
         }
 
+        const updateNotice = document.getElementById('updateNotice');
+        const updateNoticeText = document.getElementById('updateNoticeText');
+        const btnReloadUpdate = document.getElementById('btnReloadUpdate');
+        const btnDismissUpdate = document.getElementById('btnDismissUpdate');
+        let pendingServiceWorker = null;
+        let reloadOnControllerChange = false;
+
+        function showUpdateNotice(message, worker = null) {
+            if (worker) pendingServiceWorker = worker;
+            updateNoticeText.textContent = message;
+            updateNotice.hidden = false;
+        }
+
+        function hideUpdateNotice() {
+            updateNotice.hidden = true;
+        }
+
+        btnReloadUpdate.addEventListener('click', () => {
+            if (pendingServiceWorker) {
+                reloadOnControllerChange = true;
+                pendingServiceWorker.postMessage({ type: 'SKIP_WAITING' });
+                return;
+            }
+            window.location.reload();
+        });
+
+        btnDismissUpdate.addEventListener('click', hideUpdateNotice);
+
+        function watchServiceWorker(registration, hadController) {
+            if (registration.waiting && hadController) {
+                showUpdateNotice('A new offline shell is ready. Reload to use it.', registration.waiting);
+            }
+
+            registration.addEventListener('updatefound', () => {
+                const worker = registration.installing;
+                if (!worker) return;
+                worker.addEventListener('statechange', () => {
+                    if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                        showUpdateNotice('A new offline shell is ready. Reload to use it.', worker);
+                    } else if (worker.state === 'activated' && hadController && !reloadOnControllerChange) {
+                        showUpdateNotice('Icon Forge was updated in the background. Reload to refresh this tab.');
+                    }
+                });
+            });
+
+            registration.update?.();
+        }
+
         if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
             window.__ICONFORGE_TEST__ = {
                 buildZip,
@@ -4416,7 +4540,24 @@ self.onmessage = async function(e) {
         }
 
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js').catch(() => {});
+            const hadController = Boolean(navigator.serviceWorker.controller);
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (reloadOnControllerChange) {
+                    window.location.reload();
+                    return;
+                }
+                if (hadController) {
+                    showUpdateNotice('Icon Forge was updated in the background. Reload to refresh this tab.');
+                }
+            });
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data?.type === 'ICONFORGE_SW_ACTIVATED' && hadController && !reloadOnControllerChange) {
+                    showUpdateNotice('Icon Forge was updated in the background. Reload to refresh this tab.');
+                }
+            });
+            navigator.serviceWorker.register('./sw.js')
+                .then(registration => watchServiceWorker(registration, hadController))
+                .catch(() => {});
         }
     </script>
 </body>

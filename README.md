@@ -1,6 +1,6 @@
 # Icon Forge
 
-![Version](https://img.shields.io/badge/version-v0.4.2-58A6FF) ![License](https://img.shields.io/badge/license-MIT-green) ![Platform](https://img.shields.io/badge/platform-Web-58A6FF) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
+![Version](https://img.shields.io/badge/version-v0.4.3-58A6FF) ![License](https://img.shields.io/badge/license-MIT-green) ![Platform](https://img.shields.io/badge/platform-Web-58A6FF) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 
 Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser extension assets entirely in your browser. No uploads, no server, no tracking. Works offline.
 
@@ -21,7 +21,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Drop-replace template matching** - load an existing folder or ZIP filename map and export only matching generated assets
 - **File size display** - see per-icon and total file sizes after generation
 - **SVG dark mode** - generates SVG favicons with embedded `prefers-color-scheme` CSS
-- **Offline PWA** - install as a Progressive Web App, works without internet
+- **Offline PWA** - install as a Progressive Web App, works without internet, and shows a reload notice when an update is ready
 - **100% client-side** - all processing happens in your browser via Canvas and Web Workers
 
 ## Getting Started
