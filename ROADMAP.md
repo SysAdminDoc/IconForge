@@ -6,20 +6,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ## Research-Driven Additions
 
-- [ ] P1 - Add core export regression tests
-  Why: ZIP, ICO, manifest, snippet, filename, and platform bundle behavior is user-critical but currently protected only by manual browser checks.
-  Evidence: `index.html:1901`, `index.html:3734`, `index.html:3485`, `index.html:3533`, `index.html:3551`, RealFaviconGenerator, pwa-asset-generator, itgalaxy/favicons
-  Touches: `index.html`, new local test harness files
-  Acceptance: A local command validates ZIP central directory reads, ICO headers, generated platform filenames, manifest JSON, snippet output, and replacement-template matching without opening a browser.
-  Complexity: M
-
-- [ ] P1 - Remove duplicate snippet-generation implementation
-  Why: Two same-scope `generateSnippets()` declarations leave dead logic in the file and make future snippet changes easy to apply to the wrong function.
-  Evidence: `index.html:3665`, `index.html:3800`
-  Touches: `index.html`
-  Acceptance: Only one snippet-generation entry point remains, all copy buttons still work, and PWA/extension/Android/iOS/Windows snippets are covered by tests.
-  Complexity: S
-
 - [ ] P1 - Add local export validator
   Why: The main competitive gap after v0.4.0 is deployment confidence: users need to know a generated folder/ZIP satisfies the selected platform rules.
   Evidence: RealFaviconGenerator checker, Maskable.app, `index.html:3868`, web.dev manifest and maskable-icon guidance

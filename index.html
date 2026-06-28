@@ -3662,54 +3662,6 @@ self.onmessage = async function(e) {
             }, 1500);
         }
 
-        function generateSnippets(sizes, formats) {
-            const snippetSection = document.getElementById('snippetSection');
-            const htmlSnippet = document.getElementById('htmlSnippet');
-            const manifestSnippet = document.getElementById('manifestSnippet');
-            const manifestBlock = document.getElementById('manifestSnippetBlock');
-
-            const lines = [];
-            const hasIco = formats.includes('ico');
-            const hasSvg = formats.includes('svg');
-            const hasPng = formats.includes('png');
-            const sizeValues = sizes.map(s => s.width);
-
-            if (hasIco) {
-                lines.push(`<link rel="icon" href="/favicon.ico" sizes="32x32">`);
-            }
-            if (hasSvg) {
-                lines.push(`<link rel="icon" href="/icon.svg" type="image/svg+xml">`);
-            }
-            if (hasPng && sizeValues.includes(180)) {
-                lines.push(`<link rel="apple-touch-icon" href="/apple-touch-icon.png">`);
-            }
-            if (hasPng && (sizeValues.includes(192) || sizeValues.includes(512))) {
-                lines.push(`<link rel="manifest" href="/manifest.webmanifest">`);
-            }
-
-            htmlSnippet.textContent = lines.join('\n') || '<!-- No applicable tags for selected formats -->';
-            snippetSection.style.display = 'block';
-
-            // Manifest JSON — only if PWA-relevant sizes exist
-            const manifestSizes = sizes.filter(s =>
-                [192, 512].includes(s.width) && s.width === s.height && hasPng
-            );
-            if (manifestSizes.length > 0) {
-                const icons = [];
-                for (const s of manifestSizes) {
-                    icons.push({
-                        src: `/${sourceFileName}-${s.width}x${s.height}.png`,
-                        sizes: `${s.width}x${s.height}`,
-                        type: 'image/png',
-                        purpose: s.width >= 512 ? 'maskable' : 'any'
-                    });
-                }
-                manifestSnippet.textContent = JSON.stringify({ icons }, null, 2);
-                manifestBlock.style.display = 'block';
-            } else {
-                manifestBlock.style.display = 'none';
-            }
-        }
 
         function hrefFor(name) {
             return `/${name.replace(/\\/g, '/')}`;
@@ -4058,6 +4010,47 @@ self.onmessage = async function(e) {
             }
             status.className = `status visible ${type}`;
             status.textContent = message;
+        }
+
+        if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
+            window.__ICONFORGE_TEST__ = {
+                buildZip,
+                crc32,
+                createICO,
+                cleanPathSegment,
+                baseName,
+                normalizeTemplateName,
+                getOutputFileName,
+                iosIconFileName,
+                buildManifestSnippet,
+                buildExtensionSnippet,
+                buildAndroidSnippet,
+                buildIosContents,
+                buildWindowsBrowserConfig,
+                generateSnippets,
+                getSupportFiles,
+                matchesReplacementTarget,
+                getExportFiles,
+                setState(next = {}) {
+                    if (Object.prototype.hasOwnProperty.call(next, 'sourceFileName')) sourceFileName = next.sourceFileName;
+                    if (Object.prototype.hasOwnProperty.call(next, 'generatedFiles')) generatedFiles = next.generatedFiles;
+                    if (Object.prototype.hasOwnProperty.call(next, 'activePresetKey')) activePresetKey = next.activePresetKey;
+                    if (Object.prototype.hasOwnProperty.call(next, 'replacementTargetNames')) {
+                        replacementTargetNames = new Set(next.replacementTargetNames.map(normalizeTemplateName));
+                    }
+                    if (Object.prototype.hasOwnProperty.call(next, 'generatedSnippets')) generatedSnippets = next.generatedSnippets;
+                    if (Object.prototype.hasOwnProperty.call(next, 'backgroundColor')) backgroundColor.value = next.backgroundColor;
+                },
+                getState() {
+                    return {
+                        sourceFileName,
+                        generatedFiles,
+                        activePresetKey,
+                        replacementTargetNames: Array.from(replacementTargetNames),
+                        generatedSnippets
+                    };
+                }
+            };
         }
 
         if ('serviceWorker' in navigator) {

@@ -1,0 +1,86 @@
+# Changelog
+
+All notable changes to IconForge will be documented in this file.
+
+## [v0.4.1] - 2026-06-28
+
+### Added
+- Dependency-free export regression tests for ZIP central directory output, ICO headers, platform filenames, generated manifest/snippet support files, and replacement-template matching.
+
+### Changed
+- Removed the duplicate snippet-generation implementation so there is one active snippet builder for HTML, manifest, extension, Android, iOS, and Windows snippets.
+- README now documents the local syntax and export regression verification commands.
+
+## [v0.4.0] - 2026-06-27
+
+### Added
+- Platform bundle presets for Modern Web, PWA, Extension, Android adaptive icons, iOS AppIcon.appiconset, Windows tiles, and All Sizes.
+- PWA maskable icons, iOS splash images, web manifest export, and HTML startup/link snippets.
+- Android adaptive icon foreground/background PNG export plus `ic_launcher.xml` snippet.
+- Full iOS AppIcon.appiconset image matrix with generated Contents.json.
+- Windows tile images with generated browserconfig.xml.
+- Processing controls for safe padding, resampling, background fill/gradient, drop shadow, and tint/desaturate/glass effects.
+- Maskable safe-zone preview with circle, squircle, and rounded-square overlays.
+- Replacement template matching from folder selections or ZIP central-directory filenames.
+- Deployable ZIP support files: README.txt, HTML snippet, manifest JSON, Android XML, iOS Contents.json, and Windows browserconfig.xml.
+
+### Changed
+- Generated preset files now use deployment-ready filenames and folder structures where applicable.
+- ICO generation uses the same processing renderer as PNG/JPG/WebP/AVIF output.
+- README updated for v0.4.0 platform bundle behavior.
+
+## [v0.3.0] - 2026-06-15
+
+### Added
+- HTML `<link>` snippet generation with copy button.
+- Manifest JSON snippet generation.
+- Input file size guard: reject >200MB, warn >50MB before processing.
+
+### Changed
+- Output previews now use Blob URLs instead of base64 dataURLs.
+- Base64 copy button lazy-generates dataURL on click instead of pre-computing.
+- Removed deprecated `document.execCommand('copy')`.
+- Service Worker now uses network-first for HTML and cache-first for static assets.
+
+### Fixed
+- Fix Safari WebP silent data corruption by feature-detecting WebP output.
+- Fix Worker ImageBitmap transfer and worker timeout/error rejection.
+- Fix "All Sizes" preset missing 180x180.
+- Fix manifest.webmanifest color mismatch.
+- Free temporary canvases in crop detection and preview generation.
+
+## [v0.2.0] - 2026-06-15
+
+### Security
+- Fix XSS vulnerability: filenames rendered via `textContent` instead of `innerHTML`.
+- Add SRI integrity hash and `crossorigin` to JSZip CDN script tag.
+- Escape HTML in output item filenames.
+
+### Added
+- Emoji-to-favicon mode.
+- Text-to-favicon mode.
+- AVIF output format.
+- OffscreenCanvas Web Worker for non-blocking batch resize.
+- One-click bundle presets.
+- SVG favicon output with embedded dark-mode CSS.
+- Clipboard image paste support.
+- Service Worker + PWA manifest for offline support and installability.
+- File System Access API "Save to Folder" button.
+- Per-icon file size display with total size summary.
+
+### Changed
+- Replace JSZip CDN dependency with inline STORE-mode ZIP builder.
+- Revoke blob URLs on reset and re-generation.
+
+### Accessibility
+- Add WCAG 2.2 AA baseline.
+- Add numeric crop inputs as pointer alternative.
+- Add visible focus ring on interactive elements.
+
+### Fixed
+- Fix `getCroppedImage()` assigning to readonly image properties.
+- Add canvas dimension validation and browser-limit downscaling.
+
+## [v0.1.0] - 2026-06-14
+
+- Initial static icon generator seed.
