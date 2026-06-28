@@ -2,6 +2,13 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.2] - 2026-06-28
+
+### Added
+- Export validation panel that reports pass/warn/fail status after generation.
+- Platform-specific checks for missing files, expected dimensions, manifest icon metadata, deployable support files, and PWA maskable safe-zone coverage.
+- Regression coverage for validator pass and failure cases.
+
 ## [v0.4.1] - 2026-06-28
 
 ### Added

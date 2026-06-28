@@ -6,13 +6,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ## Research-Driven Additions
 
-- [ ] P1 - Add local export validator
-  Why: The main competitive gap after v0.4.0 is deployment confidence: users need to know a generated folder/ZIP satisfies the selected platform rules.
-  Evidence: RealFaviconGenerator checker, Maskable.app, `index.html:3868`, web.dev manifest and maskable-icon guidance
-  Touches: `index.html`
-  Acceptance: After generation, a validation panel reports missing files, wrong dimensions, manifest/icon mismatches, maskable safe-zone warnings, and a pass/fail result for the active preset.
-  Complexity: L
-
 - [ ] P1 - Add visible service-worker update recovery
   Why: Installed PWA users can remain on an old shell with no visible update/reload path even though `sw.js` handles cache replacement.
   Evidence: `sw.js:1`, `index.html:4064`, Chrome Workbox service-worker update guidance

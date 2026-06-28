@@ -825,6 +825,83 @@
             color: var(--accent);
         }
 
+        /* Export Validation */
+        .validation-panel {
+            margin-top: 1rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+        }
+
+        .validation-summary {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .validation-summary strong {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+        }
+
+        .validation-summary span {
+            display: block;
+            margin-top: 0.25rem;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            line-height: 1.5;
+        }
+
+        .validation-summary.pass {
+            border-color: rgba(34, 197, 94, 0.18);
+            background: rgba(34, 197, 94, 0.05);
+        }
+
+        .validation-summary.warn {
+            border-color: rgba(234, 179, 8, 0.18);
+            background: rgba(234, 179, 8, 0.05);
+        }
+
+        .validation-summary.fail {
+            border-color: rgba(239, 68, 68, 0.18);
+            background: rgba(239, 68, 68, 0.05);
+        }
+
+        .validation-list {
+            list-style: none;
+            padding: 0.5rem 0.75rem 0.75rem;
+            margin: 0;
+            display: grid;
+            gap: 0.45rem;
+        }
+
+        .validation-item {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.74rem;
+            line-height: 1.45;
+        }
+
+        .validation-state {
+            width: 0.6rem;
+            height: 0.6rem;
+            border-radius: 999px;
+            margin-top: 0.22rem;
+        }
+
+        .validation-state.pass { background: var(--success); }
+        .validation-state.warn { background: var(--warning); }
+        .validation-state.fail { background: var(--error); }
+
+        .validation-item strong {
+            display: block;
+            color: var(--text-primary);
+            font-size: 0.76rem;
+        }
+
         /* Code Snippets */
         .snippet-block {
             margin-top: 0.75rem;
@@ -1812,6 +1889,14 @@
                             </svg>
                             Save to Folder
                         </button>
+                    </div>
+
+                    <div id="validationSection" class="validation-panel" style="display:none;" aria-live="polite">
+                        <div id="validationSummary" class="validation-summary">
+                            <strong>Export validation</strong>
+                            <span>Run generation to validate the current platform bundle.</span>
+                        </div>
+                        <ul id="validationList" class="validation-list"></ul>
                     </div>
 
                     <div id="snippetSection" style="display:none;">
@@ -3359,6 +3444,7 @@ self.onmessage = async function(e) {
                 const totalSize = generatedFiles.reduce((s, f) => s + f.blob.size, 0);
                 showStatus(`Generated ${generatedFiles.length} files (${formatFileSize(totalSize)} total)`, 'success');
                 generateSnippets(sizes, formats);
+                renderExportValidation();
             } catch (error) {
                 showStatus(`Error: ${error.message}`, 'error');
                 console.error(error);
@@ -3494,9 +3580,25 @@ self.onmessage = async function(e) {
             }
         }
 
+        const PWA_ICON_SIZES = [72, 96, 128, 144, 152, 192, 384, 512];
+        const PWA_SPLASH_SPECS = [
+            { width: 640, height: 1136, name: 'iphone-se' },
+            { width: 750, height: 1334, name: 'iphone-8' },
+            { width: 828, height: 1792, name: 'iphone-11' },
+            { width: 1179, height: 2556, name: 'iphone-14-pro' },
+            { width: 1536, height: 2048, name: 'ipad' },
+            { width: 2048, height: 2732, name: 'ipad-pro' }
+        ];
+
+        const WINDOWS_TILE_SPECS = [
+            { width: 70, height: 70 },
+            { width: 150, height: 150 },
+            { width: 310, height: 310 },
+            { width: 310, height: 150 }
+        ];
+
         async function generatePwaBundle(img, crop) {
-            const pwaSizes = [72, 96, 128, 144, 152, 192, 384, 512];
-            for (const px of pwaSizes) {
+            for (const px of PWA_ICON_SIZES) {
                 const anyName = `pwa/icons/icon-${px}x${px}.png`;
                 if (!hasGeneratedFile(anyName)) {
                     const blob = await renderIconBlob(img, px, px, crop, getProcessingOptions(), 'png');
@@ -3511,15 +3613,7 @@ self.onmessage = async function(e) {
                 addGeneratedFile(maskName, blob, { width: px, height: px }, 'png', { purpose: 'maskable' });
             }
 
-            const splashSizes = [
-                { width: 640, height: 1136, name: 'iphone-se' },
-                { width: 750, height: 1334, name: 'iphone-8' },
-                { width: 828, height: 1792, name: 'iphone-11' },
-                { width: 1179, height: 2556, name: 'iphone-14-pro' },
-                { width: 1536, height: 2048, name: 'ipad' },
-                { width: 2048, height: 2732, name: 'ipad-pro' }
-            ];
-            for (const splash of splashSizes) {
+            for (const splash of PWA_SPLASH_SPECS) {
                 const portraitName = `pwa/splash/apple-splash-${splash.name}-${splash.width}x${splash.height}.png`;
                 const portrait = await renderSplashBlob(img, splash.width, splash.height, crop);
                 addGeneratedFile(portraitName, portrait, splash, 'png', { role: 'splash' });
@@ -3577,13 +3671,7 @@ self.onmessage = async function(e) {
         }
 
         async function generateWindowsBundle(img, crop) {
-            const tiles = [
-                { width: 70, height: 70 },
-                { width: 150, height: 150 },
-                { width: 310, height: 310 },
-                { width: 310, height: 150 }
-            ];
-            for (const tile of tiles) {
+            for (const tile of WINDOWS_TILE_SPECS) {
                 const name = `windows/mstile-${tile.width}x${tile.height}.png`;
                 if (hasGeneratedFile(name)) continue;
                 const blob = await renderIconBlob(img, tile.width, tile.height, crop, getProcessingOptions({
@@ -3832,6 +3920,279 @@ self.onmessage = async function(e) {
             return support;
         }
 
+        function pwaSplashFileSpecs() {
+            return PWA_SPLASH_SPECS.flatMap(splash => [
+                {
+                    name: `pwa/splash/apple-splash-${splash.name}-${splash.width}x${splash.height}.png`,
+                    width: splash.width,
+                    height: splash.height
+                },
+                {
+                    name: `pwa/splash/apple-splash-${splash.name}-${splash.height}x${splash.width}.png`,
+                    width: splash.height,
+                    height: splash.width
+                }
+            ]);
+        }
+
+        function fileSpecSummary(items) {
+            if (items.length === 0) return '';
+            const shown = items.slice(0, 4).join(', ');
+            return items.length > 4 ? `${shown}, +${items.length - 4} more` : shown;
+        }
+
+        function getFileByName(name) {
+            return generatedFiles.find(file => file.name === name);
+        }
+
+        function addValidationCheck(checks, status, label, detail) {
+            checks.push({ status, label, detail });
+        }
+
+        function checkFileSet(checks, label, specs) {
+            const missing = [];
+            const wrong = [];
+
+            for (const spec of specs) {
+                const file = getFileByName(spec.name);
+                if (!file) {
+                    missing.push(spec.name);
+                    continue;
+                }
+                if (typeof spec.width === 'number' && typeof spec.height === 'number') {
+                    const actualWidth = file.size?.width;
+                    const actualHeight = file.size?.height;
+                    if (actualWidth !== spec.width || actualHeight !== spec.height) {
+                        wrong.push(`${spec.name} is ${actualWidth || '?'}x${actualHeight || '?'}, expected ${spec.width}x${spec.height}`);
+                    }
+                }
+            }
+
+            if (missing.length || wrong.length) {
+                const details = [];
+                if (missing.length) details.push(`Missing: ${fileSpecSummary(missing)}`);
+                if (wrong.length) details.push(`Wrong dimensions: ${fileSpecSummary(wrong)}`);
+                addValidationCheck(checks, 'fail', label, details.join(' | '));
+            } else {
+                addValidationCheck(checks, 'pass', label, `${specs.length} expected file${specs.length === 1 ? '' : 's'} present with expected dimensions.`);
+            }
+        }
+
+        function expectedPresetFileGroups() {
+            if (activePresetKey === 'web') {
+                return [
+                    {
+                        label: 'Modern web files',
+                        specs: [
+                            { name: 'favicon.ico' },
+                            { name: 'icon.svg' },
+                            { name: 'apple-touch-icon.png', width: 180, height: 180 },
+                            { name: 'icon-192.png', width: 192, height: 192 },
+                            { name: 'icon-512.png', width: 512, height: 512 }
+                        ]
+                    }
+                ];
+            }
+            if (activePresetKey === 'pwa') {
+                return [
+                    {
+                        label: 'PWA icon files',
+                        specs: PWA_ICON_SIZES.flatMap(px => [
+                            { name: `pwa/icons/icon-${px}x${px}.png`, width: px, height: px },
+                            { name: `pwa/icons/icon-maskable-${px}x${px}.png`, width: px, height: px }
+                        ])
+                    },
+                    { label: 'PWA splash files', specs: pwaSplashFileSpecs() }
+                ];
+            }
+            if (activePresetKey === 'extension') {
+                return [
+                    {
+                        label: 'Extension icon files',
+                        specs: [16, 32, 48, 128].map(px => ({ name: `extension/icons/icon${px}.png`, width: px, height: px }))
+                    }
+                ];
+            }
+            if (activePresetKey === 'android') {
+                return [
+                    {
+                        label: 'Android adaptive icon files',
+                        specs: [
+                            { name: 'android/mipmap-xxxhdpi/ic_launcher_foreground.png', width: 432, height: 432 },
+                            { name: 'android/mipmap-xxxhdpi/ic_launcher_background.png', width: 432, height: 432 },
+                            { name: 'android/mipmap-xxxhdpi/ic_launcher.png', width: 432, height: 432 }
+                        ]
+                    }
+                ];
+            }
+            if (activePresetKey === 'ios') {
+                return [
+                    {
+                        label: 'iOS AppIcon files',
+                        specs: IOS_ICON_SPECS.map(([, pointSize, scale, pixels]) => ({
+                            name: `ios/AppIcon.appiconset/${iosIconFileName(pointSize, scale)}`,
+                            width: pixels,
+                            height: pixels
+                        }))
+                    }
+                ];
+            }
+            if (activePresetKey === 'windows') {
+                return [
+                    {
+                        label: 'Windows tile files',
+                        specs: [
+                            { name: 'windows/favicon.ico' },
+                            ...WINDOWS_TILE_SPECS.map(tile => ({
+                                name: `windows/mstile-${tile.width}x${tile.height}.png`,
+                                width: tile.width,
+                                height: tile.height
+                            }))
+                        ]
+                    }
+                ];
+            }
+            return [];
+        }
+
+        function validateSupportFiles(checks) {
+            const expected = ['README.txt'];
+            if (generatedSnippets.html) expected.push('snippets/head.html');
+            if (generatedSnippets.manifest) expected.push(activePresetKey === 'pwa' ? 'pwa/manifest.webmanifest' : 'manifest.webmanifest');
+            if (generatedSnippets.extension) expected.push('extension/manifest-icons.json');
+            if (generatedSnippets.android) expected.push('android/mipmap-anydpi-v26/ic_launcher.xml');
+            if (generatedSnippets.ios) expected.push('ios/AppIcon.appiconset/Contents.json');
+            if (generatedSnippets.windows) expected.push('windows/browserconfig.xml');
+
+            const supportNames = new Set(getSupportFiles().map(file => file.name));
+            const missing = expected.filter(name => !supportNames.has(name));
+            if (missing.length) {
+                addValidationCheck(checks, 'fail', 'Deployable support files', `Missing: ${fileSpecSummary(missing)}`);
+            } else {
+                addValidationCheck(checks, 'pass', 'Deployable support files', `${expected.length} support file${expected.length === 1 ? '' : 's'} will be included in ZIP/folder export.`);
+            }
+        }
+
+        function validateManifestIcons(checks) {
+            const relevantIcons = generatedFiles
+                .filter(file => file.format === 'png' && file.size?.width === file.size?.height)
+                .filter(file => file.name.startsWith('pwa/icons/') || file.name === 'icon-192.png' || file.name === 'icon-512.png' || [192, 512].includes(file.size.width));
+
+            if (relevantIcons.length === 0) {
+                addValidationCheck(checks, 'warn', 'Manifest icon metadata', 'No manifest-sized PNG icons were generated for this export.');
+                return;
+            }
+            if (!generatedSnippets.manifest) {
+                addValidationCheck(checks, 'fail', 'Manifest icon metadata', 'Generated icons need a manifest snippet but none was produced.');
+                return;
+            }
+
+            try {
+                const manifest = JSON.parse(generatedSnippets.manifest);
+                const icons = Array.isArray(manifest.icons) ? manifest.icons : [];
+                const mismatches = [];
+                for (const file of relevantIcons) {
+                    const expectedSrc = hrefFor(file.name);
+                    const entry = icons.find(icon => icon.src === expectedSrc);
+                    if (!entry) {
+                        mismatches.push(`${file.name} missing`);
+                        continue;
+                    }
+                    const expectedSizes = `${file.size.width}x${file.size.height}`;
+                    const expectedPurpose = file.purpose || (file.name.includes('maskable') ? 'maskable' : 'any');
+                    if (entry.sizes !== expectedSizes || entry.type !== 'image/png' || entry.purpose !== expectedPurpose) {
+                        mismatches.push(`${file.name} metadata mismatch`);
+                    }
+                }
+                if (mismatches.length) {
+                    addValidationCheck(checks, 'fail', 'Manifest icon metadata', fileSpecSummary(mismatches));
+                } else {
+                    addValidationCheck(checks, 'pass', 'Manifest icon metadata', `${relevantIcons.length} generated icon${relevantIcons.length === 1 ? '' : 's'} match manifest src, sizes, type, and purpose.`);
+                }
+            } catch (error) {
+                addValidationCheck(checks, 'fail', 'Manifest icon metadata', `Manifest JSON is invalid: ${error.message}`);
+            }
+        }
+
+        function validateMaskableSafeZone(checks) {
+            const maskableFiles = generatedFiles.filter(file => file.purpose === 'maskable' || file.name.includes('maskable'));
+            if (activePresetKey !== 'pwa' && maskableFiles.length === 0) return;
+            if (maskableFiles.length === 0) {
+                addValidationCheck(checks, 'fail', 'Maskable safe zone', 'No maskable PWA icons were generated.');
+                return;
+            }
+            const effectivePadding = Math.max(parseInt(safePaddingSlider.value, 10) || 0, 12);
+            if (effectivePadding < 12) {
+                addValidationCheck(checks, 'warn', 'Maskable safe zone', 'Maskable icons should keep at least 12% safe padding.');
+            } else {
+                addValidationCheck(checks, 'pass', 'Maskable safe zone', `${maskableFiles.length} maskable icon${maskableFiles.length === 1 ? '' : 's'} use at least ${effectivePadding}% safe padding.`);
+            }
+        }
+
+        function validateGeneratedExport() {
+            const checks = [];
+            if (generatedFiles.length === 0) {
+                addValidationCheck(checks, 'fail', 'Generated files', 'No generated files are available to validate.');
+            } else {
+                addValidationCheck(checks, 'pass', 'Generated files', `${generatedFiles.length} image file${generatedFiles.length === 1 ? '' : 's'} generated.`);
+            }
+
+            const groups = expectedPresetFileGroups();
+            for (const group of groups) checkFileSet(checks, group.label, group.specs);
+            if (groups.length === 0 && activePresetKey) {
+                addValidationCheck(checks, 'warn', 'Platform file rules', `No strict validator is defined for preset "${activePresetKey}".`);
+            } else if (groups.length === 0) {
+                addValidationCheck(checks, 'warn', 'Platform file rules', 'Custom exports validate generated files and support files only.');
+            }
+
+            validateManifestIcons(checks);
+            validateMaskableSafeZone(checks);
+            validateSupportFiles(checks);
+
+            const status = checks.some(check => check.status === 'fail') ? 'fail' : checks.some(check => check.status === 'warn') ? 'warn' : 'pass';
+            return {
+                status,
+                title: status === 'pass' ? 'Export validation passed' : status === 'warn' ? 'Export validation has warnings' : 'Export validation failed',
+                detail: status === 'pass'
+                    ? 'The generated bundle matches the selected platform rules.'
+                    : 'Review the checks below before deploying this export.',
+                checks
+            };
+        }
+
+        function renderExportValidation() {
+            const section = document.getElementById('validationSection');
+            const summary = document.getElementById('validationSummary');
+            const list = document.getElementById('validationList');
+            const result = validateGeneratedExport();
+
+            section.style.display = 'block';
+            summary.className = `validation-summary ${result.status}`;
+            summary.textContent = '';
+            const title = document.createElement('strong');
+            title.textContent = result.title;
+            const detail = document.createElement('span');
+            detail.textContent = result.detail;
+            summary.appendChild(title);
+            summary.appendChild(detail);
+
+            list.textContent = '';
+            for (const check of result.checks) {
+                const item = document.createElement('li');
+                item.className = 'validation-item';
+                const dot = document.createElement('span');
+                dot.className = `validation-state ${check.status}`;
+                const body = document.createElement('span');
+                const label = document.createElement('strong');
+                label.textContent = check.label;
+                body.appendChild(label);
+                body.appendChild(document.createTextNode(check.detail));
+                item.appendChild(dot);
+                item.appendChild(body);
+                list.appendChild(item);
+            }
+        }
+
         function matchesReplacementTarget(file) {
             if (replacementTargetNames.size === 0) return true;
             const normalized = normalizeTemplateName(file.name);
@@ -4029,6 +4390,7 @@ self.onmessage = async function(e) {
                 buildWindowsBrowserConfig,
                 generateSnippets,
                 getSupportFiles,
+                validateGeneratedExport,
                 matchesReplacementTarget,
                 getExportFiles,
                 setState(next = {}) {

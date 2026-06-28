@@ -291,6 +291,40 @@ function makeBlob(size = 4, type = 'image/png') {
   return new Blob([new Uint8Array(size).fill(7)], { type });
 }
 
+function makePwaBundleFiles() {
+  const iconSizes = [72, 96, 128, 144, 152, 192, 384, 512];
+  const splashSpecs = [
+    { width: 640, height: 1136, name: 'iphone-se' },
+    { width: 750, height: 1334, name: 'iphone-8' },
+    { width: 828, height: 1792, name: 'iphone-11' },
+    { width: 1179, height: 2556, name: 'iphone-14-pro' },
+    { width: 1536, height: 2048, name: 'ipad' },
+    { width: 2048, height: 2732, name: 'ipad-pro' }
+  ];
+  return [
+    ...iconSizes.flatMap((px) => [
+      { name: `pwa/icons/icon-${px}x${px}.png`, blob: makeBlob(), size: { width: px, height: px }, format: 'png', purpose: 'any' },
+      { name: `pwa/icons/icon-maskable-${px}x${px}.png`, blob: makeBlob(), size: { width: px, height: px }, format: 'png', purpose: 'maskable' }
+    ]),
+    ...splashSpecs.flatMap((splash) => [
+      {
+        name: `pwa/splash/apple-splash-${splash.name}-${splash.width}x${splash.height}.png`,
+        blob: makeBlob(),
+        size: { width: splash.width, height: splash.height },
+        format: 'png',
+        role: 'splash'
+      },
+      {
+        name: `pwa/splash/apple-splash-${splash.name}-${splash.height}x${splash.width}.png`,
+        blob: makeBlob(),
+        size: { width: splash.height, height: splash.width },
+        format: 'png',
+        role: 'splash'
+      }
+    ])
+  ];
+}
+
 async function main() {
   const api = loadApp();
 
@@ -357,6 +391,40 @@ async function main() {
     'pwa/manifest.webmanifest',
     'README.txt'
   ]);
+
+  const pwaBundleFiles = makePwaBundleFiles();
+  api.setState({
+    sourceFileName: 'Acme App',
+    activePresetKey: 'pwa',
+    generatedFiles: pwaBundleFiles,
+    generatedSnippets: {},
+    replacementTargetNames: [],
+    backgroundColor: '#123456'
+  });
+  api.generateSnippets([], []);
+  const pwaValidation = api.validateGeneratedExport();
+  assert.strictEqual(pwaValidation.status, 'pass');
+  assert(pwaValidation.checks.some((check) => check.label === 'PWA icon files' && check.status === 'pass'));
+  assert(pwaValidation.checks.some((check) => check.label === 'Manifest icon metadata' && check.status === 'pass'));
+
+  const brokenPwaFiles = pwaBundleFiles
+    .filter((file) => file.name !== 'pwa/icons/icon-maskable-72x72.png')
+    .map((file) => file.name === 'pwa/icons/icon-192x192.png'
+      ? { ...file, size: { width: 128, height: 128 } }
+      : file);
+  api.setState({
+    sourceFileName: 'Acme App',
+    activePresetKey: 'pwa',
+    generatedFiles: brokenPwaFiles,
+    generatedSnippets: {},
+    replacementTargetNames: [],
+    backgroundColor: '#123456'
+  });
+  api.generateSnippets([], []);
+  const brokenValidation = api.validateGeneratedExport();
+  assert.strictEqual(brokenValidation.status, 'fail');
+  assert(brokenValidation.checks.some((check) => check.detail.includes('Missing: pwa/icons/icon-maskable-72x72.png')));
+  assert(brokenValidation.checks.some((check) => check.detail.includes('Wrong dimensions: pwa/icons/icon-192x192.png is 128x128, expected 192x192')));
 
   api.setState({
     activePresetKey: 'extension',
