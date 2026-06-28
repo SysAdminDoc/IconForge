@@ -6,13 +6,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ## Research-Driven Additions
 
-- [ ] P1 - Fix unlabeled source and custom-size controls
-  Why: Live DOM audit found visible inputs without accessible labels, weakening the current WCAG baseline.
-  Evidence: `#textInput`, `#fontSelect`, `#customWidth`, `#customHeight`, WCAG 2.2 form-label expectations
-  Touches: `index.html`
-  Acceptance: All visible inputs/selects have programmatic labels, the text/emoji/custom-size flows remain visually unchanged, and an automated accessibility smoke check reports no unlabeled visible form controls.
-  Complexity: S
-
 - [ ] P2 - Add richer manifest metadata builder
   Why: Current generated manifests focus on icons; modern PWA handoff benefits from user-controlled name, short name, description, start URL, scope, display, theme/background colors, categories, shortcuts, screenshots, lang, and dir.
   Evidence: `index.html:3734`, W3C Web App Manifest, web.dev add-manifest, pwa-asset-generator

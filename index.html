@@ -1639,10 +1639,10 @@
 
                 <div id="textMode" style="display:none;">
                     <div class="text-favicon-section">
-                        <label class="section-label">Letter or Text</label>
+                        <label class="section-label" for="textInput">Letter or Text</label>
                         <input type="text" id="textInput" class="text-input" maxlength="3" value="A" placeholder="A">
 
-                        <label class="section-label" style="margin-top:1rem;">Font</label>
+                        <label class="section-label" for="fontSelect" style="margin-top:1rem;">Font</label>
                         <select id="fontSelect" class="font-select">
                             <option value="'Space Grotesk', sans-serif">Space Grotesk</option>
                             <option value="'Arial', sans-serif">Arial</option>
@@ -1812,8 +1812,10 @@
                 <div class="custom-size-section">
                     <label class="section-label">Custom Size</label>
                     <div class="custom-size-input">
+                        <label class="sr-only" for="customWidth">Custom icon width</label>
                         <input type="number" id="customWidth" placeholder="256" min="1" max="4096">
-                        <span>x</span>
+                        <span aria-hidden="true">x</span>
+                        <label class="sr-only" for="customHeight">Custom icon height</label>
                         <input type="number" id="customHeight" placeholder="256" min="1" max="4096">
                         <button class="btn-add-size" id="btnAddSize">Add</button>
                     </div>

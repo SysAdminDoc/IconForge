@@ -2,6 +2,12 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.4] - 2026-06-28
+
+### Accessibility
+- Added programmatic labels for text-source, font, custom width, and custom height controls.
+- Added a local accessibility smoke test for visible form-control labels.
+
 ## [v0.4.3] - 2026-06-28
 
 ### Added
