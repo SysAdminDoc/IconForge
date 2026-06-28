@@ -157,6 +157,19 @@ function createDocumentMock() {
     emojiBgColor: '#111111',
     svgLightColor: '#111111',
     svgDarkColor: '#ffffff',
+    manifestName: '',
+    manifestShortName: '',
+    manifestDescription: '',
+    manifestStartUrl: './index.html',
+    manifestScope: './',
+    manifestDisplay: 'standalone',
+    manifestCategories: '',
+    manifestThemeColor: '#09090b',
+    manifestBackgroundColor: '#09090b',
+    manifestLang: 'en',
+    manifestDir: 'auto',
+    manifestShortcuts: '',
+    manifestScreenshots: '',
     toleranceSlider: '10',
     toleranceValue: '10'
   };
@@ -383,13 +396,83 @@ async function main() {
     generatedFiles,
     generatedSnippets: {},
     replacementTargetNames: [],
-    backgroundColor: '#123456'
+    backgroundColor: '#123456',
+    manifestMetadata: {
+      themeColor: '#123456',
+      backgroundColor: '#123456'
+    }
   });
   const manifest = JSON.parse(api.buildManifestSnippet());
   assert.strictEqual(manifest.name, 'Acme-App');
+  assert.strictEqual(manifest.short_name, 'Acme-App');
+  assert.strictEqual(manifest.description, 'Generated icon set for Acme-App.');
+  assert.strictEqual(manifest.start_url, './index.html');
+  assert.strictEqual(manifest.scope, './');
+  assert.strictEqual(manifest.display, 'standalone');
   assert.strictEqual(manifest.theme_color, '#123456');
+  assert.strictEqual(manifest.background_color, '#123456');
+  assert.strictEqual(manifest.lang, 'en');
+  assert.strictEqual(manifest.dir, 'auto');
+  assert(!Object.prototype.hasOwnProperty.call(manifest, 'categories'), 'empty categories should be omitted');
+  assert(!Object.prototype.hasOwnProperty.call(manifest, 'shortcuts'), 'empty shortcuts should be omitted');
   assert(manifest.icons.some((icon) => icon.src === '/pwa/icons/icon-192x192.png' && icon.purpose === 'any'));
   assert(manifest.icons.some((icon) => icon.src === '/pwa/icons/icon-maskable-512x512.png' && icon.purpose === 'maskable'));
+
+  api.setState({
+    manifestMetadata: {
+      name: 'Acme Operations Console',
+      shortName: 'Acme Ops',
+      description: 'Local deployment assets for Acme operations.',
+      startUrl: './dashboard/',
+      scope: './',
+      display: 'minimal-ui',
+      categories: 'business, utilities, productivity',
+      themeColor: '#112233',
+      backgroundColor: '#445566',
+      lang: 'ar',
+      dir: 'rtl',
+      shortcuts: [{ name: 'Reports', short_name: 'Reports', url: './reports/' }],
+      screenshots: [{ src: '/screenshots/home.png', sizes: '1280x720', type: 'image/png' }]
+    }
+  });
+  const editedManifest = JSON.parse(api.buildManifestSnippet());
+  assert.strictEqual(editedManifest.name, 'Acme Operations Console');
+  assert.strictEqual(editedManifest.short_name, 'Acme Ops');
+  assert.strictEqual(editedManifest.description, 'Local deployment assets for Acme operations.');
+  assert.strictEqual(editedManifest.start_url, './dashboard/');
+  assert.strictEqual(editedManifest.display, 'minimal-ui');
+  assert.deepStrictEqual(editedManifest.categories, ['business', 'utilities', 'productivity']);
+  assert.strictEqual(editedManifest.theme_color, '#112233');
+  assert.strictEqual(editedManifest.background_color, '#445566');
+  assert.strictEqual(editedManifest.lang, 'ar');
+  assert.strictEqual(editedManifest.dir, 'rtl');
+  assert.strictEqual(editedManifest.shortcuts[0].url, './reports/');
+  assert.strictEqual(editedManifest.screenshots[0].sizes, '1280x720');
+
+  api.setState({ manifestMetadata: { lang: '', dir: '', shortcuts: '{broken', screenshots: 'not-an-array' } });
+  const invalidMetadata = api.validateManifestMetadata();
+  assert(invalidMetadata.errors.includes('Shortcuts must be valid JSON.'));
+  assert(invalidMetadata.errors.includes('Screenshots must be valid JSON.'));
+  const optionalManifest = JSON.parse(api.buildManifestSnippet());
+  assert(!Object.prototype.hasOwnProperty.call(optionalManifest, 'lang'), 'empty language should be omitted');
+  assert(!Object.prototype.hasOwnProperty.call(optionalManifest, 'dir'), 'empty direction should be omitted');
+  api.setState({
+    manifestMetadata: {
+      name: '',
+      shortName: '',
+      description: '',
+      startUrl: './index.html',
+      scope: './',
+      display: 'standalone',
+      categories: '',
+      themeColor: '#123456',
+      backgroundColor: '#123456',
+      lang: 'en',
+      dir: 'auto',
+      shortcuts: '',
+      screenshots: ''
+    }
+  });
 
   api.generateSnippets([], []);
   const snippets = api.getState().generatedSnippets;

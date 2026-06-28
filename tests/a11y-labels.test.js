@@ -26,7 +26,7 @@ function isWrappedByLabel(index) {
 }
 
 const unlabeled = [];
-const controls = documentHtml.matchAll(/<(input|select)\b[^>]*>/gi);
+const controls = documentHtml.matchAll(/<(input|select|textarea)\b[^>]*>/gi);
 for (const match of controls) {
   const tag = match[0];
   const controlAttrs = attrs(tag);

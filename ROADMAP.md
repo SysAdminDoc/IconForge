@@ -6,13 +6,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ## Research-Driven Additions
 
-- [ ] P2 - Add richer manifest metadata builder
-  Why: Current generated manifests focus on icons; modern PWA handoff benefits from user-controlled name, short name, description, start URL, scope, display, theme/background colors, categories, shortcuts, screenshots, lang, and dir.
-  Evidence: `index.html:3734`, W3C Web App Manifest, web.dev add-manifest, pwa-asset-generator
-  Touches: `index.html`
-  Acceptance: A compact metadata panel feeds generated `manifest.webmanifest`, validates required fields, preserves privacy/local-only behavior, and includes tests for default and edited metadata.
-  Complexity: M
-
 - [ ] P2 - Add CSP-compatible script/style split
   Why: A meaningful CSP can prevent accidental network calls and reduce injection risk, but the current inline app structure blocks a strict policy.
   Evidence: `index.html`, `index.html:3109`, MDN CSP guidance
@@ -47,10 +40,3 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
   Touches: `index.html`, README feature table after implementation
   Acceptance: An optional preset exports Open Graph and social preview PNGs with copyable meta tags while leaving default icon workflows unchanged.
   Complexity: M
-
-- [ ] P3 - Add manifest language and direction support
-  Why: Full UI translation is not the next priority, but generated web manifests should expose platform-standard `lang` and `dir` fields for international apps.
-  Evidence: W3C Web App Manifest, `index.html:3734`
-  Touches: `index.html`
-  Acceptance: Manifest metadata controls include `lang` and `dir`, generated JSON omits empty optional fields, and tests cover left-to-right and right-to-left values.
-  Complexity: S

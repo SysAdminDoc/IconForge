@@ -1,7 +1,7 @@
 # Research - IconForge
 
 ## Executive Summary
-IconForge is a zero-dependency static browser PWA for generating favicons, PWA icons, extension icons, Android/iOS icon bundles, Windows tiles, snippets, and deployable ZIPs entirely client-side. Its strongest current shape is privacy-preserving platform bundle export: v0.4.0 already covers the biggest parity gap against RealFaviconGenerator, pwa-asset-generator, favicons, Icon Kitchen, and favicon.io. v0.4.1 adds a dependency-free export regression harness and removes the duplicate snippet builder. v0.4.2 adds local export validation after generation. v0.4.3 adds visible service-worker update recovery. v0.4.4 closes the verified visible-label gap. The highest-value direction is trust and deployment correctness, not more raw output formats. Top opportunities: improve generated manifest metadata; harden with a CSP-compatible script split; add framework-specific handoff snippets; add diagnostics for browser feature support and generation decisions.
+IconForge is a zero-dependency static browser PWA for generating favicons, PWA icons, extension icons, Android/iOS icon bundles, Windows tiles, snippets, and deployable ZIPs entirely client-side. Its strongest current shape is privacy-preserving platform bundle export: v0.4.0 already covers the biggest parity gap against RealFaviconGenerator, pwa-asset-generator, favicons, Icon Kitchen, and favicon.io. v0.4.1 adds a dependency-free export regression harness and removes the duplicate snippet builder. v0.4.2 adds local export validation after generation. v0.4.3 adds visible service-worker update recovery. v0.4.4 closes the verified visible-label gap. v0.4.5 adds user-controlled manifest metadata including language and direction fields. The highest-value direction is trust and deployment correctness, not more raw output formats. Top opportunities: harden with a CSP-compatible script split; add framework-specific handoff snippets; add diagnostics for browser feature support and generation decisions; add export checksums.
 
 ## Product Map
 - Core workflows: upload/paste/text/emoji source -> crop/process -> select preset/formats -> generate -> download/save/copy snippets.
@@ -25,7 +25,7 @@ IconForge is a zero-dependency static browser PWA for generating favicons, PWA i
 - Verified: the live generation path at `http://127.0.0.1:8765/index.html` generated a PWA text-icon bundle with no console warnings/errors. v0.4.1 now protects the pure export builders with `tests/export-regression.test.js`.
 - Verified fixed in v0.4.1: two same-scope `generateSnippets()` declarations existed in `index.html:3665` and `index.html:3800`; only one active snippet entry point remains.
 - Verified in v0.4.2 at `http://127.0.0.1:8766/index.html`: the generated-output flow now renders a local validation panel with pass/warn/fail checks for selected platform files, dimensions, manifest icon metadata, support files, and maskable safe-zone coverage.
-- Verified: `buildManifestSnippet()` in `index.html:3734` emits icon metadata plus basic name/colors only; current manifest specs and PWA guidance support richer deployment metadata such as description, start URL, scope, display, categories, shortcuts, screenshots, and language/direction where relevant.
+- Verified fixed in v0.4.5: `buildManifestSnippet()` now uses local manifest metadata controls for name, short name, description, start URL, scope, display, categories, theme/background colors, shortcuts, screenshots, `lang`, and `dir`, with tests covering default, edited, and optional values.
 - Verified fixed in v0.4.3: `sw.js` uses network-first HTML and cache cleanup, and `index.html` now shows a non-blocking reload notice when a new service worker is waiting or has activated in the background.
 - Verified: the app has no CSP. Because `index.html` currently contains large inline CSS/JS plus Blob workers (`index.html:3109`), adding a meaningful CSP requires either a script/style split or a carefully documented policy.
 - Verified fixed in v0.4.4: `#textInput`, `#fontSelect`, `#customWidth`, and `#customHeight` now have programmatic labels, with `tests/a11y-labels.test.js` covering visible form controls.
@@ -47,7 +47,7 @@ IconForge is a zero-dependency static browser PWA for generating favicons, PWA i
 - Device chrome mockups: source is Icon Kitchen and Maskable.app; rejected for the actionable roadmap because visual asset/device-matrix decisions are already parked in `Roadmap_Blocked.md`.
 - Headless CLI/package: source is pwa-asset-generator, favicons, Astro and webpack plugins; rejected for this pass because the separate package design is already parked in `Roadmap_Blocked.md`.
 - Multi-user/project accounts: source is commercial asset-management tools; rejected because IconForge is a local single-session utility and accounts would contradict the privacy-first browser model.
-- Full UI translation project: source is global web tooling usage; rejected as a near-term item because deployment correctness and accessibility issues have higher verified impact. Add manifest `lang`/`dir` support first.
+- Full UI translation project: source is global web tooling usage; rejected as a near-term item because deployment correctness and accessibility issues have higher verified impact. Manifest `lang`/`dir` support is now covered by the generated-manifest metadata controls.
 - Windows tile expansion beyond current output: source is legacy favicon generators; rejected because current Windows support is enough and modern demand is lower than PWA/extension/mobile correctness.
 
 ## Sources
@@ -83,5 +83,4 @@ Community and operations:
 - https://developer.chrome.com/docs/workbox/handling-service-worker-updates
 
 ## Open Questions
-- Verified blocker: should richer manifest metadata be user-entered per export, persisted locally, or derived from the source filename with optional overrides?
 - Verified blocker: should CSP hardening preserve a single-file app, or is a two-file `index.html` plus `app.js` structure acceptable for the next release?

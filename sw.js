@@ -1,4 +1,4 @@
-const CACHE_NAME = 'iconforge-v0.4.4';
+const CACHE_NAME = 'iconforge-v0.4.5';
 const ASSETS = [
   './icon.png',
   './manifest.webmanifest'

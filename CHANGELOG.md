@@ -2,6 +2,13 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.5] - 2026-06-28
+
+### Added
+- Compact manifest metadata panel for app name, short name, description, start URL, scope, display mode, categories, colors, shortcuts, screenshots, language, and direction.
+- Manifest metadata validation for required fields and JSON array shortcut/screenshot inputs.
+- Regression coverage for default manifest metadata, edited metadata, optional language/direction omission, and invalid metadata JSON.
+
 ## [v0.4.4] - 2026-06-28
 
 ### Accessibility

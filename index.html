@@ -1402,6 +1402,78 @@
             font-size: 0.72rem;
         }
 
+        .manifest-metadata-section {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+
+        .metadata-heading-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.6rem;
+        }
+
+        .metadata-status {
+            color: var(--success);
+            font-size: 0.7rem;
+            text-align: right;
+        }
+
+        .metadata-status.error {
+            color: var(--error);
+        }
+
+        .manifest-metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+            gap: 0.65rem;
+        }
+
+        .metadata-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            min-width: 0;
+        }
+
+        .metadata-field.full {
+            grid-column: 1 / -1;
+        }
+
+        .metadata-field label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .metadata-field input,
+        .metadata-field select,
+        .metadata-field textarea {
+            width: 100%;
+            min-height: 34px;
+            padding: 0.4rem 0.55rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.78rem;
+            resize: vertical;
+        }
+
+        .metadata-field input[type="color"] {
+            height: 34px;
+            padding: 2px;
+            cursor: pointer;
+        }
+
         /* Preset buttons */
         .preset-section {
             margin-bottom: 1rem;
@@ -1721,6 +1793,77 @@
                         <button class="btn-preset" data-preset="ios" title="AppIcon.appiconset PNGs and Contents.json">iOS</button>
                         <button class="btn-preset" data-preset="windows" title="Windows tile PNGs and browserconfig.xml">Windows</button>
                         <button class="btn-preset" data-preset="all" title="All standard sizes">All Sizes</button>
+                    </div>
+                </div>
+
+                <div class="manifest-metadata-section" aria-labelledby="manifestMetadataLabel">
+                    <div class="metadata-heading-row">
+                        <label class="section-label" id="manifestMetadataLabel">Manifest Metadata</label>
+                        <span class="metadata-status" id="manifestMetadataStatus" role="status" aria-live="polite">Defaults from source</span>
+                    </div>
+                    <div class="manifest-metadata-grid" id="manifestMetadataGrid">
+                        <div class="metadata-field">
+                            <label for="manifestName">Name</label>
+                            <input type="text" id="manifestName" maxlength="80" placeholder="Derived from source">
+                        </div>
+                        <div class="metadata-field">
+                            <label for="manifestShortName">Short Name</label>
+                            <input type="text" id="manifestShortName" maxlength="24" placeholder="Auto shortened">
+                        </div>
+                        <div class="metadata-field full">
+                            <label for="manifestDescription">Description</label>
+                            <input type="text" id="manifestDescription" maxlength="160" placeholder="Generated icon set for this app">
+                        </div>
+                        <div class="metadata-field">
+                            <label for="manifestStartUrl">Start URL</label>
+                            <input type="text" id="manifestStartUrl" value="./index.html" spellcheck="false">
+                        </div>
+                        <div class="metadata-field">
+                            <label for="manifestScope">Scope</label>
+                            <input type="text" id="manifestScope" value="./" spellcheck="false">
+                        </div>
+                        <div class="metadata-field">
+                            <label for="manifestDisplay">Display</label>
+                            <select id="manifestDisplay">
+                                <option value="standalone">Standalone</option>
+                                <option value="fullscreen">Fullscreen</option>
+                                <option value="minimal-ui">Minimal UI</option>
+                                <option value="browser">Browser</option>
+                            </select>
+                        </div>
+                        <div class="metadata-field">
+                            <label for="manifestCategories">Categories</label>
+                            <input type="text" id="manifestCategories" placeholder="utilities, productivity" spellcheck="false">
+                        </div>
+                        <div class="metadata-field">
+                            <label for="manifestThemeColor">Theme Color</label>
+                            <input type="color" id="manifestThemeColor" value="#09090b">
+                        </div>
+                        <div class="metadata-field">
+                            <label for="manifestBackgroundColor">Background Color</label>
+                            <input type="color" id="manifestBackgroundColor" value="#09090b">
+                        </div>
+                        <div class="metadata-field">
+                            <label for="manifestLang">Language</label>
+                            <input type="text" id="manifestLang" value="en" maxlength="20" spellcheck="false">
+                        </div>
+                        <div class="metadata-field">
+                            <label for="manifestDir">Direction</label>
+                            <select id="manifestDir">
+                                <option value="auto">Auto</option>
+                                <option value="ltr">Left to Right</option>
+                                <option value="rtl">Right to Left</option>
+                                <option value="">Unspecified</option>
+                            </select>
+                        </div>
+                        <div class="metadata-field full">
+                            <label for="manifestShortcuts">Shortcuts JSON</label>
+                            <textarea id="manifestShortcuts" rows="2" placeholder='[{"name":"New","url":"./new"}]' spellcheck="false"></textarea>
+                        </div>
+                        <div class="metadata-field full">
+                            <label for="manifestScreenshots">Screenshots JSON</label>
+                            <textarea id="manifestScreenshots" rows="2" placeholder='[{"src":"/screenshots/home.png","sizes":"1280x720","type":"image/png"}]' spellcheck="false"></textarea>
+                        </div>
                     </div>
                 </div>
 
@@ -2202,6 +2345,21 @@
         const backgroundMode = document.getElementById('backgroundMode');
         const backgroundColor = document.getElementById('backgroundColor');
         const backgroundColor2 = document.getElementById('backgroundColor2');
+        const manifestMetadataGrid = document.getElementById('manifestMetadataGrid');
+        const manifestMetadataStatus = document.getElementById('manifestMetadataStatus');
+        const manifestName = document.getElementById('manifestName');
+        const manifestShortName = document.getElementById('manifestShortName');
+        const manifestDescription = document.getElementById('manifestDescription');
+        const manifestStartUrl = document.getElementById('manifestStartUrl');
+        const manifestScope = document.getElementById('manifestScope');
+        const manifestDisplay = document.getElementById('manifestDisplay');
+        const manifestCategories = document.getElementById('manifestCategories');
+        const manifestThemeColor = document.getElementById('manifestThemeColor');
+        const manifestBackgroundColor = document.getElementById('manifestBackgroundColor');
+        const manifestLang = document.getElementById('manifestLang');
+        const manifestDir = document.getElementById('manifestDir');
+        const manifestShortcuts = document.getElementById('manifestShortcuts');
+        const manifestScreenshots = document.getElementById('manifestScreenshots');
         const effectSelect = document.getElementById('effectSelect');
         const dropShadowToggle = document.getElementById('dropShadowToggle');
         const maskPreviewCanvas = document.getElementById('maskPreviewCanvas');
@@ -3849,6 +4007,98 @@ self.onmessage = async function(e) {
             snippet.textContent = value;
         }
 
+        const MANIFEST_DISPLAY_MODES = new Set(['fullscreen', 'standalone', 'minimal-ui', 'browser']);
+        const MANIFEST_DIRECTIONS = new Set(['auto', 'ltr', 'rtl']);
+
+        function metadataValue(field) {
+            return (field?.value || '').trim();
+        }
+
+        function getManifestSourceName() {
+            return cleanPathSegment(sourceFileName || 'IconForge App') || 'IconForge-App';
+        }
+
+        function parseJsonArrayField(field, label, errors) {
+            const raw = metadataValue(field);
+            if (!raw) return undefined;
+
+            try {
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) {
+                    errors.push(`${label} must be a JSON array.`);
+                    return undefined;
+                }
+                return parsed;
+            } catch {
+                errors.push(`${label} must be valid JSON.`);
+                return undefined;
+            }
+        }
+
+        function getManifestMetadata() {
+            const errors = [];
+            const sourceName = getManifestSourceName();
+            const name = metadataValue(manifestName) || sourceName;
+            const shortName = metadataValue(manifestShortName) || name.slice(0, 12);
+            const description = metadataValue(manifestDescription) || `Generated icon set for ${name}.`;
+            const startUrl = metadataValue(manifestStartUrl) || './index.html';
+            const scope = metadataValue(manifestScope) || './';
+            const display = metadataValue(manifestDisplay) || 'standalone';
+            const themeColor = metadataValue(manifestThemeColor) || backgroundColor.value;
+            const backgroundManifestColor = metadataValue(manifestBackgroundColor) || backgroundColor.value;
+            const lang = metadataValue(manifestLang);
+            const dir = metadataValue(manifestDir);
+            const categories = metadataValue(manifestCategories)
+                .split(',')
+                .map(category => category.trim())
+                .filter(Boolean);
+            const shortcuts = parseJsonArrayField(manifestShortcuts, 'Shortcuts', errors);
+            const screenshots = parseJsonArrayField(manifestScreenshots, 'Screenshots', errors);
+
+            if (!name) errors.push('Name is required.');
+            if (!shortName) errors.push('Short name is required.');
+            if (!startUrl) errors.push('Start URL is required.');
+            if (!scope) errors.push('Scope is required.');
+            if (!MANIFEST_DISPLAY_MODES.has(display)) errors.push('Display must be fullscreen, standalone, minimal-ui, or browser.');
+            if (dir && !MANIFEST_DIRECTIONS.has(dir)) errors.push('Direction must be auto, ltr, or rtl.');
+
+            const metadata = {
+                name,
+                short_name: shortName,
+                description,
+                start_url: startUrl,
+                scope,
+                display,
+                theme_color: themeColor,
+                background_color: backgroundManifestColor
+            };
+
+            if (categories.length) metadata.categories = categories;
+            if (lang) metadata.lang = lang;
+            if (dir) metadata.dir = dir;
+            if (shortcuts) metadata.shortcuts = shortcuts;
+            if (screenshots) metadata.screenshots = screenshots;
+
+            return { metadata, errors };
+        }
+
+        function validateManifestMetadata() {
+            const result = getManifestMetadata();
+            if (manifestMetadataStatus) {
+                manifestMetadataStatus.textContent = result.errors.length
+                    ? result.errors[0]
+                    : `Manifest ready: ${result.metadata.name}`;
+                manifestMetadataStatus.classList.toggle('error', result.errors.length > 0);
+            }
+            return result;
+        }
+
+        if (manifestMetadataGrid) {
+            manifestMetadataGrid.addEventListener('input', validateManifestMetadata);
+            manifestMetadataGrid.addEventListener('change', validateManifestMetadata);
+            validateManifestMetadata();
+        }
+
         function buildManifestSnippet() {
             const icons = generatedFiles
                 .filter(file => file.format === 'png' && file.size && file.size.width === file.size.height)
@@ -3861,11 +4111,10 @@ self.onmessage = async function(e) {
                 }));
 
             if (icons.length === 0) return '';
+            validateManifestMetadata();
+            const { metadata } = getManifestMetadata();
             return JSON.stringify({
-                name: cleanPathSegment(sourceFileName),
-                short_name: cleanPathSegment(sourceFileName).slice(0, 12),
-                theme_color: backgroundColor.value,
-                background_color: backgroundColor.value,
+                ...metadata,
                 icons
             }, null, 2);
         }
@@ -4509,6 +4758,8 @@ self.onmessage = async function(e) {
                 normalizeTemplateName,
                 getOutputFileName,
                 iosIconFileName,
+                getManifestMetadata,
+                validateManifestMetadata,
                 buildManifestSnippet,
                 buildExtensionSnippet,
                 buildAndroidSnippet,
@@ -4528,6 +4779,29 @@ self.onmessage = async function(e) {
                     }
                     if (Object.prototype.hasOwnProperty.call(next, 'generatedSnippets')) generatedSnippets = next.generatedSnippets;
                     if (Object.prototype.hasOwnProperty.call(next, 'backgroundColor')) backgroundColor.value = next.backgroundColor;
+                    if (Object.prototype.hasOwnProperty.call(next, 'manifestMetadata')) {
+                        const fieldMap = {
+                            name: manifestName,
+                            shortName: manifestShortName,
+                            description: manifestDescription,
+                            startUrl: manifestStartUrl,
+                            scope: manifestScope,
+                            display: manifestDisplay,
+                            categories: manifestCategories,
+                            themeColor: manifestThemeColor,
+                            backgroundColor: manifestBackgroundColor,
+                            lang: manifestLang,
+                            dir: manifestDir,
+                            shortcuts: manifestShortcuts,
+                            screenshots: manifestScreenshots
+                        };
+                        for (const [key, value] of Object.entries(next.manifestMetadata || {})) {
+                            if (fieldMap[key]) {
+                                fieldMap[key].value = Array.isArray(value) ? JSON.stringify(value) : String(value ?? '');
+                            }
+                        }
+                        validateManifestMetadata();
+                    }
                 },
                 getState() {
                     return {

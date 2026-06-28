@@ -1,6 +1,6 @@
 # Icon Forge
 
-![Version](https://img.shields.io/badge/version-v0.4.4-58A6FF) ![License](https://img.shields.io/badge/license-MIT-green) ![Platform](https://img.shields.io/badge/platform-Web-58A6FF) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
+![Version](https://img.shields.io/badge/version-v0.4.5-58A6FF) ![License](https://img.shields.io/badge/license-MIT-green) ![Platform](https://img.shields.io/badge/platform-Web-58A6FF) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 
 Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser extension assets entirely in your browser. No uploads, no server, no tracking. Works offline.
 
@@ -16,6 +16,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Maskable preview** - safe-zone overlay with circle, squircle, and rounded-square masks
 - **Processing controls** - safe padding, background fill or gradient, drop shadow, tint/desaturate/glass effects, and pixel-hinted small icons
 - **Code snippets** - generates HTML `<link>` tags, `manifest.webmanifest` JSON, extension manifest icon blocks, Android XML, iOS Contents.json, and Windows browserconfig.xml
+- **Manifest metadata** - set app name, description, start URL, display mode, categories, theme colors, shortcuts, screenshots, language, and direction for generated web manifests
 - **Deployable ZIPs** - exports generated images plus README.txt and the platform support files needed by the selected bundle
 - **Export validation** - checks generated platform files, dimensions, manifest icon metadata, support files, and maskable safe-zone coverage before deployment
 - **Drop-replace template matching** - load an existing folder or ZIP filename map and export only matching generated assets
