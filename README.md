@@ -1,6 +1,6 @@
 # Icon Forge
 
-![Version](https://img.shields.io/badge/version-v0.4.9-58A6FF) ![License](https://img.shields.io/badge/license-MIT-green) ![Platform](https://img.shields.io/badge/platform-Web-58A6FF) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
+![Version](https://img.shields.io/badge/version-v0.4.10-58A6FF) ![License](https://img.shields.io/badge/license-MIT-green) ![Platform](https://img.shields.io/badge/platform-Web-58A6FF) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 
 Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser extension assets entirely in your browser. No uploads, no server, no tracking. Works offline.
 
@@ -11,6 +11,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Multiple input modes** - upload an image, paste from clipboard, create from text/letter, or pick an emoji
 - **All icon formats** - PNG, ICO (multi-resolution), SVG (with dark mode CSS), JPG, WebP, AVIF
 - **Platform bundles** - one-click exports for Modern Web, PWA, Chrome Extension, Android adaptive icons, iOS AppIcon.appiconset, Windows tiles, or All Sizes
+- **Social previews** - optional Open Graph, Twitter, and LinkedIn preview PNGs with copyable meta tags
 - **Auto-crop** - detect content bounds and trim whitespace with adjustable tolerance
 - **Manual crop** - draw a crop rectangle or enter precise dimensions
 - **Maskable preview** - safe-zone overlay with circle, squircle, and rounded-square masks

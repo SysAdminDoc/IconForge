@@ -2,6 +2,13 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.10] - 2026-06-30
+
+### Added
+- Optional Social Preview preset that exports Open Graph, Twitter, and LinkedIn PNG preview assets.
+- Copyable social preview meta tags and export support file coverage for generated social assets.
+- Regression coverage for social preview filenames, snippets, support files, and validation.
+
 ## [v0.4.9] - 2026-06-30
 
 ### Added

@@ -13,6 +13,8 @@ assert(html.includes('id="diagnosticsFeatureList"'), 'index.html should include 
 assert(html.includes('id="handoffTabs"'), 'index.html should include framework handoff tabs');
 assert(html.includes('data-handoff-tab="next"'), 'index.html should include Next.js handoff tab');
 assert(html.includes('id="handoffSnippet"'), 'index.html should include framework handoff snippet output');
+assert(html.includes('data-preset="social"'), 'index.html should include social preview preset');
+assert(html.includes('id="socialSnippet"'), 'index.html should include social preview snippet output');
 assert(fs.statSync(path.join(root, 'styles.css')).size > 0, 'styles.css should exist and be non-empty');
 assert(fs.statSync(path.join(root, 'app.js')).size > 0, 'app.js should exist and be non-empty');
 

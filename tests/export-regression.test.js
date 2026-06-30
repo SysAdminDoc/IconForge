@@ -387,6 +387,9 @@ async function main() {
   assert.strictEqual(api.getOutputFileName({ format: 'png', size: { width: 128, height: 128 } }), 'extension/icons/icon128.png');
   api.setState({ activePresetKey: 'windows' });
   assert.strictEqual(api.getOutputFileName({ format: 'png', size: { width: 310, height: 150 } }), 'windows/mstile-310x150.png');
+  api.setState({ activePresetKey: 'social' });
+  assert.strictEqual(api.getOutputFileName({ format: 'png', size: { width: 1200, height: 630 } }), 'social/og-image.png');
+  assert.strictEqual(api.getOutputFileName({ format: 'png', size: { width: 1200, height: 675 } }), 'social/twitter-card.png');
 
   const generatedFiles = [
     { name: 'favicon.ico', blob: makeBlob(2, 'image/x-icon'), size: { width: 'multi', height: 'multi' }, format: 'ico' },
@@ -582,6 +585,33 @@ async function main() {
   api.generateSnippets([], []);
   assert(api.getState().generatedSnippets.handoff.chrome.includes('"128": "icons/icon128.png"'), 'Chrome MV3 handoff should use extension-relative icon paths');
 
+  const socialFiles = [
+    { name: 'social/og-image.png', blob: makeBlob(), size: { width: 1200, height: 630 }, format: 'png', role: 'social', socialTarget: 'open-graph' },
+    { name: 'social/twitter-card.png', blob: makeBlob(), size: { width: 1200, height: 675 }, format: 'png', role: 'social', socialTarget: 'twitter' },
+    { name: 'social/linkedin-preview.png', blob: makeBlob(), size: { width: 1200, height: 627 }, format: 'png', role: 'social', socialTarget: 'linkedin' }
+  ];
+  api.setState({
+    sourceFileName: 'Acme Social',
+    activePresetKey: 'social',
+    generatedFiles: socialFiles,
+    generatedSnippets: {},
+    replacementTargetNames: [],
+    manifestMetadata: {
+      name: 'Acme Social',
+      shortName: 'Acme',
+      description: 'Social preview assets for Acme.'
+    }
+  });
+  api.generateSnippets([], []);
+  const socialSnippets = api.getState().generatedSnippets;
+  assert(socialSnippets.html.includes('property="og:image" content="/social/og-image.png"'), 'HTML snippet should include Open Graph image');
+  assert(socialSnippets.social.includes('name="twitter:image" content="/social/twitter-card.png"'), 'Social snippet should include Twitter image');
+  assert(socialSnippets.social.includes('property="og:image:width" content="1200"'), 'Social snippet should include image width');
+  assert(api.getSupportFiles().some((file) => file.name === 'snippets/social-meta.html'), 'Social meta support file should be exported');
+  const socialValidation = api.validateGeneratedExport();
+  assert.strictEqual(socialValidation.status, 'pass');
+  assert(socialValidation.checks.some((check) => check.label === 'Social preview files' && check.status === 'pass'));
+
   api.setState({
     activePresetKey: 'android',
     generatedFiles: [
@@ -625,7 +655,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.9');
+  assert.strictEqual(exportManifest.version, 'v0.4.10');
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');

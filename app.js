@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.9';
+const APP_VERSION = 'v0.4.10';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 
 function limitImageSize(width, height) {
@@ -128,6 +128,7 @@ const PRESET_LABELS = {
     android: 'Android',
     ios: 'iOS',
     windows: 'Windows',
+    social: 'Social Preview',
     all: 'All Sizes'
 };
 const HANDOFF_SNIPPET_TABS = [
@@ -831,6 +832,7 @@ const PRESETS = {
     android:   { sizes: [192, 512], formats: ['png'] },
     ios:       { sizes: [180, 512], formats: ['png'] },
     windows:   { sizes: [70, 150, 310, { width: 310, height: 150 }], formats: ['png', 'ico'] },
+    social:    { sizes: [{ width: 1200, height: 630 }, { width: 1200, height: 675 }, { width: 1200, height: 627 }], formats: ['png'] },
     all:       { sizes: [16, 32, 48, 64, 72, 96, 128, 144, 152, 180, 192, 384, 512], formats: ['png', 'ico', 'svg'] }
 };
 
@@ -1714,7 +1716,7 @@ async function generateIcons() {
                 for (const size of sizes) {
                     const { blob } = await generateImage(imgSource, size, format, crop);
                     const fileName = getOutputFileName({ format, size });
-                    addGeneratedFile(fileName, blob, size, format);
+                    addGeneratedFile(fileName, blob, size, format, getGeneratedFileMeta(format, size));
                     completedOps++;
                     showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
                 }
@@ -1745,7 +1747,8 @@ async function generateIcons() {
 }
 
 async function generateImage(img, size, format, crop = null, bitmap = null) {
-    const options = getProcessingOptions({ backgroundMode: format === 'jpg' && backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value });
+    const forceSolidBackground = (format === 'jpg' || activePresetKey === 'social') && backgroundMode.value === 'transparent';
+    const options = getProcessingOptions({ backgroundMode: forceSolidBackground ? 'solid' : backgroundMode.value });
     const customProcessing = usesCustomProcessing(options);
     if (resizeWorker && featureSupport.offscreenCanvas && !customProcessing) {
         try {
@@ -1824,9 +1827,23 @@ function getOutputFileName({ format, size }) {
     if (activePresetKey === 'windows' && format === 'ico') {
         return 'windows/favicon.ico';
     }
+    if (activePresetKey === 'social' && format === 'png') {
+        if (size.width === 1200 && size.height === 630) return 'social/og-image.png';
+        if (size.width === 1200 && size.height === 675) return 'social/twitter-card.png';
+        if (size.width === 1200 && size.height === 627) return 'social/linkedin-preview.png';
+        return `social/social-${size.width}x${size.height}.png`;
+    }
     if (format === 'ico') return `${stem}.ico`;
     if (format === 'svg') return `${stem}.svg`;
     return `${stem}-${wh}.${format}`;
+}
+
+function getGeneratedFileMeta(format, size) {
+    if (activePresetKey !== 'social' || format !== 'png') return {};
+    if (size.width === 1200 && size.height === 630) return { role: 'social', socialTarget: 'open-graph' };
+    if (size.width === 1200 && size.height === 675) return { role: 'social', socialTarget: 'twitter' };
+    if (size.width === 1200 && size.height === 627) return { role: 'social', socialTarget: 'linkedin' };
+    return { role: 'social', socialTarget: 'custom' };
 }
 
 function hasGeneratedFile(name) {
@@ -2229,8 +2246,49 @@ function buildWindowsBrowserConfig() {
 </browserconfig>`;
 }
 
+function escapeAttribute(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
 function normalizedFileName(name) {
     return name.replace(/\\/g, '/');
+}
+
+function getSocialPreviewFiles() {
+    return {
+        og: firstFile(file => file.name === 'social/og-image.png') || firstFile(file => file.role === 'social'),
+        twitter: firstFile(file => file.name === 'social/twitter-card.png') || firstFile(file => file.name === 'social/og-image.png') || firstFile(file => file.role === 'social'),
+        linkedin: firstFile(file => file.name === 'social/linkedin-preview.png')
+    };
+}
+
+function buildSocialSnippet() {
+    const social = getSocialPreviewFiles();
+    if (!social.og && !social.twitter && !social.linkedin) return '';
+    const { metadata } = getManifestMetadata();
+    const title = escapeAttribute(metadata.name || getManifestSourceName());
+    const description = escapeAttribute(metadata.description || `Generated icon set for ${metadata.name || getManifestSourceName()}.`);
+    const alt = escapeAttribute(`${metadata.name || getManifestSourceName()} social preview`);
+    const og = social.og || social.twitter || social.linkedin;
+    const twitter = social.twitter || og;
+    const lines = [
+        `<meta property="og:title" content="${title}">`,
+        `<meta property="og:description" content="${description}">`,
+        '<meta property="og:type" content="website">',
+        `<meta property="og:image" content="${hrefFor(og.name)}">`,
+        `<meta property="og:image:width" content="${og.size.width}">`,
+        `<meta property="og:image:height" content="${og.size.height}">`,
+        `<meta property="og:image:alt" content="${alt}">`,
+        '<meta name="twitter:card" content="summary_large_image">',
+        `<meta name="twitter:title" content="${title}">`,
+        `<meta name="twitter:description" content="${description}">`,
+        `<meta name="twitter:image" content="${hrefFor(twitter.name)}">`
+    ];
+    return lines.join('\n');
 }
 
 function generatedFileCopyList(prefix = '') {
@@ -2424,6 +2482,7 @@ function generateSnippets(sizes, formats) {
     const appleFile = firstFile(file => file.format === 'png' && file.size?.width === 180 && file.size?.height === 180);
     const manifest = buildManifestSnippet();
     const splashFiles = generatedFiles.filter(file => file.role === 'splash');
+    const social = buildSocialSnippet();
 
     if (icoFile) lines.push(`<link rel="icon" href="${hrefFor(icoFile.name)}" sizes="32x32">`);
     if (svgFile) lines.push(`<link rel="icon" href="${hrefFor(svgFile.name)}" type="image/svg+xml">`);
@@ -2435,11 +2494,13 @@ function generateSnippets(sizes, formats) {
     if (activePresetKey === 'windows') {
         lines.push(`<meta name="msapplication-config" content="/windows/browserconfig.xml">`);
     }
+    if (social) lines.push(social);
 
     const html = lines.join('\n') || '<!-- No applicable tags for selected formats -->';
     generatedSnippets = {
         html,
         manifest,
+        social,
         extension: buildExtensionSnippet(),
         android: buildAndroidSnippet(),
         ios: buildIosContents(),
@@ -2451,6 +2512,7 @@ function generateSnippets(sizes, formats) {
     setElementVisible(snippetSection, true, 'block');
     renderHandoffSnippetTabs();
     setSnippetBlock('manifestSnippetBlock', 'manifestSnippet', generatedSnippets.manifest);
+    setSnippetBlock('socialSnippetBlock', 'socialSnippet', generatedSnippets.social);
     setSnippetBlock('extensionSnippetBlock', 'extensionSnippet', generatedSnippets.extension);
     setSnippetBlock('androidSnippetBlock', 'androidSnippet', generatedSnippets.android);
     setSnippetBlock('iosSnippetBlock', 'iosSnippet', generatedSnippets.ios);
@@ -2491,6 +2553,7 @@ function getSupportFiles() {
     const manifestPath = activePresetKey === 'pwa' ? 'pwa/manifest.webmanifest' : 'manifest.webmanifest';
     if (generatedSnippets.html) support.push(textSupportFile('snippets/head.html', generatedSnippets.html, 'text/html'));
     if (generatedSnippets.manifest) support.push(textSupportFile(manifestPath, generatedSnippets.manifest, 'application/manifest+json'));
+    if (generatedSnippets.social) support.push(textSupportFile('snippets/social-meta.html', generatedSnippets.social, 'text/html'));
     if (generatedSnippets.extension) support.push(textSupportFile('extension/manifest-icons.json', generatedSnippets.extension, 'application/json'));
     if (generatedSnippets.android) support.push(textSupportFile('android/mipmap-anydpi-v26/ic_launcher.xml', generatedSnippets.android, 'application/xml'));
     if (generatedSnippets.ios) support.push(textSupportFile('ios/AppIcon.appiconset/Contents.json', generatedSnippets.ios, 'application/json'));
@@ -2711,6 +2774,18 @@ function expectedPresetFileGroups() {
             }
         ];
     }
+    if (activePresetKey === 'social') {
+        return [
+            {
+                label: 'Social preview files',
+                specs: [
+                    { name: 'social/og-image.png', width: 1200, height: 630 },
+                    { name: 'social/twitter-card.png', width: 1200, height: 675 },
+                    { name: 'social/linkedin-preview.png', width: 1200, height: 627 }
+                ]
+            }
+        ];
+    }
     return [];
 }
 
@@ -2718,6 +2793,7 @@ function validateSupportFiles(checks) {
     const expected = ['README.txt'];
     if (generatedSnippets.html) expected.push('snippets/head.html');
     if (generatedSnippets.manifest) expected.push(activePresetKey === 'pwa' ? 'pwa/manifest.webmanifest' : 'manifest.webmanifest');
+    if (generatedSnippets.social) expected.push('snippets/social-meta.html');
     if (generatedSnippets.extension) expected.push('extension/manifest-icons.json');
     if (generatedSnippets.android) expected.push('android/mipmap-anydpi-v26/ic_launcher.xml');
     if (generatedSnippets.ios) expected.push('ios/AppIcon.appiconset/Contents.json');
@@ -2733,6 +2809,7 @@ function validateSupportFiles(checks) {
 }
 
 function validateManifestIcons(checks) {
+    if (activePresetKey === 'social') return;
     const relevantIcons = generatedFiles
         .filter(file => file.format === 'png' && file.size?.width === file.size?.height)
         .filter(file => file.name.startsWith('pwa/icons/') || file.name === 'icon-192.png' || file.name === 'icon-512.png' || [192, 512].includes(file.size.width));
@@ -3098,6 +3175,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         buildAndroidSnippet,
         buildIosContents,
         buildWindowsBrowserConfig,
+        buildSocialSnippet,
         buildFrameworkHandoffSnippets,
         generateSnippets,
         getSupportFiles,
