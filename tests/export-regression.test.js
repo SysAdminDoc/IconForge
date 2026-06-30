@@ -4,10 +4,7 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const scriptMatch = html.match(/<script>([\s\S]*)<\/script>/);
-
-assert(scriptMatch, 'inline application script not found');
+const scriptSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 
 class ClassListMock {
   constructor() {
@@ -266,7 +263,7 @@ function loadApp() {
   };
   context.window = context;
   vm.createContext(context);
-  vm.runInContext(scriptMatch[1], context, { filename: 'index.html' });
+  vm.runInContext(scriptSource, context, { filename: 'app.js' });
   assert(context.window.__ICONFORGE_TEST__, 'test API was not exposed');
   return context.window.__ICONFORGE_TEST__;
 }

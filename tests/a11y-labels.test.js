@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-const documentHtml = html.split('<script>')[0];
+const documentHtml = html;
 const labelForIds = new Set(
   Array.from(documentHtml.matchAll(/<label\b[^>]*\bfor=["']([^"']+)["'][^>]*>/gi), (match) => match[1])
 );

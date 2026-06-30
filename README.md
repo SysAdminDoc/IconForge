@@ -1,6 +1,6 @@
 # Icon Forge
 
-![Version](https://img.shields.io/badge/version-v0.4.5-58A6FF) ![License](https://img.shields.io/badge/license-MIT-green) ![Platform](https://img.shields.io/badge/platform-Web-58A6FF) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
+![Version](https://img.shields.io/badge/version-v0.4.6-58A6FF) ![License](https://img.shields.io/badge/license-MIT-green) ![Platform](https://img.shields.io/badge/platform-Web-58A6FF) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 
 Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser extension assets entirely in your browser. No uploads, no server, no tracking. Works offline.
 
@@ -17,6 +17,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Processing controls** - safe padding, background fill or gradient, drop shadow, tint/desaturate/glass effects, and pixel-hinted small icons
 - **Code snippets** - generates HTML `<link>` tags, `manifest.webmanifest` JSON, extension manifest icon blocks, Android XML, iOS Contents.json, and Windows browserconfig.xml
 - **Manifest metadata** - set app name, description, start URL, display mode, categories, theme colors, shortcuts, screenshots, language, and direction for generated web manifests
+- **CSP-hardened shell** - local CSS and JavaScript files run under a strict self-only policy with blob/data allowances for previews, downloads, and workers
 - **Deployable ZIPs** - exports generated images plus README.txt and the platform support files needed by the selected bundle
 - **Export validation** - checks generated platform files, dimensions, manifest icon metadata, support files, and maskable safe-zone coverage before deployment
 - **Drop-replace template matching** - load an existing folder or ZIP filename map and export only matching generated assets
@@ -38,9 +39,11 @@ No build step, no package manager, no dependencies.
 ## Development Checks
 
 ```bash
-rtk node -e "const fs=require('fs'); const html=fs.readFileSync('index.html','utf8'); const m=html.match(/<script>([\s\S]*)<\/script>/); if(!m) throw new Error('script not found'); new Function(m[1]); console.log('script syntax ok');"
+rtk node -c app.js
 rtk node tests/export-regression.test.js
 rtk node tests/a11y-labels.test.js
+rtk node tests/csp-shell.test.js
+rtk node -c sw.js
 ```
 
 ## Supported Formats

@@ -6,13 +6,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ## Research-Driven Additions
 
-- [ ] P2 - Add CSP-compatible script/style split
-  Why: A meaningful CSP can prevent accidental network calls and reduce injection risk, but the current inline app structure blocks a strict policy.
-  Evidence: `index.html`, `index.html:3109`, MDN CSP guidance
-  Touches: `index.html`, new `app.js`, possibly new `styles.css`
-  Acceptance: App behavior is unchanged, a CSP meta tag allows only required local/blob/data capabilities, and local generation plus worker resize still pass in-browser smoke tests.
-  Complexity: L
-
 - [ ] P2 - Add generation diagnostics panel
   Why: Users need actionable recovery details when a browser lacks AVIF/WebP/File System Access/OffscreenCanvas support or a worker path falls back.
   Evidence: Squoosh codec UI, `index.html:3157`, `index.html:3297`

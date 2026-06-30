@@ -1,7 +1,7 @@
 # Research - IconForge
 
 ## Executive Summary
-IconForge is a zero-dependency static browser PWA for generating favicons, PWA icons, extension icons, Android/iOS icon bundles, Windows tiles, snippets, and deployable ZIPs entirely client-side. Its strongest current shape is privacy-preserving platform bundle export: v0.4.0 already covers the biggest parity gap against RealFaviconGenerator, pwa-asset-generator, favicons, Icon Kitchen, and favicon.io. v0.4.1 adds a dependency-free export regression harness and removes the duplicate snippet builder. v0.4.2 adds local export validation after generation. v0.4.3 adds visible service-worker update recovery. v0.4.4 closes the verified visible-label gap. v0.4.5 adds user-controlled manifest metadata including language and direction fields. The highest-value direction is trust and deployment correctness, not more raw output formats. Top opportunities: harden with a CSP-compatible script split; add framework-specific handoff snippets; add diagnostics for browser feature support and generation decisions; add export checksums.
+IconForge is a zero-dependency static browser PWA for generating favicons, PWA icons, extension icons, Android/iOS icon bundles, Windows tiles, snippets, and deployable ZIPs entirely client-side. Its strongest current shape is privacy-preserving platform bundle export: v0.4.0 already covers the biggest parity gap against RealFaviconGenerator, pwa-asset-generator, favicons, Icon Kitchen, and favicon.io. v0.4.1 adds a dependency-free export regression harness and removes the duplicate snippet builder. v0.4.2 adds local export validation after generation. v0.4.3 adds visible service-worker update recovery. v0.4.4 closes the verified visible-label gap. v0.4.5 adds user-controlled manifest metadata including language and direction fields. v0.4.6 splits CSS/JS into local files and adds a strict runtime CSP. The highest-value direction is trust and deployment correctness, not more raw output formats. Top opportunities: add diagnostics for browser feature support and generation decisions; add framework-specific handoff snippets; add export checksums; add social preview assets.
 
 ## Product Map
 - Core workflows: upload/paste/text/emoji source -> crop/process -> select preset/formats -> generate -> download/save/copy snippets.
@@ -27,14 +27,14 @@ IconForge is a zero-dependency static browser PWA for generating favicons, PWA i
 - Verified in v0.4.2 at `http://127.0.0.1:8766/index.html`: the generated-output flow now renders a local validation panel with pass/warn/fail checks for selected platform files, dimensions, manifest icon metadata, support files, and maskable safe-zone coverage.
 - Verified fixed in v0.4.5: `buildManifestSnippet()` now uses local manifest metadata controls for name, short name, description, start URL, scope, display, categories, theme/background colors, shortcuts, screenshots, `lang`, and `dir`, with tests covering default, edited, and optional values.
 - Verified fixed in v0.4.3: `sw.js` uses network-first HTML and cache cleanup, and `index.html` now shows a non-blocking reload notice when a new service worker is waiting or has activated in the background.
-- Verified: the app has no CSP. Because `index.html` currently contains large inline CSS/JS plus Blob workers (`index.html:3109`), adding a meaningful CSP requires either a script/style split or a carefully documented policy.
+- Verified fixed in v0.4.6: `index.html` now references local `styles.css` and `app.js`, removes runtime external font/raw-image dependencies, and carries a CSP meta policy that keeps scripts/styles self-hosted while allowing blob/data image and worker capabilities.
 - Verified fixed in v0.4.4: `#textInput`, `#fontSelect`, `#customWidth`, and `#customHeight` now have programmatic labels, with `tests/a11y-labels.test.js` covering visible form controls.
 - Verified: mobile viewport 390x844 showed no horizontal overflow in the initial state; keep mobile regression checks focused on generated output/snippet sections and crop controls.
 - Missing guardrail: generated ZIPs include support files from `getSupportFiles()` (`index.html:3868`) but no machine-readable export manifest/checksum report for support/debugging.
 - Recovery need: failed generation paths use status text, but there is no diagnostic export containing browser support flags, selected preset, skipped formats, worker fallback state, or generated file list.
 
 ## Architecture Assessment
-- The single inline script remains workable but is now large enough that core pure functions need a test seam. Best first step: extract pure builders (`buildZip`, `createICO`, platform filename/spec builders, snippet/manifest builders, template matching) into a small global namespace or separate `app.js` without adding a bundler.
+- The split `app.js` remains dependency-free and keeps the pure builder/test seam without adding a bundler.
 - `generatePlatformBundle()` at `index.html:3485`, `generatePwaBundle()` at `index.html:3497`, `generateAndroidBundle()` at `index.html:3533`, `IOS_ICON_SPECS` at `index.html:3551`, and `addOutputItem()` at `index.html:3597` are the highest-value regression targets.
 - The in-app snippets are useful but generic. Competitors with framework plugins show demand for path-specific handoff; IconForge can stay dependency-free by generating copyable snippets for plain HTML, Vite, Next.js app router, Astro, Chrome/Firefox MV3, Android, and iOS.
 - Testing baseline: `tests/export-regression.test.js` verifies ZIP central directory output, ICO headers, platform filenames, generated manifest/snippet support files, replacement-template matching, and export validator pass/fail cases. `tests/a11y-labels.test.js` verifies visible form-control labels. Remaining tests should expand into browser-driven preset coverage and generated image dimension decoding.
@@ -83,4 +83,3 @@ Community and operations:
 - https://developer.chrome.com/docs/workbox/handling-service-worker-updates
 
 ## Open Questions
-- Verified blocker: should CSP hardening preserve a single-file app, or is a two-file `index.html` plus `app.js` structure acceptable for the next release?

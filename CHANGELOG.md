@@ -2,6 +2,14 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.6] - 2026-06-28
+
+### Security
+- Split the inline application script and stylesheet into `app.js` and `styles.css`.
+- Added a CSP meta policy that restricts scripts and styles to local files while allowing the blob/data capabilities required for previews, downloads, and the resize worker.
+- Removed external font and raw-image references from the runtime shell.
+- Added a static regression test for the externalized CSP shell.
+
 ## [v0.4.5] - 2026-06-28
 
 ### Added
