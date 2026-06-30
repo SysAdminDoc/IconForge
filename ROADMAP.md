@@ -6,13 +6,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ## Research-Driven Additions
 
-- [ ] P2 - Add generation diagnostics panel
-  Why: Users need actionable recovery details when a browser lacks AVIF/WebP/File System Access/OffscreenCanvas support or a worker path falls back.
-  Evidence: Squoosh codec UI, `index.html:3157`, `index.html:3297`
-  Touches: `index.html`
-  Acceptance: A diagnostics panel lists browser feature support, selected preset, selected formats, skipped/hidden formats, worker fallback state, generated file count, total bytes, and validation status.
-  Complexity: M
-
 - [ ] P2 - Add framework-ready handoff snippets
   Why: Competing build tools win by putting icons in the right framework paths; IconForge can provide the same handoff without becoming framework-specific.
   Evidence: Astro favicons, webpack-pwa-manifest, pwa-asset-generator, `index.html:3800`

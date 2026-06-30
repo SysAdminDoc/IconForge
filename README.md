@@ -1,6 +1,6 @@
 # Icon Forge
 
-![Version](https://img.shields.io/badge/version-v0.4.6-58A6FF) ![License](https://img.shields.io/badge/license-MIT-green) ![Platform](https://img.shields.io/badge/platform-Web-58A6FF) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
+![Version](https://img.shields.io/badge/version-v0.4.7-58A6FF) ![License](https://img.shields.io/badge/license-MIT-green) ![Platform](https://img.shields.io/badge/platform-Web-58A6FF) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 
 Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser extension assets entirely in your browser. No uploads, no server, no tracking. Works offline.
 
@@ -20,6 +20,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **CSP-hardened shell** - local CSS and JavaScript files run under a strict self-only policy with blob/data allowances for previews, downloads, and workers
 - **Deployable ZIPs** - exports generated images plus README.txt and the platform support files needed by the selected bundle
 - **Export validation** - checks generated platform files, dimensions, manifest icon metadata, support files, and maskable safe-zone coverage before deployment
+- **Generation diagnostics** - reports browser feature support, selected preset/formats, skipped formats, worker fallback state, file count, byte total, and validation status
 - **Drop-replace template matching** - load an existing folder or ZIP filename map and export only matching generated assets
 - **File size display** - see per-icon and total file sizes after generation
 - **SVG dark mode** - generates SVG favicons with embedded `prefers-color-scheme` CSS

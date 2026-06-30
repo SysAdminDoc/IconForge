@@ -108,6 +108,36 @@ let activePresetKey = null;
 let replacementTargetNames = new Set();
 let generatedSnippets = {};
 
+const OUTPUT_FORMATS = ['png', 'jpg', 'ico', 'webp', 'avif', 'svg'];
+const FORMAT_LABELS = {
+    png: 'PNG',
+    jpg: 'JPG',
+    ico: 'ICO',
+    webp: 'WebP',
+    avif: 'AVIF',
+    svg: 'SVG'
+};
+const PRESET_LABELS = {
+    web: 'Modern Web',
+    pwa: 'PWA',
+    extension: 'Extension',
+    android: 'Android',
+    ios: 'iOS',
+    windows: 'Windows',
+    all: 'All Sizes'
+};
+const featureSupport = {
+    workerApi: typeof Worker !== 'undefined',
+    offscreenCanvas: typeof OffscreenCanvas !== 'undefined',
+    fileSystemAccess: typeof window !== 'undefined' && 'showDirectoryPicker' in window,
+    blobWorker: false,
+    webpEncode: false,
+    webpChecked: false,
+    avifEncode: false,
+    avifChecked: false
+};
+let generationStats = createGenerationStats();
+
 // Crop state
 let originalImageData = null;  // Store original for reset
 let cropRegion = null;  // {x, y, width, height}
@@ -133,6 +163,10 @@ const status = document.getElementById('status');
 const outputSection = document.getElementById('outputSection');
 const outputGrid = document.getElementById('outputGrid');
 const btnDownloadAll = document.getElementById('btnDownloadAll');
+const diagnosticsSection = document.getElementById('diagnosticsSection');
+const diagnosticsSummary = document.getElementById('diagnosticsSummary');
+const diagnosticsGrid = document.getElementById('diagnosticsGrid');
+const diagnosticsFeatureList = document.getElementById('diagnosticsFeatureList');
 const safePaddingSlider = document.getElementById('safePaddingSlider');
 const safePaddingValue = document.getElementById('safePaddingValue');
 const resampleSelect = document.getElementById('resampleSelect');
@@ -186,6 +220,182 @@ function setElementVisible(element, visible, display = '') {
     if (!element) return;
     element.classList.toggle('is-hidden', !visible);
     element.style.display = visible ? display : 'none';
+}
+
+function createGenerationStats() {
+    return {
+        workerJobs: 0,
+        canvasFallbacks: 0,
+        fallbackReasons: []
+    };
+}
+
+function noteWorkerJob() {
+    generationStats.workerJobs += 1;
+}
+
+function noteCanvasFallback(reason) {
+    generationStats.canvasFallbacks += 1;
+    if (reason && !generationStats.fallbackReasons.includes(reason)) {
+        generationStats.fallbackReasons.push(reason);
+    }
+}
+
+function formatLabel(format) {
+    return FORMAT_LABELS[format] || format.toUpperCase();
+}
+
+function supportCheck(label, supported, detailSupported, detailUnsupported, pending = false) {
+    if (pending) {
+        return { label, status: 'info', detail: 'Checking browser support.' };
+    }
+    return {
+        label,
+        status: supported ? 'pass' : 'warn',
+        detail: supported ? detailSupported : detailUnsupported
+    };
+}
+
+function getFeatureDiagnostics() {
+    return [
+        supportCheck(
+            'WebP encoder',
+            featureSupport.webpEncode,
+            'WebP output is available.',
+            'WebP output is hidden because this browser cannot encode it.',
+            !featureSupport.webpChecked
+        ),
+        supportCheck(
+            'AVIF encoder',
+            featureSupport.avifEncode,
+            'AVIF output is available.',
+            'AVIF output is hidden because this browser cannot encode it.',
+            !featureSupport.avifChecked
+        ),
+        supportCheck(
+            'File System Access',
+            featureSupport.fileSystemAccess,
+            'Save to Folder is available.',
+            'ZIP download remains available; direct folder save is hidden.'
+        ),
+        supportCheck(
+            'OffscreenCanvas',
+            featureSupport.offscreenCanvas,
+            'Worker resizing can use OffscreenCanvas.',
+            'Canvas fallback will be used for image resizing.'
+        ),
+        supportCheck(
+            'Blob Worker',
+            featureSupport.workerApi && featureSupport.blobWorker,
+            'Resize worker initialized.',
+            featureSupport.workerApi ? 'Resize worker did not initialize; canvas fallback is available.' : 'Worker API is unavailable; canvas fallback is available.'
+        )
+    ];
+}
+
+function getSkippedFormatDiagnostics(selectedFormats) {
+    const selected = new Set(selectedFormats);
+    return OUTPUT_FORMATS
+        .filter(format => !selected.has(format))
+        .map(format => {
+            if (format === 'webp') {
+                if (!featureSupport.webpChecked) return 'WebP pending encoder check';
+                if (!featureSupport.webpEncode) return 'WebP hidden: encoder unsupported';
+            }
+            if (format === 'avif') {
+                if (!featureSupport.avifChecked) return 'AVIF pending encoder check';
+                if (!featureSupport.avifEncode) return 'AVIF hidden: encoder unsupported';
+            }
+            return `${formatLabel(format)} skipped`;
+        });
+}
+
+function getWorkerDiagnostics() {
+    const reasons = generationStats.fallbackReasons.join('; ');
+    if (generationStats.workerJobs > 0 && generationStats.canvasFallbacks > 0) {
+        return `Worker used for ${generationStats.workerJobs}; canvas fallback for ${generationStats.canvasFallbacks}${reasons ? ` (${reasons})` : ''}`;
+    }
+    if (generationStats.workerJobs > 0) {
+        return `Worker path used for ${generationStats.workerJobs} resize${generationStats.workerJobs === 1 ? '' : 's'}`;
+    }
+    if (generationStats.canvasFallbacks > 0) {
+        return `Canvas fallback for ${generationStats.canvasFallbacks} resize${generationStats.canvasFallbacks === 1 ? '' : 's'}${reasons ? ` (${reasons})` : ''}`;
+    }
+    if (!featureSupport.workerApi) return 'Canvas fallback: Worker API unavailable';
+    if (!featureSupport.offscreenCanvas) return 'Canvas fallback: OffscreenCanvas unavailable';
+    if (!featureSupport.blobWorker) return 'Canvas fallback: blob worker unavailable';
+    return 'Worker available; no eligible image resizes in this export';
+}
+
+function buildGenerationDiagnostics({ selectedFormats = getSelectedFormats(), validationResult = null, error = null } = {}) {
+    const totalBytes = generatedFiles.reduce((sum, file) => sum + (file.blob?.size || 0), 0);
+    const skippedFormats = getSkippedFormatDiagnostics(selectedFormats);
+    const selectedFormatText = selectedFormats.length ? selectedFormats.map(formatLabel).join(', ') : 'None';
+    const validationStatus = error ? 'Not run' : validationResult?.title || 'Not run';
+    const fileCountText = `${generatedFiles.length} file${generatedFiles.length === 1 ? '' : 's'}`;
+
+    return {
+        title: error ? 'Generation failed' : 'Generation diagnostics',
+        detail: error ? error.message : `${fileCountText} generated for ${PRESET_LABELS[activePresetKey] || 'Custom'} export.`,
+        metrics: [
+            { label: 'Selected preset', value: PRESET_LABELS[activePresetKey] || 'Custom' },
+            { label: 'Selected formats', value: selectedFormatText },
+            { label: 'Skipped / hidden formats', value: skippedFormats.length ? skippedFormats.join('; ') : 'None' },
+            { label: 'Worker fallback state', value: getWorkerDiagnostics() },
+            { label: 'Generated file count', value: String(generatedFiles.length) },
+            { label: 'Total bytes', value: totalBytes ? formatFileSize(totalBytes) : '0 B' },
+            { label: 'Validation status', value: validationStatus }
+        ],
+        features: getFeatureDiagnostics()
+    };
+}
+
+function appendMetric(container, label, value) {
+    const item = document.createElement('div');
+    item.className = 'diagnostics-metric';
+    const labelEl = document.createElement('span');
+    labelEl.textContent = label;
+    const valueEl = document.createElement('strong');
+    valueEl.textContent = value;
+    item.appendChild(labelEl);
+    item.appendChild(valueEl);
+    container.appendChild(item);
+}
+
+function appendFeature(container, feature) {
+    const item = document.createElement('li');
+    item.className = 'diagnostics-item';
+    const dot = document.createElement('span');
+    dot.className = `diagnostics-state ${feature.status}`;
+    const body = document.createElement('span');
+    const label = document.createElement('strong');
+    label.textContent = feature.label;
+    body.appendChild(label);
+    body.appendChild(document.createTextNode(feature.detail));
+    item.appendChild(dot);
+    item.appendChild(body);
+    container.appendChild(item);
+}
+
+function renderGenerationDiagnostics(options = {}) {
+    if (!diagnosticsSection || !diagnosticsSummary || !diagnosticsGrid || !diagnosticsFeatureList) return null;
+    const diagnostics = buildGenerationDiagnostics(options);
+
+    setElementVisible(diagnosticsSection, true, 'block');
+    diagnosticsSummary.textContent = '';
+    const title = document.createElement('strong');
+    title.textContent = diagnostics.title;
+    const detail = document.createElement('span');
+    detail.textContent = diagnostics.detail;
+    diagnosticsSummary.appendChild(title);
+    diagnosticsSummary.appendChild(detail);
+
+    diagnosticsGrid.textContent = '';
+    diagnostics.metrics.forEach(metric => appendMetric(diagnosticsGrid, metric.label, metric.value));
+
+    diagnosticsFeatureList.textContent = '';
+    diagnostics.features.forEach(feature => appendFeature(diagnosticsFeatureList, feature));
+    return diagnostics;
 }
 
 function drawShapeBg(ctx, size, shape, color) {
@@ -1260,6 +1470,7 @@ function initWorker() {
         const blob = new Blob([workerCode], { type: 'application/javascript' });
         const url = URL.createObjectURL(blob);
         resizeWorker = new Worker(url);
+        featureSupport.blobWorker = true;
         resizeWorker.onmessage = (e) => {
             const cb = workerCallbacks.get(e.data.id);
             if (cb) {
@@ -1268,9 +1479,15 @@ function initWorker() {
                 else cb(e.data.blob);
             }
         };
-        resizeWorker.onerror = () => { resizeWorker = null; };
+        resizeWorker.onerror = () => {
+            resizeWorker = null;
+            featureSupport.blobWorker = false;
+        };
         URL.revokeObjectURL(url);
-    } catch { resizeWorker = null; }
+    } catch {
+        resizeWorker = null;
+        featureSupport.blobWorker = false;
+    }
 }
 initWorker();
 
@@ -1279,10 +1496,14 @@ initWorker();
     const c = document.createElement('canvas');
     c.width = 1; c.height = 1;
     c.toBlob((blob) => {
+        featureSupport.webpChecked = true;
+        featureSupport.webpEncode = Boolean(blob && blob.type === 'image/webp');
         if (blob && blob.type === 'image/webp') {
             setElementVisible(document.getElementById('webpFormatOption'), true);
         }
         c.toBlob((blob2) => {
+            featureSupport.avifChecked = true;
+            featureSupport.avifEncode = Boolean(blob2 && blob2.type === 'image/avif');
             if (blob2 && blob2.type === 'image/avif') {
                 setElementVisible(document.getElementById('avifFormatOption'), true);
             }
@@ -1434,6 +1655,7 @@ async function generateIcons() {
     outputGrid.innerHTML = '';
     generatedFiles = [];
     generatedSnippets = {};
+    generationStats = createGenerationStats();
 
     const totalOps = Math.max(1, formats.reduce((n, f) => n + (f === 'ico' || f === 'svg' ? 1 : sizes.length), 0));
     let completedOps = 0;
@@ -1475,8 +1697,11 @@ async function generateIcons() {
         const totalSize = generatedFiles.reduce((s, f) => s + f.blob.size, 0);
         showStatus(`Generated ${generatedFiles.length} files (${formatFileSize(totalSize)} total)`, 'success');
         generateSnippets(sizes, formats);
-        renderExportValidation();
+        const validationResult = renderExportValidation();
+        renderGenerationDiagnostics({ selectedFormats: formats, validationResult });
     } catch (error) {
+        setElementVisible(outputSection, true, 'block');
+        renderGenerationDiagnostics({ selectedFormats: formats, error });
         showStatus(`Error: ${error.message}`, 'error');
         console.error(error);
     }
@@ -1492,11 +1717,27 @@ async function generateIcons() {
 
 async function generateImage(img, size, format, crop = null, bitmap = null) {
     const options = getProcessingOptions({ backgroundMode: format === 'jpg' && backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value });
-    if (resizeWorker && !usesCustomProcessing(options)) {
-        const bmp = bitmap || await createImageBitmap(img);
-        const blob = await resizeInWorker(bmp, size.width, size.height, format, crop);
-        await new Promise(r => setTimeout(r, 0));
-        return { blob };
+    const customProcessing = usesCustomProcessing(options);
+    if (resizeWorker && featureSupport.offscreenCanvas && !customProcessing) {
+        try {
+            const bmp = bitmap || await createImageBitmap(img);
+            const blob = await resizeInWorker(bmp, size.width, size.height, format, crop);
+            noteWorkerJob();
+            await new Promise(r => setTimeout(r, 0));
+            return { blob };
+        } catch (error) {
+            resizeWorker = null;
+            featureSupport.blobWorker = false;
+            noteCanvasFallback(`worker failed: ${error.message}`);
+        }
+    } else if (customProcessing) {
+        noteCanvasFallback('processing options require canvas path');
+    } else if (!featureSupport.workerApi) {
+        noteCanvasFallback('Worker API unavailable');
+    } else if (!featureSupport.offscreenCanvas) {
+        noteCanvasFallback('OffscreenCanvas unavailable');
+    } else {
+        noteCanvasFallback('blob worker unavailable');
     }
 
     const canvas = document.createElement('canvas');
@@ -2313,6 +2554,7 @@ function renderExportValidation() {
         item.appendChild(body);
         list.appendChild(item);
     }
+    return result;
 }
 
 function matchesReplacementTarget(file) {
@@ -2562,13 +2804,27 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         buildWindowsBrowserConfig,
         generateSnippets,
         getSupportFiles,
+        buildGenerationDiagnostics,
+        getFeatureDiagnostics,
+        getSkippedFormatDiagnostics,
         validateGeneratedExport,
+        renderExportValidation,
+        renderGenerationDiagnostics,
         matchesReplacementTarget,
         getExportFiles,
         setState(next = {}) {
             if (Object.prototype.hasOwnProperty.call(next, 'sourceFileName')) sourceFileName = next.sourceFileName;
             if (Object.prototype.hasOwnProperty.call(next, 'generatedFiles')) generatedFiles = next.generatedFiles;
             if (Object.prototype.hasOwnProperty.call(next, 'activePresetKey')) activePresetKey = next.activePresetKey;
+            if (Object.prototype.hasOwnProperty.call(next, 'featureSupport')) Object.assign(featureSupport, next.featureSupport);
+            if (Object.prototype.hasOwnProperty.call(next, 'generationStats')) {
+                const nextStats = next.generationStats || {};
+                generationStats = {
+                    ...createGenerationStats(),
+                    ...nextStats,
+                    fallbackReasons: Array.from(nextStats.fallbackReasons || [])
+                };
+            }
             if (Object.prototype.hasOwnProperty.call(next, 'replacementTargetNames')) {
                 replacementTargetNames = new Set(next.replacementTargetNames.map(normalizeTemplateName));
             }
@@ -2604,7 +2860,12 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                 generatedFiles,
                 activePresetKey,
                 replacementTargetNames: Array.from(replacementTargetNames),
-                generatedSnippets
+                generatedSnippets,
+                featureSupport: { ...featureSupport },
+                generationStats: {
+                    ...generationStats,
+                    fallbackReasons: [...generationStats.fallbackReasons]
+                }
             };
         }
     };

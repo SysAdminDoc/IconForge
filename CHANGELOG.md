@@ -2,6 +2,15 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.7] - 2026-06-30
+
+### Added
+- Generation diagnostics panel with browser feature support, selected preset/formats, skipped or hidden formats, worker fallback state, generated file count, total bytes, and validation status.
+- Regression coverage for diagnostics model output and shell panel wiring.
+
+### Changed
+- Worker resize errors now fall back to the canvas path and report the fallback reason instead of aborting generation.
+
 ## [v0.4.6] - 2026-06-28
 
 ### Security

@@ -851,6 +851,113 @@ h1 {
     color: var(--accent);
 }
 
+/* Generation Diagnostics */
+.diagnostics-panel {
+    margin-top: 1rem;
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.diagnostics-summary {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.diagnostics-summary strong {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+
+.diagnostics-summary span {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+.diagnostics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    padding: 0.75rem;
+}
+
+.diagnostics-metric {
+    min-width: 0;
+    padding: 0.55rem 0.6rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.diagnostics-metric span,
+.diagnostics-label {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.diagnostics-metric strong {
+    display: block;
+    margin-top: 0.2rem;
+    color: var(--text-primary);
+    font-size: 0.78rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.diagnostics-support {
+    padding: 0 0.75rem 0.75rem;
+}
+
+.diagnostics-list {
+    list-style: none;
+    margin: 0.45rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.4rem;
+}
+
+.diagnostics-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+    line-height: 1.45;
+}
+
+.diagnostics-state {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 999px;
+    margin-top: 0.22rem;
+    background: var(--text-muted);
+}
+
+.diagnostics-state.pass { background: var(--success); }
+.diagnostics-state.warn { background: var(--warning); }
+.diagnostics-state.fail { background: var(--error); }
+.diagnostics-state.info { background: var(--crop-color); }
+
+.diagnostics-item strong {
+    display: block;
+    color: var(--text-primary);
+    font-size: 0.76rem;
+}
+
+@media (max-width: 480px) {
+    .diagnostics-grid { grid-template-columns: 1fr; }
+}
+
 /* Export Validation */
 .validation-panel {
     margin-top: 1rem;

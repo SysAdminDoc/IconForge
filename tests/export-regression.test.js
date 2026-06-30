@@ -496,6 +496,38 @@ async function main() {
   assert.strictEqual(pwaValidation.status, 'pass');
   assert(pwaValidation.checks.some((check) => check.label === 'PWA icon files' && check.status === 'pass'));
   assert(pwaValidation.checks.some((check) => check.label === 'Manifest icon metadata' && check.status === 'pass'));
+  api.setState({
+    featureSupport: {
+      workerApi: true,
+      offscreenCanvas: true,
+      fileSystemAccess: false,
+      blobWorker: false,
+      webpEncode: false,
+      webpChecked: true,
+      avifEncode: false,
+      avifChecked: true
+    },
+    generationStats: {
+      workerJobs: 0,
+      canvasFallbacks: 3,
+      fallbackReasons: ['blob worker unavailable']
+    }
+  });
+  const diagnostics = api.buildGenerationDiagnostics({
+    selectedFormats: ['png'],
+    validationResult: pwaValidation
+  });
+  const metric = (label) => diagnostics.metrics.find((item) => item.label === label)?.value;
+  assert.strictEqual(metric('Selected preset'), 'PWA');
+  assert.strictEqual(metric('Selected formats'), 'PNG');
+  assert(metric('Skipped / hidden formats').includes('WebP hidden: encoder unsupported'));
+  assert(metric('Skipped / hidden formats').includes('AVIF hidden: encoder unsupported'));
+  assert(metric('Worker fallback state').includes('Canvas fallback for 3 resizes'));
+  assert.strictEqual(metric('Generated file count'), String(pwaBundleFiles.length));
+  assert.strictEqual(metric('Total bytes'), `${pwaBundleFiles.length * 4} B`);
+  assert.strictEqual(metric('Validation status'), 'Export validation passed');
+  assert(diagnostics.features.some((feature) => feature.label === 'File System Access' && feature.status === 'warn'));
+  assert(diagnostics.features.some((feature) => feature.label === 'Blob Worker' && feature.status === 'warn'));
 
   const brokenPwaFiles = pwaBundleFiles
     .filter((file) => file.name !== 'pwa/icons/icon-maskable-72x72.png')

@@ -536,6 +536,18 @@
                         </button>
                     </div>
 
+                    <div id="diagnosticsSection" class="diagnostics-panel is-hidden" aria-live="polite">
+                        <div class="diagnostics-summary" id="diagnosticsSummary">
+                            <strong>Generation diagnostics</strong>
+                            <span>Run generation to inspect this export.</span>
+                        </div>
+                        <div class="diagnostics-grid" id="diagnosticsGrid"></div>
+                        <div class="diagnostics-support">
+                            <span class="diagnostics-label">Browser feature support</span>
+                            <ul class="diagnostics-list" id="diagnosticsFeatureList"></ul>
+                        </div>
+                    </div>
+
                     <div id="validationSection" class="validation-panel is-hidden" aria-live="polite">
                         <div id="validationSummary" class="validation-summary">
                             <strong>Export validation</strong>
