@@ -11,13 +11,15 @@ function buildZip(files) {
         const v = new DataView(local.buffer);
         v.setUint32(0, 0x04034b50, true);
         v.setUint16(4, 20, true);
+        v.setUint16(6, 0, true);
         v.setUint16(8, 0, true);
-        v.setUint16(14, 0, true);
-        v.setUint16(16, 0, true);
-        v.setUint32(18, crc, true);
+        v.setUint16(10, 0, true);
+        v.setUint16(12, 0, true);
+        v.setUint32(14, crc, true);
+        v.setUint32(18, data.length, true);
         v.setUint32(22, data.length, true);
-        v.setUint32(26, data.length, true);
-        v.setUint16(28, nameBytes.length, true);
+        v.setUint16(26, nameBytes.length, true);
+        v.setUint16(28, 0, true);
         local.set(nameBytes, 30);
         local.set(data, 30 + nameBytes.length);
         localHeaders.push(local);
@@ -72,6 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
+const APP_VERSION = 'v0.4.9';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 
 function limitImageSize(width, height) {
@@ -103,6 +106,7 @@ function setPreviewInfo(name, width, height, suffix) {
 // State
 let sourceImage = null;
 let sourceFileName = '';
+let sourceMode = 'upload';
 let generatedFiles = [];
 let activePresetKey = null;
 let replacementTargetNames = new Set();
@@ -662,6 +666,7 @@ document.getElementById('btnUseTextIcon').addEventListener('click', () => {
     img.onload = () => {
         sourceImage = img;
         sourceFileName = `icon-${textInput.value || 'A'}`;
+        sourceMode = 'text';
         originalImageData = textPreviewCanvas.toDataURL('image/png');
         previewImage.src = originalImageData;
         setPreviewInfo(sourceFileName, 256, 256, 'text');
@@ -742,6 +747,7 @@ document.getElementById('btnUseEmojiIcon').addEventListener('click', () => {
     img.onload = () => {
         sourceImage = img;
         sourceFileName = `icon-emoji`;
+        sourceMode = 'emoji';
         originalImageData = emojiPreviewCanvas.toDataURL('image/png');
         previewImage.src = originalImageData;
         setPreviewInfo('emoji icon', 256, 256, 'emoji');
@@ -1002,6 +1008,7 @@ function loadImage(file) {
     }
 
     sourceFileName = file.name.replace(/\.[^/.]+$/, '');
+    sourceMode = 'upload';
     
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -1064,6 +1071,7 @@ function loadImage(file) {
 function resetInput() {
     sourceImage = null;
     sourceFileName = '';
+    sourceMode = 'upload';
     originalImageData = null;
     cropRegion = null;
     fileInput.value = '';
@@ -2493,6 +2501,84 @@ function getSupportFiles() {
     return support;
 }
 
+function mimeTypeForFile(file) {
+    if (file.blob?.type) return file.blob.type;
+    if (file.format === 'png') return 'image/png';
+    if (file.format === 'jpg') return 'image/jpeg';
+    if (file.format === 'webp') return 'image/webp';
+    if (file.format === 'avif') return 'image/avif';
+    if (file.format === 'svg') return 'image/svg+xml';
+    if (file.format === 'ico') return 'image/x-icon';
+    return 'application/octet-stream';
+}
+
+function dimensionsForFile(file) {
+    if (!file.size) return null;
+    return {
+        width: file.size.width,
+        height: file.size.height
+    };
+}
+
+async function sha256Hex(blob) {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) throw new Error('SHA-256 hashing is unavailable in this browser.');
+    const hash = await subtle.digest('SHA-256', await blob.arrayBuffer());
+    return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function getExportOptionsSnapshot() {
+    const manifest = getManifestMetadata();
+    return {
+        sizes: getSelectedSizes(),
+        formats: getSelectedFormats(),
+        processing: getProcessingOptions(),
+        replacementTemplate: {
+            active: replacementTargetNames.size > 0,
+            targets: Array.from(replacementTargetNames).sort()
+        },
+        manifestMetadata: manifest.metadata,
+        manifestMetadataErrors: manifest.errors
+    };
+}
+
+async function exportManifestRecord(file) {
+    return {
+        name: normalizedFileName(file.name),
+        kind: file.support ? 'support' : 'image',
+        format: file.format || null,
+        role: file.role || file.purpose || null,
+        dimensions: dimensionsForFile(file),
+        mimeType: mimeTypeForFile(file),
+        byteSize: file.blob?.size || 0,
+        sha256: await sha256Hex(file.blob)
+    };
+}
+
+async function buildExportManifest(exportFiles) {
+    return {
+        schema: 'iconforge-export-v1',
+        version: APP_VERSION,
+        createdAt: new Date().toISOString(),
+        preset: activePresetKey || 'custom',
+        source: {
+            mode: sourceMode,
+            name: sourceFileName || null
+        },
+        options: getExportOptionsSnapshot(),
+        files: await Promise.all(exportFiles.map(exportManifestRecord))
+    };
+}
+
+async function getExportFilesWithManifest() {
+    const exportFiles = getExportFiles();
+    const manifest = await buildExportManifest(exportFiles);
+    return [
+        ...exportFiles,
+        textSupportFile('iconforge-export.json', JSON.stringify(manifest, null, 2), 'application/json')
+    ];
+}
+
 function pwaSplashFileSpecs() {
     return PWA_SPLASH_SPECS.flatMap(splash => [
         {
@@ -2791,7 +2877,7 @@ async function downloadAll() {
 
     try {
         const zipFiles = [];
-        const exportFiles = getExportFiles();
+        const exportFiles = await getExportFilesWithManifest();
         for (const file of exportFiles) {
             const buf = await file.blob.arrayBuffer();
             zipFiles.push({ name: file.name, data: new Uint8Array(buf) });
@@ -2825,7 +2911,7 @@ async function saveToFolder() {
     if (generatedFiles.length === 0) return;
     try {
         const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-        const exportFiles = getExportFiles();
+        const exportFiles = await getExportFilesWithManifest();
         for (const file of exportFiles) {
             await writeFileToDirectory(dirHandle, file.name, file.blob);
         }
@@ -3015,6 +3101,8 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         buildFrameworkHandoffSnippets,
         generateSnippets,
         getSupportFiles,
+        buildExportManifest,
+        getExportFilesWithManifest,
         buildGenerationDiagnostics,
         getFeatureDiagnostics,
         getSkippedFormatDiagnostics,
@@ -3025,6 +3113,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         getExportFiles,
         setState(next = {}) {
             if (Object.prototype.hasOwnProperty.call(next, 'sourceFileName')) sourceFileName = next.sourceFileName;
+            if (Object.prototype.hasOwnProperty.call(next, 'sourceMode')) sourceMode = next.sourceMode;
             if (Object.prototype.hasOwnProperty.call(next, 'generatedFiles')) generatedFiles = next.generatedFiles;
             if (Object.prototype.hasOwnProperty.call(next, 'activePresetKey')) activePresetKey = next.activePresetKey;
             if (Object.prototype.hasOwnProperty.call(next, 'featureSupport')) Object.assign(featureSupport, next.featureSupport);
@@ -3068,6 +3157,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         getState() {
             return {
                 sourceFileName,
+                sourceMode,
                 generatedFiles,
                 activePresetKey,
                 replacementTargetNames: Array.from(replacementTargetNames),

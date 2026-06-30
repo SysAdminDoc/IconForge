@@ -1,4 +1,5 @@
 const assert = require('assert');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -214,6 +215,7 @@ function loadApp() {
     Uint32Array,
     ArrayBuffer,
     DataView,
+    Date,
     Math,
     JSON,
     Promise,
@@ -224,6 +226,7 @@ function loadApp() {
     Array,
     parseInt,
     document,
+    crypto: crypto.webcrypto,
     navigator: {
       clipboard: { writeText: async () => {} },
       serviceWorker: {
@@ -300,6 +303,12 @@ function readZipCentralDirectory(bytes) {
 
     assert.strictEqual(compressedSize, uncompressedSize, `${name} should use STORE mode`);
     assert.strictEqual(view.getUint32(localOffset, true), 0x04034b50, `${name} local header missing`);
+    const localNameLength = view.getUint16(localOffset + 26, true);
+    const localExtraLength = view.getUint16(localOffset + 28, true);
+    const localName = decoder.decode(bytes.slice(localOffset + 30, localOffset + 30 + localNameLength));
+    assert.strictEqual(localName, name, `${name} local header filename mismatch`);
+    assert.strictEqual(localExtraLength, 0, `${name} local header should not include extra fields`);
+    assert(localOffset + 30 + localNameLength + compressedSize <= bytes.length, `${name} local payload should stay inside ZIP`);
     names.push(name);
     offset += 46 + nameLength + extraLength + commentLength;
   }
@@ -598,6 +607,8 @@ async function main() {
 
   api.setState({
     activePresetKey: 'pwa',
+    sourceFileName: 'Acme App',
+    sourceMode: 'text',
     generatedFiles,
     replacementTargetNames: ['pwa/icons/icon-192x192.png', 'apple-touch-icon.png'],
     generatedSnippets: snippets
@@ -609,6 +620,26 @@ async function main() {
   assert(exportNames.includes('apple-touch-icon.png'));
   assert(!exportNames.includes('favicon.ico'));
   assert(exportNames.includes('snippets/head.html'));
+  const exportFilesWithManifest = await api.getExportFilesWithManifest();
+  const exportManifestFile = exportFilesWithManifest.find((file) => file.name === 'iconforge-export.json');
+  assert(exportManifestFile, 'export manifest file should be appended to exports');
+  const exportManifest = JSON.parse(await exportManifestFile.blob.text());
+  assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
+  assert.strictEqual(exportManifest.version, 'v0.4.9');
+  assert.strictEqual(exportManifest.preset, 'pwa');
+  assert.strictEqual(exportManifest.source.mode, 'text');
+  assert.strictEqual(exportManifest.source.name, 'Acme App');
+  assert.strictEqual(exportManifest.options.replacementTemplate.active, true);
+  assert(exportManifest.options.replacementTemplate.targets.includes('pwa/icons/icon-192x192.png'));
+  assert(!exportManifest.files.some((file) => file.name === 'iconforge-export.json'), 'manifest should describe exported payload files, not itself');
+  const iconRecord = exportManifest.files.find((file) => file.name === 'pwa/icons/icon-192x192.png');
+  assert(iconRecord, 'manifest should include matched PWA icon file');
+  assert.strictEqual(iconRecord.kind, 'image');
+  assert.strictEqual(iconRecord.mimeType, 'image/png');
+  assert.strictEqual(iconRecord.byteSize, 4);
+  assert.deepStrictEqual(iconRecord.dimensions, { width: 192, height: 192 });
+  assert.strictEqual(iconRecord.sha256, crypto.createHash('sha256').update(Buffer.from([7, 7, 7, 7])).digest('hex'));
+  assert(exportManifest.files.some((file) => file.name === 'README.txt' && file.kind === 'support'));
 
   console.log('export regression tests ok');
 }

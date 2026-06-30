@@ -2,6 +2,12 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.9] - 2026-06-30
+
+### Added
+- `iconforge-export.json` for ZIP and folder exports with app version, preset, source mode, generation options, file inventory, dimensions, MIME types, byte sizes, and SHA-256 hashes.
+- Regression coverage for export manifest payloads and checksums.
+
 ## [v0.4.8] - 2026-06-30
 
 ### Added
