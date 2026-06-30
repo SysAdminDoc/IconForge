@@ -301,6 +301,34 @@
                     </div>
                 </div>
 
+                <div class="manifest-metadata-section" aria-labelledby="deploymentUrlLabel">
+                    <div class="metadata-heading-row">
+                        <label class="section-label" id="deploymentUrlLabel">Deployment URLs</label>
+                        <span class="metadata-status" id="deploymentUrlStatus" role="status" aria-live="polite">Root-relative URLs</span>
+                    </div>
+                    <div class="manifest-metadata-grid" id="deploymentUrlGrid">
+                        <div class="metadata-field">
+                            <label for="assetUrlMode">Asset URL Mode</label>
+                            <select id="assetUrlMode">
+                                <option value="root">Root-relative (/icons/icon.png)</option>
+                                <option value="relative">Relative (icons/icon.png)</option>
+                                <option value="custom">Custom base URL</option>
+                            </select>
+                        </div>
+                        <div class="metadata-field">
+                            <label for="assetUrlBase">Custom Base URL</label>
+                            <input type="text" id="assetUrlBase" value="/assets/" spellcheck="false">
+                        </div>
+                        <div class="metadata-field checkbox-field">
+                            <label for="cacheBustToggle">Cache Busting</label>
+                            <label class="inline-check">
+                                <input type="checkbox" id="cacheBustToggle">
+                                <span>Add SHA-256 query</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
                 <label class="section-label">Standard Icon Sizes</label>
                 <div class="size-grid" id="sizeGrid">
                     <label class="size-option selected">

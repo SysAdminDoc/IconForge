@@ -168,6 +168,9 @@ function createDocumentMock() {
     manifestDir: 'auto',
     manifestShortcuts: '',
     manifestScreenshots: '',
+    assetUrlMode: 'root',
+    assetUrlBase: '/assets/',
+    cacheBustToggle: '',
     toleranceSlider: '10',
     toleranceValue: '10'
   };
@@ -177,6 +180,7 @@ function createDocumentMock() {
       const el = new ElementMock(id.toLowerCase().includes('canvas') ? 'canvas' : 'div', id);
       if (Object.prototype.hasOwnProperty.call(defaults, id)) el.value = defaults[id];
       if (id === 'dropShadowToggle') el.checked = false;
+      if (id === 'cacheBustToggle') el.checked = false;
       elements.set(id, el);
     }
     return elements.get(id);
@@ -492,7 +496,7 @@ async function main() {
     }
   });
 
-  api.generateSnippets([], []);
+  await api.generateSnippets([], []);
   const snippets = api.getState().generatedSnippets;
   assert(snippets.html.includes('/favicon.ico'), 'HTML snippet should include ICO link');
   assert(snippets.html.includes('/pwa/manifest.webmanifest'), 'HTML snippet should point PWA exports at the PWA manifest');
@@ -515,6 +519,35 @@ async function main() {
     'README.txt'
   ]);
 
+  api.setState({ deploymentUrlMode: 'relative', deploymentAssetBase: '', cacheBust: false, generatedSnippets: {} });
+  await api.generateSnippets([], []);
+  const relativeSnippets = api.getState().generatedSnippets;
+  assert(relativeSnippets.html.includes('href="favicon.ico"'), 'Relative mode should omit the leading slash for favicon links');
+  assert(relativeSnippets.html.includes('href="pwa/manifest.webmanifest"'), 'Relative mode should omit the leading slash for manifest links');
+  assert(JSON.parse(relativeSnippets.manifest).icons.some((icon) => icon.src === 'pwa/icons/icon-192x192.png'));
+
+  api.setState({
+    deploymentUrlMode: 'custom',
+    deploymentAssetBase: 'https://cdn.example.com/assets',
+    cacheBust: true,
+    generatedSnippets: {}
+  });
+  await api.generateSnippets([], []);
+  const customSnippets = api.getState().generatedSnippets;
+  const icoHash = crypto.createHash('sha256').update(Buffer.from([7, 7])).digest('hex').slice(0, 8);
+  const pwaHash = crypto.createHash('sha256').update(Buffer.from([7, 7, 7, 7])).digest('hex').slice(0, 8);
+  assert(customSnippets.html.includes(`href="https://cdn.example.com/assets/favicon.ico?v=${icoHash}"`), 'Custom mode should add base URL and icon cache query');
+  assert(customSnippets.html.includes('href="https://cdn.example.com/assets/pwa/manifest.webmanifest"'), 'Custom mode should add base URL for manifest support file');
+  assert(JSON.parse(customSnippets.manifest).icons.some((icon) => icon.src === `https://cdn.example.com/assets/pwa/icons/icon-192x192.png?v=${pwaHash}`));
+  assert(customSnippets.handoff.next.includes(`https://cdn.example.com/assets/pwa/icons/icon-192x192.png?v=${pwaHash}`), 'Framework handoff should use selected URL policy');
+  const headSupport = api.getSupportFiles().find((file) => file.name === 'snippets/head.html');
+  assert(headSupport && (await headSupport.blob.text()).includes(`https://cdn.example.com/assets/favicon.ico?v=${icoHash}`), 'HTML support file should use selected URL policy');
+  const customExportManifest = await api.buildExportManifest(api.getExportFiles());
+  assert.strictEqual(customExportManifest.options.deploymentUrls.mode, 'custom');
+  assert.strictEqual(customExportManifest.options.deploymentUrls.customBase, 'https://cdn.example.com/assets');
+  assert.strictEqual(customExportManifest.options.deploymentUrls.cacheBust, true);
+  api.setState({ deploymentUrlMode: 'root', deploymentAssetBase: '/assets/', cacheBust: false, generatedSnippets: {} });
+
   const pwaBundleFiles = makePwaBundleFiles();
   api.setState({
     sourceFileName: 'Acme App',
@@ -524,7 +557,7 @@ async function main() {
     replacementTargetNames: [],
     backgroundColor: '#123456'
   });
-  api.generateSnippets([], []);
+  await api.generateSnippets([], []);
   const pwaValidation = api.validateGeneratedExport();
   assert.strictEqual(pwaValidation.status, 'pass');
   assert(pwaValidation.checks.some((check) => check.label === 'PWA icon files' && check.status === 'pass'));
@@ -575,7 +608,7 @@ async function main() {
     replacementTargetNames: [],
     backgroundColor: '#123456'
   });
-  api.generateSnippets([], []);
+  await api.generateSnippets([], []);
   const brokenValidation = api.validateGeneratedExport();
   assert.strictEqual(brokenValidation.status, 'fail');
   assert(brokenValidation.checks.some((check) => check.detail.includes('Missing: pwa/icons/icon-maskable-72x72.png')));
@@ -591,7 +624,7 @@ async function main() {
     ]
   });
   assert.strictEqual(JSON.parse(api.buildExtensionSnippet()).icons['128'], 'icons/icon128.png');
-  api.generateSnippets([], []);
+  await api.generateSnippets([], []);
   assert(api.getState().generatedSnippets.handoff.chrome.includes('"128": "icons/icon128.png"'), 'Chrome MV3 handoff should use extension-relative icon paths');
 
   const socialFiles = [
@@ -611,7 +644,7 @@ async function main() {
       description: 'Social preview assets for Acme.'
     }
   });
-  api.generateSnippets([], []);
+  await api.generateSnippets([], []);
   const socialSnippets = api.getState().generatedSnippets;
   assert(socialSnippets.html.includes('property="og:image" content="/social/og-image.png"'), 'HTML snippet should include Open Graph image');
   assert(socialSnippets.social.includes('name="twitter:image" content="/social/twitter-card.png"'), 'Social snippet should include Twitter image');
@@ -630,7 +663,7 @@ async function main() {
     ]
   });
   assert(api.buildAndroidSnippet().includes('<adaptive-icon'), 'Android snippet should include adaptive icon XML');
-  api.generateSnippets([], []);
+  await api.generateSnippets([], []);
   assert(api.getState().generatedSnippets.handoff.android.includes('android/mipmap-xxxhdpi/ic_launcher_foreground.png -> app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png'));
   api.setState({
     activePresetKey: 'ios',
@@ -639,7 +672,7 @@ async function main() {
     ]
   });
   assert(JSON.parse(api.buildIosContents()).images.some((image) => image.filename === 'Icon-App-1024x1024-1x.png'));
-  api.generateSnippets([], []);
+  await api.generateSnippets([], []);
   assert(api.getState().generatedSnippets.handoff.ios.includes('ios/AppIcon.appiconset/Icon-App-1024x1024-1x.png'));
   api.setState({ activePresetKey: 'windows', backgroundColor: '#abcdef' });
   assert(api.buildWindowsBrowserConfig().includes('<TileColor>#abcdef</TileColor>'));
@@ -664,7 +697,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.11');
+  assert.strictEqual(exportManifest.version, 'v0.4.12');
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');

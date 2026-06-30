@@ -2,6 +2,13 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.12] - 2026-06-30
+
+### Added
+- Deployment URL controls for root-relative, relative, or custom-base asset URLs.
+- Optional SHA-256 cache-busting query strings for generated asset references in snippets and manifests.
+- Export manifest coverage for the selected deployment URL policy.
+
 ## [v0.4.11] - 2026-06-30
 
 ### Fixed

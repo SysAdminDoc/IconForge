@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.11';
+const APP_VERSION = 'v0.4.12';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 
 function limitImageSize(width, height) {
@@ -116,6 +116,7 @@ let generatedFiles = [];
 let activePresetKey = null;
 let replacementTargetNames = new Set();
 let generatedSnippets = {};
+let assetCacheBusters = new Map();
 
 const OUTPUT_FORMATS = ['png', 'jpg', 'ico', 'webp', 'avif', 'svg'];
 const FORMAT_LABELS = {
@@ -212,6 +213,11 @@ const manifestLang = document.getElementById('manifestLang');
 const manifestDir = document.getElementById('manifestDir');
 const manifestShortcuts = document.getElementById('manifestShortcuts');
 const manifestScreenshots = document.getElementById('manifestScreenshots');
+const deploymentUrlGrid = document.getElementById('deploymentUrlGrid');
+const deploymentUrlStatus = document.getElementById('deploymentUrlStatus');
+const assetUrlMode = document.getElementById('assetUrlMode');
+const assetUrlBase = document.getElementById('assetUrlBase');
+const cacheBustToggle = document.getElementById('cacheBustToggle');
 const effectSelect = document.getElementById('effectSelect');
 const dropShadowToggle = document.getElementById('dropShadowToggle');
 const maskPreviewCanvas = document.getElementById('maskPreviewCanvas');
@@ -1737,7 +1743,7 @@ async function generateIcons() {
         setElementVisible(outputSection, true, 'block');
         const totalSize = generatedFiles.reduce((s, f) => s + f.blob.size, 0);
         showStatus(`Generated ${generatedFiles.length} files (${formatFileSize(totalSize)} total)`, 'success');
-        generateSnippets(sizes, formats);
+        await generateSnippets(sizes, formats);
         const validationResult = renderExportValidation();
         renderGenerationDiagnostics({ selectedFormats: formats, validationResult });
     } catch (error) {
@@ -2079,8 +2085,68 @@ function showCopyFeedback(button) {
 }
 
 
+const ASSET_URL_MODES = new Set(['root', 'relative', 'custom']);
+
+function assetPathFor(name) {
+    return normalizedFileName(name).replace(/^\/+/, '');
+}
+
+function normalizeAssetBase(base) {
+    const value = String(base || '').trim();
+    if (!value) return '/';
+    return value.endsWith('/') ? value : `${value}/`;
+}
+
+function getDeploymentUrlOptions() {
+    const mode = ASSET_URL_MODES.has(assetUrlMode?.value) ? assetUrlMode.value : 'root';
+    return {
+        mode,
+        customBase: metadataValue(assetUrlBase),
+        cacheBust: Boolean(cacheBustToggle?.checked)
+    };
+}
+
+function deploymentUrlFor(name, options = {}) {
+    const path = assetPathFor(name);
+    const deployment = getDeploymentUrlOptions();
+    let url = `/${path}`;
+    if (deployment.mode === 'relative') {
+        url = path;
+    } else if (deployment.mode === 'custom') {
+        url = `${normalizeAssetBase(deployment.customBase)}${path}`;
+    }
+
+    if (options.cacheBust !== false && deployment.cacheBust) {
+        const hash = assetCacheBusters.get(path);
+        if (hash) url += `${url.includes('?') ? '&' : '?'}v=${encodeURIComponent(hash)}`;
+    }
+    return url;
+}
+
 function hrefFor(name) {
-    return `/${name.replace(/\\/g, '/')}`;
+    return deploymentUrlFor(name);
+}
+
+function validateDeploymentUrlOptions() {
+    if (!deploymentUrlStatus) return getDeploymentUrlOptions();
+    const deployment = getDeploymentUrlOptions();
+    const modeLabel = deployment.mode === 'relative'
+        ? 'Relative URLs'
+        : deployment.mode === 'custom'
+            ? `Custom base: ${normalizeAssetBase(deployment.customBase)}`
+            : 'Root-relative URLs';
+    deploymentUrlStatus.textContent = deployment.cacheBust ? `${modeLabel}, SHA-256 queries` : modeLabel;
+    deploymentUrlStatus.classList.toggle('error', deployment.mode === 'custom' && !deployment.customBase);
+    return deployment;
+}
+
+async function refreshAssetCacheBusters() {
+    assetCacheBusters = new Map();
+    if (!getDeploymentUrlOptions().cacheBust) return;
+    for (const file of generatedFiles) {
+        if (!file.blob) continue;
+        assetCacheBusters.set(assetPathFor(file.name), (await sha256Hex(file.blob)).slice(0, 8));
+    }
 }
 
 function firstFile(predicate) {
@@ -2191,6 +2257,25 @@ if (manifestMetadataGrid) {
     validateManifestMetadata();
 }
 
+async function handleDeploymentUrlChange() {
+    validateDeploymentUrlOptions();
+    if (generatedFiles.length === 0) return;
+    try {
+        await generateSnippets(getSelectedSizes(), getSelectedFormats());
+        const validationResult = renderExportValidation();
+        renderGenerationDiagnostics({ validationResult });
+    } catch (error) {
+        renderGenerationDiagnostics({ error });
+        showStatus(`Deployment URL update failed: ${error.message}`, 'error');
+    }
+}
+
+if (deploymentUrlGrid) {
+    deploymentUrlGrid.addEventListener('input', handleDeploymentUrlChange);
+    deploymentUrlGrid.addEventListener('change', handleDeploymentUrlChange);
+    validateDeploymentUrlOptions();
+}
+
 function buildManifestSnippet() {
     const icons = generatedFiles
         .filter(file => file.format === 'png' && file.size && file.size.width === file.size.height)
@@ -2246,10 +2331,10 @@ function buildWindowsBrowserConfig() {
 <browserconfig>
   <msapplication>
     <tile>
-      <square70x70logo src="/windows/mstile-70x70.png"/>
-      <square150x150logo src="/windows/mstile-150x150.png"/>
-      <wide310x150logo src="/windows/mstile-310x150.png"/>
-      <square310x310logo src="/windows/mstile-310x310.png"/>
+      <square70x70logo src="${hrefFor('windows/mstile-70x70.png')}"/>
+      <square150x150logo src="${hrefFor('windows/mstile-150x150.png')}"/>
+      <wide310x150logo src="${hrefFor('windows/mstile-310x150.png')}"/>
+      <square310x310logo src="${hrefFor('windows/mstile-310x310.png')}"/>
       <TileColor>${backgroundColor.value}</TileColor>
     </tile>
   </msapplication>
@@ -2310,7 +2395,7 @@ function generatedFileCopyList(prefix = '') {
 
 function webManifestHref(manifest) {
     if (!manifest) return '';
-    return activePresetKey === 'pwa' ? '/pwa/manifest.webmanifest' : '/manifest.webmanifest';
+    return deploymentUrlFor(activePresetKey === 'pwa' ? 'pwa/manifest.webmanifest' : 'manifest.webmanifest', { cacheBust: false });
 }
 
 function squarePngFiles() {
@@ -2483,9 +2568,10 @@ function renderHandoffSnippetTabs() {
     handoffSnippet.textContent = snippets[tabMeta.key] || '';
 }
 
-function generateSnippets(sizes, formats) {
+async function generateSnippets(sizes, formats) {
     const snippetSection = document.getElementById('snippetSection');
     const htmlSnippet = document.getElementById('htmlSnippet');
+    await refreshAssetCacheBusters();
     const lines = [];
     const icoFile = firstFile(file => file.format === 'ico');
     const svgFile = firstFile(file => file.format === 'svg');
@@ -2497,12 +2583,12 @@ function generateSnippets(sizes, formats) {
     if (icoFile) lines.push(`<link rel="icon" href="${hrefFor(icoFile.name)}" sizes="32x32">`);
     if (svgFile) lines.push(`<link rel="icon" href="${hrefFor(svgFile.name)}" type="image/svg+xml">`);
     if (appleFile) lines.push(`<link rel="apple-touch-icon" href="${hrefFor(appleFile.name)}">`);
-    if (manifest) lines.push(`<link rel="manifest" href="${activePresetKey === 'pwa' ? '/pwa/manifest.webmanifest' : '/manifest.webmanifest'}">`);
+    if (manifest) lines.push(`<link rel="manifest" href="${webManifestHref(manifest)}">`);
     for (const splash of splashFiles.slice(0, 6)) {
         lines.push(`<link rel="apple-touch-startup-image" href="${hrefFor(splash.name)}" media="(device-width: ${splash.size.width}px) and (device-height: ${splash.size.height}px)">`);
     }
     if (activePresetKey === 'windows') {
-        lines.push(`<meta name="msapplication-config" content="/windows/browserconfig.xml">`);
+        lines.push(`<meta name="msapplication-config" content="${deploymentUrlFor('windows/browserconfig.xml', { cacheBust: false })}">`);
     }
     if (social) lines.push(social);
 
@@ -2610,6 +2696,7 @@ function getExportOptionsSnapshot() {
             active: replacementTargetNames.size > 0,
             targets: Array.from(replacementTargetNames).sort()
         },
+        deploymentUrls: getDeploymentUrlOptions(),
         manifestMetadata: manifest.metadata,
         manifestMetadataErrors: manifest.errors
     };
@@ -3219,6 +3306,9 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
             }
             if (Object.prototype.hasOwnProperty.call(next, 'generatedSnippets')) generatedSnippets = next.generatedSnippets;
             if (Object.prototype.hasOwnProperty.call(next, 'backgroundColor')) backgroundColor.value = next.backgroundColor;
+            if (Object.prototype.hasOwnProperty.call(next, 'deploymentUrlMode')) assetUrlMode.value = next.deploymentUrlMode;
+            if (Object.prototype.hasOwnProperty.call(next, 'deploymentAssetBase')) assetUrlBase.value = next.deploymentAssetBase;
+            if (Object.prototype.hasOwnProperty.call(next, 'cacheBust')) cacheBustToggle.checked = Boolean(next.cacheBust);
             if (Object.prototype.hasOwnProperty.call(next, 'manifestMetadata')) {
                 const fieldMap = {
                     name: manifestName,
@@ -3251,6 +3341,8 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                 activePresetKey,
                 replacementTargetNames: Array.from(replacementTargetNames),
                 generatedSnippets,
+                assetCacheBusters: Array.from(assetCacheBusters.entries()),
+                deploymentUrls: getDeploymentUrlOptions(),
                 featureSupport: { ...featureSupport },
                 generationStats: {
                     ...generationStats,

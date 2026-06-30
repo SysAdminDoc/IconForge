@@ -8,13 +8,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ### P0
 
-- [ ] P0 — Add deployment base-path and checksum cache-busting controls
-  Why: Generated snippets assume root-relative URLs, which breaks subpath/CDN/framework deployments and leaves favicon cache refresh work manual despite export hashes.
-  Evidence: `app.js:2072-2074`; `app.js:2301-2304`; StackOverflow favicon refresh thread; itgalaxy/favicons#461; astro-favicons#92; webpack-pwa-manifest#173.
-  Touches: `app.js`; `index.html`; `tests/export-regression.test.js`; `README.md`
-  Acceptance: User can choose root-relative, relative, or custom asset base URL plus optional `?v=<sha256-8>` cache query; HTML, manifest, social, framework, extension, Android, iOS, Windows snippets, support files, validation, and tests all use the selected URL policy.
-  Complexity: M
-
 - [ ] P0 — Guard canvas encoder failures and SVG/image input errors
   Why: `canvas.toBlob()` can fail or return no blob, and malformed or externally-referencing SVG input can currently collapse into generic generation errors.
   Evidence: `app.js:997-1070`; `app.js:1749-1785`; `app.js:1796-1804`; MDN `HTMLCanvasElement.toBlob()` security/error behavior.
