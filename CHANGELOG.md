@@ -2,6 +2,12 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.8] - 2026-06-30
+
+### Added
+- Tabbed framework handoff snippets for plain HTML, Vite, Next.js app router, Astro, Chrome MV3, Firefox MV3, Android, and iOS.
+- Regression coverage for framework handoff snippet paths and shell tab wiring.
+
 ## [v0.4.7] - 2026-06-30
 
 ### Added

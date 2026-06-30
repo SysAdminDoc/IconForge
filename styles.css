@@ -1036,6 +1036,37 @@ h1 {
 }
 
 /* Code Snippets */
+.snippet-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.75rem;
+}
+
+.snippet-tab {
+    padding: 0.4rem 0.55rem;
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.snippet-tab:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.snippet-tab.active {
+    background: var(--accent-subtle);
+    border-color: rgba(249, 115, 22, 0.45);
+    color: var(--accent);
+}
+
 .snippet-block {
     margin-top: 0.75rem;
     background: var(--bg-dark);

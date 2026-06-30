@@ -126,6 +126,16 @@ const PRESET_LABELS = {
     windows: 'Windows',
     all: 'All Sizes'
 };
+const HANDOFF_SNIPPET_TABS = [
+    { key: 'plain', label: 'Plain HTML' },
+    { key: 'vite', label: 'Vite' },
+    { key: 'next', label: 'Next.js app router' },
+    { key: 'astro', label: 'Astro' },
+    { key: 'chrome', label: 'Chrome MV3' },
+    { key: 'firefox', label: 'Firefox MV3' },
+    { key: 'android', label: 'Android' },
+    { key: 'ios', label: 'iOS' }
+];
 const featureSupport = {
     workerApi: typeof Worker !== 'undefined',
     offscreenCanvas: typeof OffscreenCanvas !== 'undefined',
@@ -137,6 +147,7 @@ const featureSupport = {
     avifChecked: false
 };
 let generationStats = createGenerationStats();
+let activeHandoffSnippetKey = 'plain';
 
 // Crop state
 let originalImageData = null;  // Store original for reset
@@ -167,6 +178,9 @@ const diagnosticsSection = document.getElementById('diagnosticsSection');
 const diagnosticsSummary = document.getElementById('diagnosticsSummary');
 const diagnosticsGrid = document.getElementById('diagnosticsGrid');
 const diagnosticsFeatureList = document.getElementById('diagnosticsFeatureList');
+const handoffTabs = document.getElementById('handoffTabs');
+const handoffSnippetTitle = document.getElementById('handoffSnippetTitle');
+const handoffSnippet = document.getElementById('handoffSnippet');
 const safePaddingSlider = document.getElementById('safePaddingSlider');
 const safePaddingValue = document.getElementById('safePaddingValue');
 const resampleSelect = document.getElementById('resampleSelect');
@@ -795,6 +809,13 @@ if ('showDirectoryPicker' in window) {
     setElementVisible(btnSaveToFolder, true);
     btnSaveToFolder.addEventListener('click', saveToFolder);
 }
+
+handoffTabs?.addEventListener('click', (e) => {
+    const tab = e.target.closest('[data-handoff-tab]');
+    if (!tab) return;
+    activeHandoffSnippetKey = tab.dataset.handoffTab;
+    renderHandoffSnippetTabs();
+});
 
 // Preset buttons
 const PRESETS = {
@@ -2200,6 +2221,192 @@ function buildWindowsBrowserConfig() {
 </browserconfig>`;
 }
 
+function normalizedFileName(name) {
+    return name.replace(/\\/g, '/');
+}
+
+function generatedFileCopyList(prefix = '') {
+    if (generatedFiles.length === 0) return '- No generated files yet';
+    return generatedFiles
+        .map(file => `- ${prefix}${normalizedFileName(file.name)}`)
+        .join('\n');
+}
+
+function webManifestHref(manifest) {
+    if (!manifest) return '';
+    return activePresetKey === 'pwa' ? '/pwa/manifest.webmanifest' : '/manifest.webmanifest';
+}
+
+function squarePngFiles() {
+    return generatedFiles
+        .filter(file => file.format === 'png' && file.size?.width === file.size?.height && file.role !== 'splash')
+        .sort((a, b) => a.size.width - b.size.width);
+}
+
+function preferredAppleFile() {
+    return firstFile(file => file.format === 'png' && file.size?.width === 180 && file.size?.height === 180) ||
+        firstFile(file => file.format === 'png' && file.size?.width === 152 && file.size?.height === 152);
+}
+
+function buildPlainHtmlHandoff(html) {
+    return `<!-- Plain HTML: paste into <head> -->\n${html || '<!-- No applicable tags for selected formats -->'}`;
+}
+
+function buildViteHandoffSnippet(html, manifest) {
+    const manifestPath = webManifestHref(manifest).replace(/^\//, '');
+    const supportFiles = manifestPath ? `\n- public/${manifestPath}` : '';
+    return `# Vite public/ handoff
+Copy the generated files into public/ with these paths:
+${generatedFileCopyList('public/')}${supportFiles}
+
+Add the generated tags to index.html:
+${html || '<!-- No applicable tags for selected formats -->'}`;
+}
+
+function nextIconEntry(file) {
+    const parts = [`url: '${hrefFor(file.name)}'`];
+    if (file.size?.width && file.size?.height) parts.push(`sizes: '${file.size.width}x${file.size.height}'`);
+    if (file.format === 'svg') parts.push("type: 'image/svg+xml'");
+    if (file.format === 'png') parts.push("type: 'image/png'");
+    if (file.format === 'ico') parts.push("type: 'image/x-icon'");
+    return `      { ${parts.join(', ')} }`;
+}
+
+function buildNextHandoffSnippet(manifest) {
+    const iconFiles = [
+        firstFile(file => file.format === 'ico'),
+        firstFile(file => file.format === 'svg'),
+        ...squarePngFiles().filter(file => file.purpose !== 'maskable').slice(-4)
+    ].filter(Boolean);
+    const apple = preferredAppleFile();
+    const lines = [
+        '// app/layout.tsx',
+        "import type { Metadata } from 'next';",
+        '',
+        'export const metadata: Metadata = {'
+    ];
+    const manifestHref = webManifestHref(manifest);
+    if (manifestHref) lines.push(`  manifest: '${manifestHref}',`);
+    lines.push('  icons: {');
+    lines.push('    icon: [');
+    lines.push(iconFiles.length ? iconFiles.map(nextIconEntry).join(',\n') : "      { url: '/favicon.ico' }");
+    lines.push('    ],');
+    if (apple) {
+        lines.push('    apple: [');
+        lines.push(`      { url: '${hrefFor(apple.name)}', sizes: '${apple.size.width}x${apple.size.height}', type: 'image/png' }`);
+        lines.push('    ],');
+    }
+    lines.push('  },');
+    lines.push('};');
+    return lines.join('\n');
+}
+
+function buildAstroHandoffSnippet(html) {
+    const head = html || '<!-- No applicable tags for selected formats -->';
+    const indentedHead = head.split('\n').map(line => `    ${line}`).join('\n');
+    return `---
+// src/layouts/BaseLayout.astro
+---
+<html lang="en">
+  <head>
+${indentedHead}
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>`;
+}
+
+function extensionIconMap() {
+    const icons = {};
+    for (const size of [16, 32, 48, 128]) {
+        const file = firstFile(f => f.format === 'png' && f.size?.width === size && f.size?.height === size);
+        if (file) {
+            icons[size] = file.name.startsWith('extension/')
+                ? normalizedFileName(file.name).replace(/^extension\//, '')
+                : normalizedFileName(file.name);
+        }
+    }
+    return icons;
+}
+
+function buildMv3HandoffSnippet(target) {
+    const icons = extensionIconMap();
+    const manifest = {
+        manifest_version: 3,
+        name: getManifestSourceName(),
+        version: '1.0.0',
+        icons
+    };
+    if (Object.keys(icons).length) {
+        manifest.action = { default_icon: icons };
+    }
+    if (target === 'firefox') {
+        manifest.browser_specific_settings = {
+            gecko: {
+                id: `${getManifestSourceName().toLowerCase()}@example.com`
+            }
+        };
+    }
+    return JSON.stringify(manifest, null, 2);
+}
+
+function buildAndroidHandoffSnippet() {
+    const files = generatedFiles.filter(file => normalizedFileName(file.name).startsWith('android/'));
+    if (files.length === 0) {
+        return 'Run the Android preset to generate adaptive icon PNGs and ic_launcher.xml handoff files.';
+    }
+    const fileLines = files
+        .map(file => `- ${normalizedFileName(file.name)} -> app/src/main/res/${normalizedFileName(file.name).replace(/^android\//, '')}`)
+        .join('\n');
+    return `Copy generated Android files:
+${fileLines}
+
+// app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+${buildAndroidSnippet()}`;
+}
+
+function buildIosHandoffSnippet() {
+    const files = generatedFiles.filter(file => normalizedFileName(file.name).startsWith('ios/AppIcon.appiconset/'));
+    if (files.length === 0) {
+        return 'Run the iOS preset to generate AppIcon.appiconset PNGs and Contents.json.';
+    }
+    return `Copy generated iOS files into Xcode:
+${files.map(file => `- ${normalizedFileName(file.name)}`).join('\n')}
+
+// ios/AppIcon.appiconset/Contents.json
+${buildIosContents()}`;
+}
+
+function buildFrameworkHandoffSnippets(html, manifest) {
+    return {
+        plain: buildPlainHtmlHandoff(html),
+        vite: buildViteHandoffSnippet(html, manifest),
+        next: buildNextHandoffSnippet(manifest),
+        astro: buildAstroHandoffSnippet(html),
+        chrome: buildMv3HandoffSnippet('chrome'),
+        firefox: buildMv3HandoffSnippet('firefox'),
+        android: buildAndroidHandoffSnippet(),
+        ios: buildIosHandoffSnippet()
+    };
+}
+
+function renderHandoffSnippetTabs() {
+    const snippets = generatedSnippets.handoff || {};
+    if (!handoffTabs || !handoffSnippet || !handoffSnippetTitle) return;
+    if (!snippets[activeHandoffSnippetKey]) activeHandoffSnippetKey = 'plain';
+    const tabMeta = HANDOFF_SNIPPET_TABS.find(tab => tab.key === activeHandoffSnippetKey) || HANDOFF_SNIPPET_TABS[0];
+
+    handoffTabs.querySelectorAll('[data-handoff-tab]').forEach(tab => {
+        const active = tab.dataset.handoffTab === tabMeta.key;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+
+    handoffSnippetTitle.textContent = tabMeta.label;
+    handoffSnippet.textContent = snippets[tabMeta.key] || '';
+}
+
 function generateSnippets(sizes, formats) {
     const snippetSection = document.getElementById('snippetSection');
     const htmlSnippet = document.getElementById('htmlSnippet');
@@ -2221,17 +2428,20 @@ function generateSnippets(sizes, formats) {
         lines.push(`<meta name="msapplication-config" content="/windows/browserconfig.xml">`);
     }
 
+    const html = lines.join('\n') || '<!-- No applicable tags for selected formats -->';
     generatedSnippets = {
-        html: lines.join('\n') || '<!-- No applicable tags for selected formats -->',
+        html,
         manifest,
         extension: buildExtensionSnippet(),
         android: buildAndroidSnippet(),
         ios: buildIosContents(),
-        windows: buildWindowsBrowserConfig()
+        windows: buildWindowsBrowserConfig(),
+        handoff: buildFrameworkHandoffSnippets(html, manifest)
     };
 
     htmlSnippet.textContent = generatedSnippets.html;
     setElementVisible(snippetSection, true, 'block');
+    renderHandoffSnippetTabs();
     setSnippetBlock('manifestSnippetBlock', 'manifestSnippet', generatedSnippets.manifest);
     setSnippetBlock('extensionSnippetBlock', 'extensionSnippet', generatedSnippets.extension);
     setSnippetBlock('androidSnippetBlock', 'androidSnippet', generatedSnippets.android);
@@ -2802,6 +3012,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         buildAndroidSnippet,
         buildIosContents,
         buildWindowsBrowserConfig,
+        buildFrameworkHandoffSnippets,
         generateSnippets,
         getSupportFiles,
         buildGenerationDiagnostics,

@@ -6,13 +6,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ## Research-Driven Additions
 
-- [ ] P2 - Add framework-ready handoff snippets
-  Why: Competing build tools win by putting icons in the right framework paths; IconForge can provide the same handoff without becoming framework-specific.
-  Evidence: Astro favicons, webpack-pwa-manifest, pwa-asset-generator, `index.html:3800`
-  Touches: `index.html`
-  Acceptance: Snippet tabs cover plain HTML, Vite, Next.js app router, Astro, Chrome/Firefox MV3, Android, and iOS with generated paths matching the active preset.
-  Complexity: M
-
 - [ ] P2 - Add export manifest with checksums
   Why: Generated ZIPs include many files but no machine-readable inventory for review, support, or repeatability.
   Evidence: `index.html:3868`, `index.html:3899`

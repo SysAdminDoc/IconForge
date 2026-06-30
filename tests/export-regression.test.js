@@ -476,6 +476,18 @@ async function main() {
   assert(snippets.html.includes('/favicon.ico'), 'HTML snippet should include ICO link');
   assert(snippets.html.includes('/pwa/manifest.webmanifest'), 'HTML snippet should point PWA exports at the PWA manifest');
   assert(snippets.html.includes('apple-touch-startup-image'), 'HTML snippet should include splash image tags');
+  ['plain', 'vite', 'next', 'astro', 'chrome', 'firefox', 'android', 'ios'].forEach((key) => {
+    assert(snippets.handoff[key], `${key} handoff snippet should be generated`);
+  });
+  assert(snippets.handoff.plain.includes('Plain HTML'), 'plain handoff should label HTML head usage');
+  assert(snippets.handoff.vite.includes('public/pwa/manifest.webmanifest'), 'Vite handoff should preserve generated public paths');
+  assert(snippets.handoff.next.includes("manifest: '/pwa/manifest.webmanifest'"), 'Next handoff should point at generated manifest path');
+  assert(snippets.handoff.next.includes("/pwa/icons/icon-192x192.png"), 'Next handoff should include generated icon paths');
+  assert(snippets.handoff.astro.includes('<slot />'), 'Astro handoff should include layout slot');
+  assert(snippets.handoff.chrome.includes('"manifest_version": 3'), 'Chrome handoff should emit MV3 JSON');
+  assert(snippets.handoff.firefox.includes('"browser_specific_settings"'), 'Firefox handoff should include Gecko settings');
+  assert(snippets.handoff.android.includes('Run the Android preset'), 'Android handoff should explain when Android files are not active');
+  assert(snippets.handoff.ios.includes('Run the iOS preset'), 'iOS handoff should explain when iOS files are not active');
   assert.deepStrictEqual(Array.from(api.getSupportFiles(), (file) => file.name), [
     'snippets/head.html',
     'pwa/manifest.webmanifest',
@@ -558,11 +570,29 @@ async function main() {
     ]
   });
   assert.strictEqual(JSON.parse(api.buildExtensionSnippet()).icons['128'], 'icons/icon128.png');
+  api.generateSnippets([], []);
+  assert(api.getState().generatedSnippets.handoff.chrome.includes('"128": "icons/icon128.png"'), 'Chrome MV3 handoff should use extension-relative icon paths');
 
-  api.setState({ activePresetKey: 'android' });
+  api.setState({
+    activePresetKey: 'android',
+    generatedFiles: [
+      { name: 'android/mipmap-xxxhdpi/ic_launcher_foreground.png', blob: makeBlob(), size: { width: 432, height: 432 }, format: 'png', role: 'android-foreground' },
+      { name: 'android/mipmap-xxxhdpi/ic_launcher_background.png', blob: makeBlob(), size: { width: 432, height: 432 }, format: 'png', role: 'android-background' },
+      { name: 'android/mipmap-xxxhdpi/ic_launcher.png', blob: makeBlob(), size: { width: 432, height: 432 }, format: 'png', role: 'android-legacy' }
+    ]
+  });
   assert(api.buildAndroidSnippet().includes('<adaptive-icon'), 'Android snippet should include adaptive icon XML');
-  api.setState({ activePresetKey: 'ios' });
+  api.generateSnippets([], []);
+  assert(api.getState().generatedSnippets.handoff.android.includes('android/mipmap-xxxhdpi/ic_launcher_foreground.png -> app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png'));
+  api.setState({
+    activePresetKey: 'ios',
+    generatedFiles: [
+      { name: 'ios/AppIcon.appiconset/Icon-App-1024x1024-1x.png', blob: makeBlob(), size: { width: 1024, height: 1024 }, format: 'png', role: 'ios' }
+    ]
+  });
   assert(JSON.parse(api.buildIosContents()).images.some((image) => image.filename === 'Icon-App-1024x1024-1x.png'));
+  api.generateSnippets([], []);
+  assert(api.getState().generatedSnippets.handoff.ios.includes('ios/AppIcon.appiconset/Icon-App-1024x1024-1x.png'));
   api.setState({ activePresetKey: 'windows', backgroundColor: '#abcdef' });
   assert(api.buildWindowsBrowserConfig().includes('<TileColor>#abcdef</TileColor>'));
 

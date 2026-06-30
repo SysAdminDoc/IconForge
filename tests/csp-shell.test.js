@@ -10,6 +10,9 @@ assert(html.includes('<script src="app.js" defer></script>'), 'index.html should
 assert(html.includes('id="diagnosticsSection"'), 'index.html should include diagnostics section');
 assert(html.includes('id="diagnosticsGrid"'), 'index.html should include diagnostics metrics grid');
 assert(html.includes('id="diagnosticsFeatureList"'), 'index.html should include diagnostics feature list');
+assert(html.includes('id="handoffTabs"'), 'index.html should include framework handoff tabs');
+assert(html.includes('data-handoff-tab="next"'), 'index.html should include Next.js handoff tab');
+assert(html.includes('id="handoffSnippet"'), 'index.html should include framework handoff snippet output');
 assert(fs.statSync(path.join(root, 'styles.css')).size > 0, 'styles.css should exist and be non-empty');
 assert(fs.statSync(path.join(root, 'app.js')).size > 0, 'app.js should exist and be non-empty');
 
