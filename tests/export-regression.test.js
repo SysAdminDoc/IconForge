@@ -263,6 +263,18 @@ function loadApp() {
         return this._src;
       }
     },
+    DOMParser: class {
+      parseFromString(text) {
+        const trimmed = String(text || '').trim();
+        return {
+          documentElement: { localName: /^<svg[\s>]/i.test(trimmed) ? 'svg' : 'html' },
+          querySelector(selector) {
+            if (selector === 'parsererror' && /<svg\b[^>]*>\s*<path\b[^/>]*>\s*<\/svg>/i.test(trimmed)) return {};
+            return null;
+          }
+        };
+      }
+    },
     FileReader: class {},
     setTimeout,
     clearTimeout,
@@ -381,6 +393,38 @@ async function main() {
   assert.strictEqual(icoView.getUint8(6), 16, 'ICO first width should be literal');
   assert.strictEqual(icoView.getUint8(22), 0, 'ICO 256px width should be encoded as zero');
   assert.strictEqual(icoView.getUint32(18, true), 38, 'ICO second payload offset should follow the first entry data');
+
+  assert.doesNotThrow(() => api.validateSvgSourceText('<svg viewBox="0 0 1 1"></svg>', 'valid.svg'));
+  assert.throws(
+    () => api.validateSvgSourceText('<svg><path></svg>', 'broken.svg'),
+    /malformed SVG/,
+    'Malformed SVG input should fail before image decoding'
+  );
+  assert.throws(
+    () => api.validateSvgSourceText('<svg><image href="https://example.com/icon.png"/></svg>', 'remote.svg'),
+    /external references/,
+    'Remote SVG references should be rejected before canvas export'
+  );
+  assert.throws(
+    () => api.validateSvgSourceText('<svg><script>alert(1)</script></svg>', 'script.svg'),
+    /active SVG content/,
+    'Active SVG content should not enter the canvas path'
+  );
+
+  api.setState({ generatedFiles: [] });
+  assert.throws(
+    () => api.addGeneratedFile('missing.png', null, { width: 16, height: 16 }, 'png'),
+    /did not produce a file blob/,
+    'Missing blobs should not be registered as generated files'
+  );
+  assert.throws(
+    () => api.addGeneratedFile('empty.png', new Blob([], { type: 'image/png' }), { width: 16, height: 16 }, 'png'),
+    /produced an empty file/,
+    'Empty blobs should not be registered as generated files'
+  );
+  assert.strictEqual(api.getState().generatedFiles.length, 0, 'Rejected blob registrations must not mutate generated files');
+  api.addGeneratedFile('safe.png', makeBlob(1, 'image/png'), { width: 16, height: 16 }, 'png');
+  assert.strictEqual(api.getState().generatedFiles.length, 1, 'Valid blobs should still register normally');
 
   api.setState({ sourceFileName: 'Acme Brand', activePresetKey: 'web' });
   assert.strictEqual(api.getOutputFileName({ format: 'ico', size: { width: 'multi', height: 'multi' } }), 'favicon.ico');
@@ -697,7 +741,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.12');
+  assert.strictEqual(exportManifest.version, 'v0.4.13');
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');

@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.12';
+const APP_VERSION = 'v0.4.13';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 
 function limitImageSize(width, height) {
@@ -1005,80 +1005,137 @@ async function readZipFileNames(file) {
     return names.filter(name => name && !name.endsWith('/'));
 }
 
-function loadImage(file) {
-    if (!file.type.startsWith('image/') && !file.name.endsWith('.svg')) {
-        showStatus('Please select a valid image file', 'error');
-        return;
-    }
+function isSvgFile(file) {
+    return file?.type === 'image/svg+xml' || /\.svg$/i.test(file?.name || '');
+}
 
-    const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > 200) {
-        showStatus(`File too large (${sizeMB.toFixed(0)} MB). Maximum is 200 MB.`, 'error');
-        return;
-    }
-    if (sizeMB > 50) {
-        showStatus(`Large file (${sizeMB.toFixed(0)} MB) — processing may be slow.`, 'warning');
-    }
+function readFile(file, method, errorMessage) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = () => reject(new Error(errorMessage));
+        reader.onabort = () => reject(new Error(errorMessage));
+        reader[method](file);
+    });
+}
 
-    sourceFileName = file.name.replace(/\.[^/.]+$/, '');
-    sourceMode = 'upload';
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
+function readFileAsText(file) {
+    return readFile(file, 'readAsText', 'Failed to read SVG file.');
+}
+
+function readFileAsDataUrl(file) {
+    return readFile(file, 'readAsDataURL', 'Failed to read image file.');
+}
+
+function loadImageElement(src) {
+    return new Promise((resolve, reject) => {
         const img = new Image();
-        img.onload = () => {
-            // Downscale if image exceeds safe canvas limits
-            const safeSize = limitImageSize(img.naturalWidth, img.naturalHeight);
-            if (safeSize.scaled) {
-                const tmpCanvas = document.createElement('canvas');
-                tmpCanvas.width = safeSize.width;
-                tmpCanvas.height = safeSize.height;
-                const tmpCtx = tmpCanvas.getContext('2d');
-                tmpCtx.drawImage(img, 0, 0, safeSize.width, safeSize.height);
-                const scaledImg = new Image();
-                scaledImg.onload = () => {
-                    sourceImage = scaledImg;
-                    originalImageData = tmpCanvas.toDataURL('image/png');
-                    previewImage.src = originalImageData;
-                    setPreviewInfo(file.name, safeSize.width, safeSize.height, `downscaled from ${img.naturalWidth}×${img.naturalHeight}`);
-                    showStatus(`Image was downscaled from ${img.naturalWidth}×${img.naturalHeight} to ${safeSize.width}×${safeSize.height} (browser canvas limit)`, 'warning');
-                    setElementVisible(dropZone, false);
-                    previewContainer.classList.add('active');
-                    btnGenerate.disabled = false;
-                    setElementVisible(outputSection, false);
-                    cropSection.classList.add('active');
-                    cropRegion = null;
-                    initCropCanvas();
-                    updateMaskPreview();
-                    tmpCanvas.width = 0;
-                    tmpCanvas.height = 0;
-                };
-                scaledImg.src = tmpCanvas.toDataURL('image/png');
-                return;
-            }
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Failed to load image. Make sure it is a valid image file.'));
+        img.src = src;
+    });
+}
 
-            sourceImage = img;
-            originalImageData = e.target.result;
-            previewImage.src = e.target.result;
-            setPreviewInfo(file.name, img.naturalWidth, img.naturalHeight);
-            setElementVisible(dropZone, false);
-            previewContainer.classList.add('active');
-            btnGenerate.disabled = false;
-            setElementVisible(outputSection, false);
-            showStatus('', '');
+function validateSvgSourceText(svgText, fileName = 'SVG file') {
+    const text = String(svgText || '').replace(/^\uFEFF/, '').trim();
+    if (!text) throw new Error(`${fileName} is empty.`);
 
-            // Initialize crop section
-            cropSection.classList.add('active');
-            cropRegion = null;
-            initCropCanvas();
-            updateMaskPreview();
-        };
-        img.onerror = () => {
-            showStatus('Failed to load image. Make sure it\'s a valid image file.', 'error');
-        };
-        img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
+    if (typeof DOMParser !== 'undefined') {
+        const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+        const parserError = doc.querySelector('parsererror');
+        if (parserError) throw new Error(`${fileName} is malformed SVG. Fix the XML and try again.`);
+        const root = doc.documentElement;
+        if (!root || String(root.localName || '').toLowerCase() !== 'svg') {
+            throw new Error(`${fileName} does not contain an SVG root element.`);
+        }
+    } else if (!/^<svg[\s>]/i.test(text)) {
+        throw new Error(`${fileName} does not contain an SVG root element.`);
+    }
+
+    if (/<script[\s>]/i.test(text) || /<\s*(?:iframe|object|embed|foreignObject)\b/i.test(text)) {
+        throw new Error(`${fileName} contains active SVG content that cannot be safely exported to canvas.`);
+    }
+
+    const externalAttribute = /\b(?:href|xlink:href|src|data|poster)\s*=\s*["']\s*(?:https?:|file:|blob:|\/\/)/i;
+    const externalCss = /(?:@import\s+|url\()\s*["']?\s*(?:https?:|file:|blob:|\/\/)/i;
+    if (externalAttribute.test(text) || externalCss.test(text)) {
+        throw new Error(`${fileName} contains external references that can taint canvas exports. Inline the referenced assets and try again.`);
+    }
+
+    return text;
+}
+
+function reportImageInputError(error) {
+    const message = error?.message || 'Failed to load image.';
+    showStatus(message, 'error');
+    setElementVisible(outputSection, true, 'block');
+    renderGenerationDiagnostics({ selectedFormats: getSelectedFormats(), error: new Error(message) });
+}
+
+function activateLoadedImage(file, img, previewSrc, detail = '') {
+    sourceImage = img;
+    originalImageData = previewSrc;
+    previewImage.src = previewSrc;
+    setPreviewInfo(file.name, img.naturalWidth, img.naturalHeight, detail);
+    setElementVisible(dropZone, false);
+    previewContainer.classList.add('active');
+    btnGenerate.disabled = false;
+    setElementVisible(outputSection, false);
+    showStatus('', '');
+
+    cropSection.classList.add('active');
+    cropRegion = null;
+    initCropCanvas();
+    updateMaskPreview();
+}
+
+async function loadImage(file) {
+    try {
+        if (!file || (!file.type?.startsWith('image/') && !isSvgFile(file))) {
+            throw new Error('Please select a valid image file.');
+        }
+
+        const sizeMB = file.size / (1024 * 1024);
+        if (sizeMB > 200) {
+            throw new Error(`File too large (${sizeMB.toFixed(0)} MB). Maximum is 200 MB.`);
+        }
+        if (sizeMB > 50) {
+            showStatus(`Large file (${sizeMB.toFixed(0)} MB) - processing may be slow.`, 'warning');
+        }
+
+        if (isSvgFile(file)) {
+            validateSvgSourceText(await readFileAsText(file), file.name || 'SVG file');
+        }
+
+        sourceFileName = file.name.replace(/\.[^/.]+$/, '');
+        sourceMode = 'upload';
+
+        const dataUrl = await readFileAsDataUrl(file);
+        const img = await loadImageElement(dataUrl);
+
+        const safeSize = limitImageSize(img.naturalWidth, img.naturalHeight);
+        if (!safeSize.scaled) {
+            activateLoadedImage(file, img, dataUrl);
+            return;
+        }
+
+        const tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = safeSize.width;
+        tmpCanvas.height = safeSize.height;
+        try {
+            const tmpCtx = tmpCanvas.getContext('2d');
+            tmpCtx.drawImage(img, 0, 0, safeSize.width, safeSize.height);
+            const scaledDataUrl = tmpCanvas.toDataURL('image/png');
+            const scaledImg = await loadImageElement(scaledDataUrl);
+            activateLoadedImage(file, scaledImg, scaledDataUrl, `downscaled from ${img.naturalWidth}x${img.naturalHeight}`);
+            showStatus(`Image was downscaled from ${img.naturalWidth}x${img.naturalHeight} to ${safeSize.width}x${safeSize.height} (browser canvas limit)`, 'warning');
+        } finally {
+            tmpCanvas.width = 0;
+            tmpCanvas.height = 0;
+        }
+    } catch (error) {
+        reportImageInputError(error);
+    }
 }
 
 function resetInput() {
@@ -1497,6 +1554,7 @@ ctx.drawImage(bitmap, srcX, srcY, srcW, srcH, dx, dy, sw, sh);
 bitmap.close();
 const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : format === 'avif' ? 'image/avif' : 'image/png';
 const blob = await canvas.convertToBlob({ type: mimeType, quality: format === 'png' ? undefined : quality || 0.92 });
+if (!blob || !blob.size) throw new Error(format.toUpperCase() + ' worker encoder returned no image data');
 self.postMessage({ id, blob });
     } catch (err) {
 self.postMessage({ id, error: err.message });
@@ -1762,6 +1820,32 @@ async function generateIcons() {
     `;
 }
 
+function assertValidOutputBlob(blob, context = 'Generated image') {
+    if (!blob || typeof blob.size !== 'number' || typeof blob.arrayBuffer !== 'function') {
+        throw new Error(`${context} did not produce a file blob.`);
+    }
+    if (blob.size <= 0) {
+        throw new Error(`${context} produced an empty file.`);
+    }
+    return blob;
+}
+
+async function canvasToOutputBlob(canvas, mimeType, quality, context) {
+    let blob = null;
+    try {
+        blob = await new Promise((resolve, reject) => {
+            if (!canvas || typeof canvas.toBlob !== 'function') {
+                reject(new Error('Canvas encoding is unavailable in this browser.'));
+                return;
+            }
+            canvas.toBlob(resolve, mimeType, quality);
+        });
+    } catch (error) {
+        throw new Error(`${context} encoder failed: ${error.message}`);
+    }
+    return assertValidOutputBlob(blob, `${context} encoder`);
+}
+
 async function generateImage(img, size, format, crop = null, bitmap = null) {
     const forceSolidBackground = (format === 'jpg' || activePresetKey === 'social') && backgroundMode.value === 'transparent';
     const options = getProcessingOptions({ backgroundMode: forceSolidBackground ? 'solid' : backgroundMode.value });
@@ -1769,7 +1853,10 @@ async function generateImage(img, size, format, crop = null, bitmap = null) {
     if (resizeWorker && featureSupport.offscreenCanvas && !customProcessing) {
         try {
             const bmp = bitmap || await createImageBitmap(img);
-            const blob = await resizeInWorker(bmp, size.width, size.height, format, crop);
+            const blob = assertValidOutputBlob(
+                await resizeInWorker(bmp, size.width, size.height, format, crop),
+                `${formatLabel(format)} ${size.width}x${size.height} worker export`
+            );
             noteWorkerJob();
             await new Promise(r => setTimeout(r, 0));
             return { blob };
@@ -1797,11 +1884,14 @@ async function generateImage(img, size, format, crop = null, bitmap = null) {
     const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : format === 'avif' ? 'image/avif' : 'image/png';
     const quality = format === 'png' ? undefined : 0.92;
 
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, quality));
-    canvas.width = 0;
-    canvas.height = 0;
-    await new Promise(r => setTimeout(r, 0));
-    return { blob };
+    try {
+        const blob = await canvasToOutputBlob(canvas, mimeType, quality, `${formatLabel(format)} ${size.width}x${size.height}`);
+        await new Promise(r => setTimeout(r, 0));
+        return { blob };
+    } finally {
+        canvas.width = 0;
+        canvas.height = 0;
+    }
 }
 
 function formatFileSize(bytes) {
@@ -1810,14 +1900,15 @@ function formatFileSize(bytes) {
 }
 
 function addGeneratedFile(name, blob, size, format, meta = {}) {
+    const safeBlob = assertValidOutputBlob(blob, `Generated file ${name}`);
     const existingIndex = generatedFiles.findIndex(file => file.name === name);
-    const file = { name, blob, size, format, ...meta };
+    const file = { name, blob: safeBlob, size, format, ...meta };
     if (existingIndex >= 0) {
         generatedFiles[existingIndex] = file;
     } else {
         generatedFiles.push(file);
     }
-    addOutputItem(name, blob, size, format, meta.icoSizes || null, blob.size);
+    addOutputItem(name, safeBlob, size, format, meta.icoSizes || null, safeBlob.size);
 }
 
 function getOutputFileName({ format, size }) {
@@ -1873,10 +1964,12 @@ async function renderIconBlob(img, width, height, crop, options, format = 'png')
     const ctx = canvas.getContext('2d');
     drawIconToContext(ctx, img, width, height, crop, options);
     const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : format === 'avif' ? 'image/avif' : 'image/png';
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, format === 'png' ? undefined : 0.92));
-    canvas.width = 0;
-    canvas.height = 0;
-    return blob;
+    try {
+        return await canvasToOutputBlob(canvas, mimeType, format === 'png' ? undefined : 0.92, `${formatLabel(format)} ${width}x${height}`);
+    } finally {
+        canvas.width = 0;
+        canvas.height = 0;
+    }
 }
 
 async function renderSplashBlob(img, width, height, crop) {
@@ -1896,10 +1989,12 @@ async function renderBackgroundBlob(width, height) {
     fillIconBackground(ctx, width, height, getProcessingOptions({
         backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
     }), true);
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-    canvas.width = 0;
-    canvas.height = 0;
-    return blob;
+    try {
+        return await canvasToOutputBlob(canvas, 'image/png', undefined, `PNG ${width}x${height} background`);
+    } finally {
+        canvas.width = 0;
+        canvas.height = 0;
+    }
 }
 
 async function generatePlatformBundle(img, crop, sizes, formats) {
@@ -3120,15 +3215,18 @@ async function generateICO(img, sizes, crop = null) {
         const ctx = canvas.getContext('2d');
         drawIconToContext(ctx, img, size.width, size.height, crop, getProcessingOptions());
         
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        const arrayBuffer = await blob.arrayBuffer();
-        images.push({
-            width: size.width,
-            height: size.height,
-            data: new Uint8Array(arrayBuffer)
-        });
-        canvas.width = 0;
-        canvas.height = 0;
+        try {
+            const blob = await canvasToOutputBlob(canvas, 'image/png', undefined, `ICO PNG ${size.width}x${size.height}`);
+            const arrayBuffer = await blob.arrayBuffer();
+            images.push({
+                width: size.width,
+                height: size.height,
+                data: new Uint8Array(arrayBuffer)
+            });
+        } finally {
+            canvas.width = 0;
+            canvas.height = 0;
+        }
     }
     
     return createICO(images);
@@ -3287,6 +3385,9 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         renderGenerationDiagnostics,
         matchesReplacementTarget,
         getExportFiles,
+        addGeneratedFile,
+        assertValidOutputBlob,
+        validateSvgSourceText,
         setState(next = {}) {
             if (Object.prototype.hasOwnProperty.call(next, 'sourceFileName')) sourceFileName = next.sourceFileName;
             if (Object.prototype.hasOwnProperty.call(next, 'sourceMode')) sourceMode = next.sourceMode;

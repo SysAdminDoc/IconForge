@@ -6,15 +6,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ## Research-Driven Additions
 
-### P0
-
-- [ ] P0 — Guard canvas encoder failures and SVG/image input errors
-  Why: `canvas.toBlob()` can fail or return no blob, and malformed or externally-referencing SVG input can currently collapse into generic generation errors.
-  Evidence: `app.js:997-1070`; `app.js:1749-1785`; `app.js:1796-1804`; MDN `HTMLCanvasElement.toBlob()` security/error behavior.
-  Touches: `app.js`; `tests/export-regression.test.js`
-  Acceptance: Canvas and worker encoder paths verify non-empty blobs before registration; malformed/tainted SVG fixtures show a clear status and diagnostics entry without crashing; regression coverage proves no file with a missing blob reaches export.
-  Complexity: M
-
 ### P1
 
 - [ ] P1 — Add browser-driven preset artifact verification

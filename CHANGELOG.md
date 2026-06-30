@@ -2,6 +2,13 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.13] - 2026-06-30
+
+### Fixed
+- Canvas and worker encoder paths now reject missing or empty blobs before registering generated files.
+- SVG uploads now preflight malformed XML, active SVG content, and external references with clear status and diagnostics.
+- Added regression coverage proving invalid SVG input and bad blobs cannot reach export state.
+
 ## [v0.4.12] - 2026-06-30
 
 ### Added
