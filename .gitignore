@@ -1,6 +1,8 @@
 *.bak
 .env
 *.log
+__pycache__/
+*.py[cod]
 CLAUDE.md
 
 # Markdown files local-only (except README)

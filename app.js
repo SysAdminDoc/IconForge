@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.13';
+const APP_VERSION = 'v0.4.14';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 
 function limitImageSize(width, height) {
@@ -3001,7 +3001,7 @@ function validateSupportFiles(checks) {
 }
 
 function validateManifestIcons(checks) {
-    if (activePresetKey === 'social') return;
+    if (activePresetKey !== 'web' && activePresetKey !== 'pwa') return;
     const relevantIcons = generatedFiles
         .filter(file => file.format === 'png' && file.size?.width === file.size?.height)
         .filter(file => file.name.startsWith('pwa/icons/') || file.name === 'icon-192.png' || file.name === 'icon-512.png' || [192, 512].includes(file.size.width));

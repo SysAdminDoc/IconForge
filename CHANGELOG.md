@@ -2,6 +2,15 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.14] - 2026-06-30
+
+### Added
+- Browser-driven preset smoke covering Modern Web, PWA, Android, iOS, Windows, and Social Preview rendered exports.
+- Artifact verification decodes PNG dimensions, ICO entries, ZIP payload names, validation state, diagnostics, and desktop/mobile overflow.
+
+### Fixed
+- Windows tile exports no longer warn about missing web-manifest icons because that preset does not generate a web manifest.
+
 ## [v0.4.13] - 2026-06-30
 
 ### Fixed

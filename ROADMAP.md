@@ -8,13 +8,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ### P1
 
-- [ ] P1 — Add browser-driven preset artifact verification
-  Why: Node tests cover pure builders, but they do not exercise real canvas output, browser encoder behavior, PNG dimensions, mobile generated-output layout, or ZIP payloads from the rendered app.
-  Evidence: `tests/export-regression.test.js`; rendered Social Preview smoke at `http://127.0.0.1:8773/index.html`; current validation functions in `app.js:2660-2910`.
-  Touches: `tests/`; `app.js`; `index.html`
-  Acceptance: A local browser smoke generates Modern Web, PWA, Android, iOS, Windows, and Social Preview presets from a text source, decodes output dimensions/ICO entries/ZIP names, checks validation and diagnostics, verifies desktop plus 390px mobile no-overflow, and reports no console warnings/errors.
-  Complexity: M
-
 - [ ] P1 — Generate complete Android adaptive icon density buckets
   Why: Current Android preset emits only `mipmap-xxxhdpi`, while Android adaptive icon handoffs normally need density-aware foreground/background/legacy assets.
   Evidence: `app.js:1945-1960`; Android adaptive icon documentation; Icon Kitchen adaptive icon workflow.
