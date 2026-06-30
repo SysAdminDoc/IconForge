@@ -1,6 +1,6 @@
 # Icon Forge
 
-![Version](https://img.shields.io/badge/version-v0.4.14-58A6FF) ![License](https://img.shields.io/badge/license-MIT-green) ![Platform](https://img.shields.io/badge/platform-Web-58A6FF) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
+![Version](https://img.shields.io/badge/version-v0.4.15-58A6FF) ![License](https://img.shields.io/badge/license-MIT-green) ![Platform](https://img.shields.io/badge/platform-Web-58A6FF) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 
 Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser extension assets entirely in your browser. No uploads, no server, no tracking. Works offline.
 
@@ -74,7 +74,7 @@ rtk node -c sw.js
 | Modern Web | 16, 32, 48, 180, 192, 512 | favicon.ico, SVG favicon, apple-touch-icon, manifest icons |
 | PWA | 72, 96, 128, 144, 152, 192, 384, 512 | Any + maskable icons, iOS splash images, web manifest |
 | Extension | 16, 32, 48, 128 | Chrome/Firefox extension icons |
-| Android | 192, 512 + adaptive assets | Foreground/background PNGs and adaptive icon XML |
+| Android | mdpi-xxxhdpi adaptive + legacy buckets | Foreground/background/legacy PNGs and adaptive icon XML |
 | iOS | 180, 512 + app icon matrix | Full AppIcon.appiconset with Contents.json |
 | Windows | 70, 150, 310, 310x150 | Windows tile images and browserconfig.xml |
 | All Sizes | 16-512 standard set | Complete coverage |

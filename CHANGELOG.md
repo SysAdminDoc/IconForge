@@ -2,6 +2,12 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.15] - 2026-06-30
+
+### Added
+- Android preset now exports mdpi, hdpi, xhdpi, xxhdpi, and xxxhdpi foreground/background adaptive icon layers.
+- Android preset now includes density-aware legacy `ic_launcher.png` assets alongside the adaptive XML handoff.
+
 ## [v0.4.14] - 2026-06-30
 
 ### Added

@@ -370,6 +370,39 @@ function makePwaBundleFiles() {
   ];
 }
 
+function makeAndroidDensityFiles() {
+  const densities = [
+    { density: 'mdpi', adaptive: 108, legacy: 48 },
+    { density: 'hdpi', adaptive: 162, legacy: 72 },
+    { density: 'xhdpi', adaptive: 216, legacy: 96 },
+    { density: 'xxhdpi', adaptive: 324, legacy: 144 },
+    { density: 'xxxhdpi', adaptive: 432, legacy: 192 }
+  ];
+  return densities.flatMap((spec) => [
+    {
+      name: `android/mipmap-${spec.density}/ic_launcher_foreground.png`,
+      blob: makeBlob(),
+      size: { width: spec.adaptive, height: spec.adaptive },
+      format: 'png',
+      role: 'android-foreground'
+    },
+    {
+      name: `android/mipmap-${spec.density}/ic_launcher_background.png`,
+      blob: makeBlob(),
+      size: { width: spec.adaptive, height: spec.adaptive },
+      format: 'png',
+      role: 'android-background'
+    },
+    {
+      name: `android/mipmap-${spec.density}/ic_launcher.png`,
+      blob: makeBlob(),
+      size: { width: spec.legacy, height: spec.legacy },
+      format: 'png',
+      role: 'android-legacy'
+    }
+  ]);
+}
+
 async function main() {
   const api = loadApp();
 
@@ -700,15 +733,15 @@ async function main() {
 
   api.setState({
     activePresetKey: 'android',
-    generatedFiles: [
-      { name: 'android/mipmap-xxxhdpi/ic_launcher_foreground.png', blob: makeBlob(), size: { width: 432, height: 432 }, format: 'png', role: 'android-foreground' },
-      { name: 'android/mipmap-xxxhdpi/ic_launcher_background.png', blob: makeBlob(), size: { width: 432, height: 432 }, format: 'png', role: 'android-background' },
-      { name: 'android/mipmap-xxxhdpi/ic_launcher.png', blob: makeBlob(), size: { width: 432, height: 432 }, format: 'png', role: 'android-legacy' }
-    ]
+    generatedFiles: makeAndroidDensityFiles()
   });
   assert(api.buildAndroidSnippet().includes('<adaptive-icon'), 'Android snippet should include adaptive icon XML');
   await api.generateSnippets([], []);
-  assert(api.getState().generatedSnippets.handoff.android.includes('android/mipmap-xxxhdpi/ic_launcher_foreground.png -> app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png'));
+  assert(api.getState().generatedSnippets.handoff.android.includes('android/mipmap-mdpi/ic_launcher_foreground.png -> app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png'));
+  assert(api.getState().generatedSnippets.handoff.android.includes('android/mipmap-xxxhdpi/ic_launcher.png -> app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'));
+  const androidValidation = api.validateGeneratedExport();
+  assert.strictEqual(androidValidation.status, 'pass', 'Android density bucket validation should pass');
+  assert(androidValidation.checks.some((check) => check.label === 'Android adaptive icon files' && check.detail.includes('15 expected files')));
   api.setState({
     activePresetKey: 'ios',
     generatedFiles: [
@@ -741,7 +774,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.14');
+  assert.strictEqual(exportManifest.version, 'v0.4.15');
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');

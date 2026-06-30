@@ -8,13 +8,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ### P1
 
-- [ ] P1 — Generate complete Android adaptive icon density buckets
-  Why: Current Android preset emits only `mipmap-xxxhdpi`, while Android adaptive icon handoffs normally need density-aware foreground/background/legacy assets.
-  Evidence: `app.js:1945-1960`; Android adaptive icon documentation; Icon Kitchen adaptive icon workflow.
-  Touches: `app.js`; `tests/export-regression.test.js`; `README.md`
-  Acceptance: Android export includes mdpi, hdpi, xhdpi, xxhdpi, and xxxhdpi foreground/background/legacy PNGs plus XML that references the correct resources; validation and handoff snippets enumerate the full density set.
-  Complexity: M
-
 - [ ] P1 — Refresh PWA and Apple splash device data
   Why: Fixed splash specs cover only six older devices, and competitor issue trackers show Apple-device asset matrices require recurring updates.
   Evidence: `app.js:1902-1908`; pwa-asset-generator#1274; itgalaxy/favicons#450.

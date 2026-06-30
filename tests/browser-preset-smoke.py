@@ -56,14 +56,20 @@ EXPECTED = {
     },
     "android": {
         "files": {
+            "android/mipmap-mdpi/ic_launcher_foreground.png",
+            "android/mipmap-mdpi/ic_launcher_background.png",
+            "android/mipmap-mdpi/ic_launcher.png",
             "android/mipmap-xxxhdpi/ic_launcher_foreground.png",
             "android/mipmap-xxxhdpi/ic_launcher_background.png",
             "android/mipmap-xxxhdpi/ic_launcher.png",
         },
         "png": {
+            "android/mipmap-mdpi/ic_launcher_foreground.png": (108, 108),
+            "android/mipmap-mdpi/ic_launcher_background.png": (108, 108),
+            "android/mipmap-mdpi/ic_launcher.png": (48, 48),
             "android/mipmap-xxxhdpi/ic_launcher_foreground.png": (432, 432),
             "android/mipmap-xxxhdpi/ic_launcher_background.png": (432, 432),
-            "android/mipmap-xxxhdpi/ic_launcher.png": (432, 432),
+            "android/mipmap-xxxhdpi/ic_launcher.png": (192, 192),
         },
         "zip": {"android/mipmap-anydpi-v26/ic_launcher.xml", "iconforge-export.json"},
         "ico": {},

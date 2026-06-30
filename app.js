@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.14';
+const APP_VERSION = 'v0.4.15';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 
 function limitImageSize(width, height) {
@@ -2026,6 +2026,14 @@ const WINDOWS_TILE_SPECS = [
     { width: 310, height: 150 }
 ];
 
+const ANDROID_DENSITY_SPECS = [
+    { density: 'mdpi', adaptive: 108, legacy: 48 },
+    { density: 'hdpi', adaptive: 162, legacy: 72 },
+    { density: 'xhdpi', adaptive: 216, legacy: 96 },
+    { density: 'xxhdpi', adaptive: 324, legacy: 144 },
+    { density: 'xxxhdpi', adaptive: 432, legacy: 192 }
+];
+
 async function generatePwaBundle(img, crop) {
     for (const px of PWA_ICON_SIZES) {
         const anyName = `pwa/icons/icon-${px}x${px}.png`;
@@ -2054,21 +2062,35 @@ async function generatePwaBundle(img, crop) {
 }
 
 async function generateAndroidBundle(img, crop) {
-    const size = 432;
-    const foreground = await renderIconBlob(img, size, size, crop, getProcessingOptions({
+    const foregroundOptions = getProcessingOptions({
         paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 18),
         backgroundMode: 'transparent'
-    }), 'png');
-    addGeneratedFile('android/mipmap-xxxhdpi/ic_launcher_foreground.png', foreground, { width: size, height: size }, 'png', { role: 'android-foreground' });
-
-    const background = await renderBackgroundBlob(size, size);
-    addGeneratedFile('android/mipmap-xxxhdpi/ic_launcher_background.png', background, { width: size, height: size }, 'png', { role: 'android-background' });
-
-    const legacy = await renderIconBlob(img, size, size, crop, getProcessingOptions({
+    });
+    const legacyOptions = getProcessingOptions({
         paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 12),
         backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
-    }), 'png');
-    addGeneratedFile('android/mipmap-xxxhdpi/ic_launcher.png', legacy, { width: size, height: size }, 'png', { role: 'android-legacy' });
+    });
+
+    for (const spec of ANDROID_DENSITY_SPECS) {
+        const basePath = `android/mipmap-${spec.density}`;
+        const foreground = await renderIconBlob(img, spec.adaptive, spec.adaptive, crop, foregroundOptions, 'png');
+        addGeneratedFile(`${basePath}/ic_launcher_foreground.png`, foreground, { width: spec.adaptive, height: spec.adaptive }, 'png', {
+            role: 'android-foreground',
+            density: spec.density
+        });
+
+        const background = await renderBackgroundBlob(spec.adaptive, spec.adaptive);
+        addGeneratedFile(`${basePath}/ic_launcher_background.png`, background, { width: spec.adaptive, height: spec.adaptive }, 'png', {
+            role: 'android-background',
+            density: spec.density
+        });
+
+        const legacy = await renderIconBlob(img, spec.legacy, spec.legacy, crop, legacyOptions, 'png');
+        addGeneratedFile(`${basePath}/ic_launcher.png`, legacy, { width: spec.legacy, height: spec.legacy }, 'png', {
+            role: 'android-legacy',
+            density: spec.density
+        });
+    }
 }
 
 const IOS_ICON_SPECS = [
@@ -2931,11 +2953,11 @@ function expectedPresetFileGroups() {
         return [
             {
                 label: 'Android adaptive icon files',
-                specs: [
-                    { name: 'android/mipmap-xxxhdpi/ic_launcher_foreground.png', width: 432, height: 432 },
-                    { name: 'android/mipmap-xxxhdpi/ic_launcher_background.png', width: 432, height: 432 },
-                    { name: 'android/mipmap-xxxhdpi/ic_launcher.png', width: 432, height: 432 }
-                ]
+                specs: ANDROID_DENSITY_SPECS.flatMap(spec => [
+                    { name: `android/mipmap-${spec.density}/ic_launcher_foreground.png`, width: spec.adaptive, height: spec.adaptive },
+                    { name: `android/mipmap-${spec.density}/ic_launcher_background.png`, width: spec.adaptive, height: spec.adaptive },
+                    { name: `android/mipmap-${spec.density}/ic_launcher.png`, width: spec.legacy, height: spec.legacy }
+                ])
             }
         ];
     }
