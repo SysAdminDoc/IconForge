@@ -8,13 +8,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ### P0
 
-- [ ] P0 — Fix generated SVG favicon contract
-  Why: README promises embedded dark-mode SVG behavior, but generated SVG links `styles.css` and ignores selected light/dark colors.
-  Evidence: `app.js:1635-1654`; `README.md`; self-contained favicon expectations from favicon generators.
-  Touches: `app.js`; `tests/export-regression.test.js`; `README.md`
-  Acceptance: SVG output contains inline style using selected light/dark colors, has no external `<link>`, exports correctly in ZIP/folder flows, and regression tests assert the self-contained contract.
-  Complexity: S
-
 - [ ] P0 — Add deployment base-path and checksum cache-busting controls
   Why: Generated snippets assume root-relative URLs, which breaks subpath/CDN/framework deployments and leaves favicon cache refresh work manual despite export hashes.
   Evidence: `app.js:2072-2074`; `app.js:2301-2304`; StackOverflow favicon refresh thread; itgalaxy/favicons#461; astro-favicons#92; webpack-pwa-manifest#173.

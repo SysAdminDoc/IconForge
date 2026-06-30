@@ -427,6 +427,15 @@ async function main() {
   assert(manifest.icons.some((icon) => icon.src === '/pwa/icons/icon-192x192.png' && icon.purpose === 'any'));
   assert(manifest.icons.some((icon) => icon.src === '/pwa/icons/icon-maskable-512x512.png' && icon.purpose === 'maskable'));
 
+  const svgFavicon = api.generateSvgFavicon(new ElementMock('img'), null);
+  assert(svgFavicon.includes('<style>'), 'SVG favicon should embed its style block');
+  assert(svgFavicon.includes('@media (prefers-color-scheme: dark)'), 'SVG favicon should include dark-mode media CSS');
+  assert(svgFavicon.includes('.iconforge-bg { fill: #111111; }'), 'SVG favicon should use selected light color');
+  assert(svgFavicon.includes('.iconforge-bg { fill: #ffffff; }'), 'SVG favicon should use selected dark color');
+  assert(svgFavicon.includes('data:image/png;base64,AA=='), 'SVG favicon should embed the generated raster layer');
+  assert(!svgFavicon.includes('<link'), 'SVG favicon should not link external stylesheets');
+  assert(!svgFavicon.includes('styles.css'), 'SVG favicon should be self-contained');
+
   api.setState({
     manifestMetadata: {
       name: 'Acme Operations Console',
@@ -655,7 +664,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.10');
+  assert.strictEqual(exportManifest.version, 'v0.4.11');
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');

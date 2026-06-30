@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.10';
+const APP_VERSION = 'v0.4.11';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 
 function limitImageSize(width, height) {
@@ -88,6 +88,11 @@ function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+function normalizeSvgColor(value, fallback) {
+    const color = String(value || '').trim();
+    return /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : fallback;
 }
 
 function setPreviewInfo(name, width, height, suffix) {
@@ -1644,12 +1649,17 @@ function generateSvgFavicon(img, crop) {
     canvas.width = 0;
     canvas.height = 0;
 
-    const lightColor = document.getElementById('svgLightColor').value;
-    const darkColor = document.getElementById('svgDarkColor').value;
+    const lightColor = normalizeSvgColor(document.getElementById('svgLightColor').value, '#1a1a1a');
+    const darkColor = normalizeSvgColor(document.getElementById('svgDarkColor').value, '#f0f0f0');
 
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgSize} ${svgSize}">
-  <link rel="stylesheet" href="styles.css">
-  <rect width="${svgSize}" height="${svgSize}" rx="6"/>
+  <style>
+    .iconforge-bg { fill: ${lightColor}; }
+    @media (prefers-color-scheme: dark) {
+      .iconforge-bg { fill: ${darkColor}; }
+    }
+  </style>
+  <rect class="iconforge-bg" width="${svgSize}" height="${svgSize}" rx="6"/>
   <image href="${dataUrl}" width="${svgSize}" height="${svgSize}"/>
 </svg>`;
 }
@@ -3175,6 +3185,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         buildAndroidSnippet,
         buildIosContents,
         buildWindowsBrowserConfig,
+        generateSvgFavicon,
         buildSocialSnippet,
         buildFrameworkHandoffSnippets,
         generateSnippets,

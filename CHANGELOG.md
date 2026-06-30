@@ -2,6 +2,12 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.11] - 2026-06-30
+
+### Fixed
+- SVG favicon exports now embed their light/dark `prefers-color-scheme` CSS and selected colors directly instead of linking the app stylesheet.
+- Added regression coverage proving SVG favicon exports are self-contained and do not reference `styles.css`.
+
 ## [v0.4.10] - 2026-06-30
 
 ### Added
