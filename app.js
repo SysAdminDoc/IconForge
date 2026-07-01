@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.22';
+const APP_VERSION = 'v0.4.23';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 const DRAFT_STORAGE_KEY = 'iconforge-draft-v1';
 
@@ -120,33 +120,161 @@ let generatedSnippets = {};
 let assetCacheBusters = new Map();
 
 const OUTPUT_FORMATS = ['png', 'jpg', 'ico', 'webp', 'avif', 'svg'];
-const FORMAT_LABELS = {
-    png: 'PNG',
-    jpg: 'JPG',
-    ico: 'ICO',
-    webp: 'WebP',
-    avif: 'AVIF',
-    svg: 'SVG'
-};
-const PRESET_LABELS = {
-    web: 'Modern Web',
-    pwa: 'PWA',
-    extension: 'Extension',
-    android: 'Android',
-    ios: 'iOS',
-    windows: 'Windows',
-    social: 'Social Preview',
-    all: 'All Sizes'
-};
+const UI_STRINGS = Object.freeze({
+    shell: {
+        appName: 'Icon Forge',
+        tagline: 'Generate favicons, PWA icons, and extension assets in seconds',
+        trustSignal: '100% client-side - your images never leave your browser',
+        sourceImage: 'Source Image',
+        upload: 'Upload',
+        text: 'Text',
+        emoji: 'Emoji',
+        draftRecovery: 'Draft Recovery',
+        clearDraft: 'Clear Draft',
+        restoreSourceImage: 'Restore source image after reload',
+        draftPrivacy: 'Settings save locally in this browser. Source images are stored only when this box is enabled.'
+    },
+    formats: {
+        png: 'PNG',
+        jpg: 'JPG',
+        ico: 'ICO',
+        webp: 'WebP',
+        avif: 'AVIF',
+        svg: 'SVG'
+    },
+    presets: {
+        web: 'Modern Web',
+        pwa: 'PWA',
+        extension: 'Extension',
+        android: 'Android',
+        ios: 'iOS',
+        windows: 'Windows',
+        social: 'Social Preview',
+        all: 'All Sizes'
+    },
+    handoffTabs: {
+        plain: 'Plain HTML',
+        vite: 'Vite',
+        next: 'Next.js app router',
+        astro: 'Astro',
+        chrome: 'Chrome MV3',
+        firefox: 'Firefox MV3',
+        android: 'Android',
+        ios: 'iOS'
+    },
+    diagnostics: {
+        pending: 'Checking browser support.',
+        title: 'Generation diagnostics',
+        failedTitle: 'Generation failed',
+        detail: '{count} generated for {preset} export.',
+        metrics: {
+            selectedPreset: 'Selected preset',
+            selectedFormats: 'Selected formats',
+            skippedFormats: 'Skipped / hidden formats',
+            workerFallback: 'Worker fallback state',
+            lossyQuality: 'Lossy quality',
+            sizeBudget: 'Size budget',
+            generatedFileCount: 'Generated file count',
+            totalBytes: 'Total bytes',
+            validationStatus: 'Validation status'
+        },
+        features: {
+            webp: ['WebP encoder', 'WebP output is available.', 'WebP output is hidden because this browser cannot encode it.'],
+            avif: ['AVIF encoder', 'AVIF output is available.', 'AVIF output is hidden because this browser cannot encode it.'],
+            fileSystemAccess: ['File System Access', 'Save to Folder is available.', 'ZIP download remains available; direct folder save is hidden.'],
+            fileHandling: ['PWA file handling', 'Installed app launches can receive image files.', 'Open-with-file support is unavailable; upload, paste, and drag/drop still work.'],
+            offscreenCanvas: ['OffscreenCanvas', 'Worker resizing can use OffscreenCanvas.', 'Canvas fallback will be used for image resizing.'],
+            blobWorker: ['Blob Worker', 'Resize worker initialized.', 'Resize worker did not initialize; canvas fallback is available.'],
+            workerApiUnavailable: 'Worker API is unavailable; canvas fallback is available.'
+        }
+    },
+    status: {
+        diagnosticsCopied: 'Diagnostics JSON copied',
+        diagnosticsCopyFailed: 'Failed to copy diagnostics JSON',
+        diagnosticsDownloaded: 'Diagnostics JSON downloaded',
+        diagnosticsDownloadFailed: 'Failed to download diagnostics JSON: {message}',
+        launchedFileOpened: 'Opened {name} from the operating system.',
+        launchedFileOpenedExtra: 'Opened {name}; {count} additional {fileWord} ignored.',
+        launchedFileFailed: 'Could not open launched file: {message}',
+        imageInvalid: 'Please select a valid image file.',
+        fileTooLarge: 'File too large ({size} MB). Maximum is 200 MB.',
+        largeFile: 'Large file ({size} MB) - processing may be slow.',
+        imageDownscaled: 'Image was downscaled from {fromWidth}x{fromHeight} to {toWidth}x{toHeight} (browser canvas limit)'
+    },
+    draft: {
+        tooLarge: 'Draft settings saved locally. Source image was too large for browser storage.',
+        saveFailed: 'Draft could not be saved in this browser.',
+        clearFailed: 'Draft could not be cleared in this browser.',
+        cleared: 'Saved draft cleared. Current work stays open until you reload or choose a different source.',
+        restoredWithSource: 'Draft restored locally, including the saved source image.',
+        restoredSettings: 'Draft settings restored locally. Enable source restore to keep the image across reloads.',
+        sourceLoadFailed: 'Draft settings restored, but the saved source image could not be loaded.',
+        broken: 'Saved draft could not be restored. Clear Draft removes the broken local copy.'
+    },
+    validation: {
+        titles: {
+            pass: 'Export validation passed',
+            warn: 'Export validation has warnings',
+            fail: 'Export validation failed'
+        },
+        details: {
+            pass: 'The generated bundle matches the selected platform rules.',
+            review: 'Review the checks below before deploying this export.'
+        },
+        labels: {
+            supportFiles: 'Deployable support files',
+            manifestMetadata: 'Manifest icon metadata',
+            maskableSafeZone: 'Maskable safe zone',
+            sizeBudget: 'Size budget',
+            generatedFiles: 'Generated files',
+            platformRules: 'Platform file rules'
+        }
+    },
+    snippets: {
+        noGeneratedFiles: '- No generated files yet',
+        noApplicableTags: '<!-- No applicable tags for selected formats -->',
+        androidMissing: 'Run the Android preset to generate adaptive icon PNGs and ic_launcher.xml handoff files.',
+        iosMissing: 'Run the iOS preset to generate AppIcon.appiconset PNGs and Contents.json.'
+    }
+});
+const FORMAT_LABELS = UI_STRINGS.formats;
+const PRESET_LABELS = UI_STRINGS.presets;
+
+function getUiString(path) {
+    return path.split('.').reduce((value, part) => value?.[part], UI_STRINGS);
+}
+
+function uiText(path, replacements = {}, fallback = '') {
+    const template = getUiString(path);
+    const value = typeof template === 'string' ? template : fallback || path;
+    return value.replace(/\{(\w+)\}/g, (_, key) => {
+        return Object.prototype.hasOwnProperty.call(replacements, key) ? String(replacements[key]) : `{${key}}`;
+    });
+}
+
+function applyUiStrings(root = document) {
+    root.querySelectorAll('[data-i18n]').forEach(element => {
+        const value = getUiString(element.dataset.i18n);
+        if (typeof value === 'string') element.textContent = value;
+    });
+    root.querySelectorAll('[data-i18n-title]').forEach(element => {
+        const value = getUiString(element.dataset.i18nTitle);
+        if (typeof value === 'string') element.title = value;
+    });
+    root.querySelectorAll('[data-i18n-aria-label]').forEach(element => {
+        const value = getUiString(element.dataset.i18nAriaLabel);
+        if (typeof value === 'string') element.setAttribute('aria-label', value);
+    });
+}
 const HANDOFF_SNIPPET_TABS = [
-    { key: 'plain', label: 'Plain HTML', tabId: 'handoffTabPlain' },
-    { key: 'vite', label: 'Vite', tabId: 'handoffTabVite' },
-    { key: 'next', label: 'Next.js app router', tabId: 'handoffTabNext' },
-    { key: 'astro', label: 'Astro', tabId: 'handoffTabAstro' },
-    { key: 'chrome', label: 'Chrome MV3', tabId: 'handoffTabChrome' },
-    { key: 'firefox', label: 'Firefox MV3', tabId: 'handoffTabFirefox' },
-    { key: 'android', label: 'Android', tabId: 'handoffTabAndroid' },
-    { key: 'ios', label: 'iOS', tabId: 'handoffTabIos' }
+    { key: 'plain', label: uiText('handoffTabs.plain'), tabId: 'handoffTabPlain' },
+    { key: 'vite', label: uiText('handoffTabs.vite'), tabId: 'handoffTabVite' },
+    { key: 'next', label: uiText('handoffTabs.next'), tabId: 'handoffTabNext' },
+    { key: 'astro', label: uiText('handoffTabs.astro'), tabId: 'handoffTabAstro' },
+    { key: 'chrome', label: uiText('handoffTabs.chrome'), tabId: 'handoffTabChrome' },
+    { key: 'firefox', label: uiText('handoffTabs.firefox'), tabId: 'handoffTabFirefox' },
+    { key: 'android', label: uiText('handoffTabs.android'), tabId: 'handoffTabAndroid' },
+    { key: 'ios', label: uiText('handoffTabs.ios'), tabId: 'handoffTabIos' }
 ];
 const featureSupport = {
     workerApi: typeof Worker !== 'undefined',
@@ -260,6 +388,8 @@ const cropYInput = document.getElementById('cropY');
 const cropWInput = document.getElementById('cropW');
 const cropHInput = document.getElementById('cropH');
 const btnApplyNumericCrop = document.getElementById('btnApplyNumericCrop');
+
+applyUiStrings();
 
 function setElementVisible(element, visible, display = '') {
     if (!element) return;
@@ -470,13 +600,13 @@ function saveDraftState({ silent = false } = {}) {
             snapshot = { ...snapshot, sourceImage: null };
             try {
                 storage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(snapshot));
-                if (!silent) setDraftStatus('Draft settings saved locally. Source image was too large for browser storage.', 'warning');
+                if (!silent) setDraftStatus(uiText('draft.tooLarge'), 'warning');
                 return snapshot;
             } catch {
                 // Fall through to the generic warning.
             }
         }
-        if (!silent) setDraftStatus('Draft could not be saved in this browser.', 'warning');
+        if (!silent) setDraftStatus(uiText('draft.saveFailed'), 'warning');
         return null;
     }
 }
@@ -492,11 +622,11 @@ function clearDraftState() {
     try {
         storage?.removeItem(DRAFT_STORAGE_KEY);
     } catch {
-        setDraftStatus('Draft could not be cleared in this browser.', 'warning');
+        setDraftStatus(uiText('draft.clearFailed'), 'warning');
         return;
     }
     if (draftSourceToggle) draftSourceToggle.checked = false;
-    setDraftStatus('Saved draft cleared. Current work stays open until you reload or choose a different source.', 'success');
+    setDraftStatus(uiText('draft.cleared'), 'success');
 }
 
 function applyDraftControls(draft) {
@@ -580,7 +710,7 @@ async function restoreDraftSourceImage(draft) {
         updateMaskPreview();
         return true;
     } catch {
-        setDraftStatus('Draft settings restored, but the saved source image could not be loaded.', 'warning');
+        setDraftStatus(uiText('draft.sourceLoadFailed'), 'warning');
         return false;
     }
 }
@@ -594,12 +724,12 @@ async function restoreDraftState() {
         applyDraftControls(draft);
         const sourceRestored = await restoreDraftSourceImage(draft);
         setDraftStatus(sourceRestored
-            ? 'Draft restored locally, including the saved source image.'
-            : 'Draft settings restored locally. Enable source restore to keep the image across reloads.',
+            ? uiText('draft.restoredWithSource')
+            : uiText('draft.restoredSettings'),
             sourceRestored ? 'success' : '');
         restoredCleanly = true;
     } catch {
-        setDraftStatus('Saved draft could not be restored. Clear Draft removes the broken local copy.', 'warning');
+        setDraftStatus(uiText('draft.broken'), 'warning');
     } finally {
         isRestoringDraft = false;
         if (restoredCleanly) saveDraftState({ silent: true });
@@ -631,7 +761,7 @@ function formatLabel(format) {
 
 function supportCheck(label, supported, detailSupported, detailUnsupported, pending = false) {
     if (pending) {
-        return { label, status: 'info', detail: 'Checking browser support.' };
+        return { label, status: 'info', detail: uiText('diagnostics.pending') };
     }
     return {
         label,
@@ -641,44 +771,45 @@ function supportCheck(label, supported, detailSupported, detailUnsupported, pend
 }
 
 function getFeatureDiagnostics() {
+    const features = UI_STRINGS.diagnostics.features;
     return [
         supportCheck(
-            'WebP encoder',
+            features.webp[0],
             featureSupport.webpEncode,
-            'WebP output is available.',
-            'WebP output is hidden because this browser cannot encode it.',
+            features.webp[1],
+            features.webp[2],
             !featureSupport.webpChecked
         ),
         supportCheck(
-            'AVIF encoder',
+            features.avif[0],
             featureSupport.avifEncode,
-            'AVIF output is available.',
-            'AVIF output is hidden because this browser cannot encode it.',
+            features.avif[1],
+            features.avif[2],
             !featureSupport.avifChecked
         ),
         supportCheck(
-            'File System Access',
+            features.fileSystemAccess[0],
             featureSupport.fileSystemAccess,
-            'Save to Folder is available.',
-            'ZIP download remains available; direct folder save is hidden.'
+            features.fileSystemAccess[1],
+            features.fileSystemAccess[2]
         ),
         supportCheck(
-            'PWA file handling',
+            features.fileHandling[0],
             featureSupport.fileHandling,
-            'Installed app launches can receive image files.',
-            'Open-with-file support is unavailable; upload, paste, and drag/drop still work.'
+            features.fileHandling[1],
+            features.fileHandling[2]
         ),
         supportCheck(
-            'OffscreenCanvas',
+            features.offscreenCanvas[0],
             featureSupport.offscreenCanvas,
-            'Worker resizing can use OffscreenCanvas.',
-            'Canvas fallback will be used for image resizing.'
+            features.offscreenCanvas[1],
+            features.offscreenCanvas[2]
         ),
         supportCheck(
-            'Blob Worker',
+            features.blobWorker[0],
             featureSupport.workerApi && featureSupport.blobWorker,
-            'Resize worker initialized.',
-            featureSupport.workerApi ? 'Resize worker did not initialize; canvas fallback is available.' : 'Worker API is unavailable; canvas fallback is available.'
+            features.blobWorker[1],
+            featureSupport.workerApi ? features.blobWorker[2] : features.workerApiUnavailable
         )
     ];
 }
@@ -723,20 +854,21 @@ function buildGenerationDiagnostics({ selectedFormats = getSelectedFormats(), va
     const selectedFormatText = selectedFormats.length ? selectedFormats.map(formatLabel).join(', ') : 'None';
     const validationStatus = error ? 'Not run' : validationResult?.title || 'Not run';
     const fileCountText = `${generatedFiles.length} file${generatedFiles.length === 1 ? '' : 's'}`;
+    const metricLabels = UI_STRINGS.diagnostics.metrics;
 
     return {
-        title: error ? 'Generation failed' : 'Generation diagnostics',
-        detail: error ? error.message : `${fileCountText} generated for ${PRESET_LABELS[activePresetKey] || 'Custom'} export.`,
+        title: error ? uiText('diagnostics.failedTitle') : uiText('diagnostics.title'),
+        detail: error ? error.message : uiText('diagnostics.detail', { count: fileCountText, preset: PRESET_LABELS[activePresetKey] || 'Custom' }),
         metrics: [
-            { label: 'Selected preset', value: PRESET_LABELS[activePresetKey] || 'Custom' },
-            { label: 'Selected formats', value: selectedFormatText },
-            { label: 'Skipped / hidden formats', value: skippedFormats.length ? skippedFormats.join('; ') : 'None' },
-            { label: 'Worker fallback state', value: getWorkerDiagnostics() },
-            { label: 'Lossy quality', value: `${getLossyQualityPercent()}% for JPG/WebP/AVIF` },
-            { label: 'Size budget', value: getSizeBudgetStatus(totalBytes) },
-            { label: 'Generated file count', value: String(generatedFiles.length) },
-            { label: 'Total bytes', value: totalBytes ? formatFileSize(totalBytes) : '0 B' },
-            { label: 'Validation status', value: validationStatus }
+            { label: metricLabels.selectedPreset, value: PRESET_LABELS[activePresetKey] || 'Custom' },
+            { label: metricLabels.selectedFormats, value: selectedFormatText },
+            { label: metricLabels.skippedFormats, value: skippedFormats.length ? skippedFormats.join('; ') : 'None' },
+            { label: metricLabels.workerFallback, value: getWorkerDiagnostics() },
+            { label: metricLabels.lossyQuality, value: `${getLossyQualityPercent()}% for JPG/WebP/AVIF` },
+            { label: metricLabels.sizeBudget, value: getSizeBudgetStatus(totalBytes) },
+            { label: metricLabels.generatedFileCount, value: String(generatedFiles.length) },
+            { label: metricLabels.totalBytes, value: totalBytes ? formatFileSize(totalBytes) : '0 B' },
+            { label: metricLabels.validationStatus, value: validationStatus }
         ],
         features: getFeatureDiagnostics()
     };
@@ -1325,9 +1457,9 @@ btnCopyDiagnostics?.addEventListener('click', async function() {
     try {
         await navigator.clipboard.writeText(diagnosticsSupportJson());
         showCopyFeedback(this);
-        showStatus('Diagnostics JSON copied', 'success');
+        showStatus(uiText('status.diagnosticsCopied'), 'success');
     } catch {
-        showStatus('Failed to copy diagnostics JSON', 'error');
+        showStatus(uiText('status.diagnosticsCopyFailed'), 'error');
     }
 });
 btnDownloadDiagnostics?.addEventListener('click', function() {
@@ -1339,9 +1471,9 @@ btnDownloadDiagnostics?.addEventListener('click', function() {
         link.download = 'iconforge-diagnostics.json';
         link.click();
         URL.revokeObjectURL(url);
-        showStatus('Diagnostics JSON downloaded', 'success');
+        showStatus(uiText('status.diagnosticsDownloaded'), 'success');
     } catch (error) {
-        showStatus(`Failed to download diagnostics JSON: ${error.message}`, 'error');
+        showStatus(uiText('status.diagnosticsDownloadFailed', { message: error.message }), 'error');
     }
 });
 function updateProcessingControlLabels() {
@@ -1668,15 +1800,15 @@ function activateLoadedImage(file, img, previewSrc, detail = '') {
 async function loadImage(file) {
     try {
         if (!file || (!file.type?.startsWith('image/') && !isSvgFile(file))) {
-            throw new Error('Please select a valid image file.');
+            throw new Error(uiText('status.imageInvalid'));
         }
 
         const sizeMB = file.size / (1024 * 1024);
         if (sizeMB > 200) {
-            throw new Error(`File too large (${sizeMB.toFixed(0)} MB). Maximum is 200 MB.`);
+            throw new Error(uiText('status.fileTooLarge', { size: sizeMB.toFixed(0) }));
         }
         if (sizeMB > 50) {
-            showStatus(`Large file (${sizeMB.toFixed(0)} MB) - processing may be slow.`, 'warning');
+            showStatus(uiText('status.largeFile', { size: sizeMB.toFixed(0) }), 'warning');
         }
 
         if (isSvgFile(file)) {
@@ -1704,7 +1836,7 @@ async function loadImage(file) {
             const scaledDataUrl = tmpCanvas.toDataURL('image/png');
             const scaledImg = await loadImageElement(scaledDataUrl);
             activateLoadedImage(file, scaledImg, scaledDataUrl, `downscaled from ${img.naturalWidth}x${img.naturalHeight}`);
-            showStatus(`Image was downscaled from ${img.naturalWidth}x${img.naturalHeight} to ${safeSize.width}x${safeSize.height} (browser canvas limit)`, 'warning');
+            showStatus(uiText('status.imageDownscaled', { fromWidth: img.naturalWidth, fromHeight: img.naturalHeight, toWidth: safeSize.width, toHeight: safeSize.height }), 'warning');
             return true;
         } finally {
             tmpCanvas.width = 0;
@@ -1725,12 +1857,12 @@ async function handleLaunchFiles(fileHandles = []) {
         const loaded = await loadImage(file);
         if (!loaded) return false;
         showStatus(handles.length > 1
-            ? `Opened ${file.name}; ${handles.length - 1} additional file${handles.length === 2 ? '' : 's'} ignored.`
-            : `Opened ${file.name} from the operating system.`,
+            ? uiText('status.launchedFileOpenedExtra', { name: file.name, count: handles.length - 1, fileWord: handles.length === 2 ? 'file' : 'files' })
+            : uiText('status.launchedFileOpened', { name: file.name }),
             handles.length > 1 ? 'warning' : 'success');
         return true;
     } catch (error) {
-        showStatus(`Could not open launched file: ${error.message}`, 'error');
+        showStatus(uiText('status.launchedFileFailed', { message: error.message }), 'error');
         return false;
     }
 }
@@ -3164,7 +3296,7 @@ function buildSocialSnippet() {
 }
 
 function generatedFileCopyList(prefix = '') {
-    if (generatedFiles.length === 0) return '- No generated files yet';
+    if (generatedFiles.length === 0) return uiText('snippets.noGeneratedFiles');
     return generatedFiles
         .map(file => `- ${prefix}${normalizedFileName(file.name)}`)
         .join('\n');
@@ -3187,7 +3319,7 @@ function preferredAppleFile() {
 }
 
 function buildPlainHtmlHandoff(html) {
-    return `<!-- Plain HTML: paste into <head> -->\n${html || '<!-- No applicable tags for selected formats -->'}`;
+    return `<!-- Plain HTML: paste into <head> -->\n${html || uiText('snippets.noApplicableTags')}`;
 }
 
 function buildViteHandoffSnippet(html, manifest) {
@@ -3198,7 +3330,7 @@ Copy the generated files into public/ with these paths:
 ${generatedFileCopyList('public/')}${supportFiles}
 
 Add the generated tags to index.html:
-${html || '<!-- No applicable tags for selected formats -->'}`;
+${html || uiText('snippets.noApplicableTags')}`;
 }
 
 function nextIconEntry(file) {
@@ -3292,7 +3424,7 @@ function buildMv3HandoffSnippet(target) {
 function buildAndroidHandoffSnippet() {
     const files = generatedFiles.filter(file => normalizedFileName(file.name).startsWith('android/'));
     if (files.length === 0) {
-        return 'Run the Android preset to generate adaptive icon PNGs and ic_launcher.xml handoff files.';
+        return uiText('snippets.androidMissing');
     }
     const fileLines = files
         .map(file => `- ${normalizedFileName(file.name)} -> app/src/main/res/${normalizedFileName(file.name).replace(/^android\//, '')}`)
@@ -3307,7 +3439,7 @@ ${buildAndroidSnippet()}`;
 function buildIosHandoffSnippet() {
     const files = generatedFiles.filter(file => normalizedFileName(file.name).startsWith('ios/AppIcon.appiconset/'));
     if (files.length === 0) {
-        return 'Run the iOS preset to generate AppIcon.appiconset PNGs and Contents.json.';
+        return uiText('snippets.iosMissing');
     }
     return `Copy generated iOS files into Xcode:
 ${files.map(file => `- ${normalizedFileName(file.name)}`).join('\n')}
@@ -3552,8 +3684,12 @@ function getFileByName(name) {
     return generatedFiles.find(file => file.name === name);
 }
 
+function catalogValidationLabel(label) {
+    return Object.values(UI_STRINGS.validation.labels).find(value => value === label) || label;
+}
+
 function addValidationCheck(checks, status, label, detail) {
-    checks.push({ status, label, detail });
+    checks.push({ status, label: catalogValidationLabel(label), detail });
 }
 
 function checkFileSet(checks, label, specs) {
@@ -3799,10 +3935,10 @@ function validateGeneratedExport() {
     const status = checks.some(check => check.status === 'fail') ? 'fail' : checks.some(check => check.status === 'warn') ? 'warn' : 'pass';
     return {
         status,
-        title: status === 'pass' ? 'Export validation passed' : status === 'warn' ? 'Export validation has warnings' : 'Export validation failed',
+        title: status === 'pass' ? uiText('validation.titles.pass') : status === 'warn' ? uiText('validation.titles.warn') : uiText('validation.titles.fail'),
         detail: status === 'pass'
-            ? 'The generated bundle matches the selected platform rules.'
-            : 'Review the checks below before deploying this export.',
+            ? uiText('validation.details.pass')
+            : uiText('validation.details.review'),
         checks
     };
 }
@@ -4077,6 +4213,9 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
     window.__ICONFORGE_TEST__ = {
         buildZip,
         crc32,
+        UI_STRINGS,
+        uiText,
+        getUiString,
         createICO,
         cleanPathSegment,
         baseName,

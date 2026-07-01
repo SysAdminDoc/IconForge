@@ -75,5 +75,18 @@ assert.strictEqual(handoffPanelAttrs.role, 'tabpanel');
 assert.strictEqual(handoffPanelAttrs.tabindex, '0');
 assert(snippetTabIds.has(handoffPanelAttrs['aria-labelledby']), 'handoff snippet panel should be labelled by a tab id');
 
+const i18nKeys = new Set(
+  Array.from(documentHtml.matchAll(/\bdata-i18n=["']([^"']+)["']/gi), (match) => match[1])
+);
+[
+  'shell.appName',
+  'shell.tagline',
+  'shell.trustSignal',
+  'shell.sourceImage',
+  'shell.draftRecovery',
+  'shell.draftPrivacy'
+].forEach((key) => assert(i18nKeys.has(key), `${key} should be wired to the UI string catalog`));
+
 console.log('visible form controls have labels');
 console.log('handoff snippet tabs expose tabpanel relationships');
+console.log('shell text has catalog hooks');

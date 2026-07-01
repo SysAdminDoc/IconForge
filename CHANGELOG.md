@@ -2,6 +2,12 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.23] - 2026-06-30
+
+### Added
+- Default English UI string catalog for shell text, status messages, diagnostics, validation titles, and snippet fallbacks.
+- Startup catalog application for tagged shell text and tests for catalog hooks.
+
 ## [v0.4.22] - 2026-06-30
 
 ### Added

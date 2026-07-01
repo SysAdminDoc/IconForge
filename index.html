@@ -16,12 +16,12 @@
         <header>
             <div class="logo">
                 <div class="logo-icon" aria-hidden="true">&#128293;</div>
-                <h1>Icon Forge</h1>
+                <h1 data-i18n="shell.appName">Icon Forge</h1>
             </div>
-            <p class="tagline">Generate favicons, PWA icons, and extension assets in seconds</p>
+            <p class="tagline" data-i18n="shell.tagline">Generate favicons, PWA icons, and extension assets in seconds</p>
             <div class="trust-signal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                100% client-side — your images never leave your browser
+                <span data-i18n="shell.trustSignal">100% client-side - your images never leave your browser</span>
             </div>
         </header>
 
@@ -36,13 +36,13 @@
                             <polyline points="21 15 16 10 5 21"/>
                         </svg>
                     </div>
-                    <h2>Source Image</h2>
+                    <h2 data-i18n="shell.sourceImage">Source Image</h2>
                 </div>
 
                 <div class="input-mode-tabs">
-                    <button class="mode-tab active" data-mode="upload">Upload</button>
-                    <button class="mode-tab" data-mode="text">Text</button>
-                    <button class="mode-tab" data-mode="emoji">Emoji</button>
+                    <button class="mode-tab active" data-mode="upload" data-i18n="shell.upload">Upload</button>
+                    <button class="mode-tab" data-mode="text" data-i18n="shell.text">Text</button>
+                    <button class="mode-tab" data-mode="emoji" data-i18n="shell.emoji">Emoji</button>
                 </div>
 
                 <div id="uploadMode">
@@ -204,15 +204,15 @@
 
                 <div class="draft-recovery" aria-labelledby="draftRecoveryLabel">
                     <div class="draft-recovery-row">
-                        <label class="section-label" id="draftRecoveryLabel">Draft Recovery</label>
-                        <button class="btn-crop" id="btnClearDraft" type="button">Clear Draft</button>
+                        <label class="section-label" id="draftRecoveryLabel" data-i18n="shell.draftRecovery">Draft Recovery</label>
+                        <button class="btn-crop" id="btnClearDraft" type="button" data-i18n="shell.clearDraft">Clear Draft</button>
                     </div>
                     <label class="inline-check draft-source-check">
                         <input type="checkbox" id="draftSourceToggle">
-                        Restore source image after reload
+                        <span data-i18n="shell.restoreSourceImage">Restore source image after reload</span>
                     </label>
                     <p class="helper-note compact" id="draftStatus" role="status" aria-live="polite">
-                        Settings save locally in this browser. Source images are stored only when this box is enabled.
+                        <span data-i18n="shell.draftPrivacy">Settings save locally in this browser. Source images are stored only when this box is enabled.</span>
                     </p>
                 </div>
 

@@ -439,6 +439,10 @@ function makeAndroidDensityFiles() {
 
 async function main() {
   const api = loadApp();
+  assert.strictEqual(api.uiText('shell.draftRecovery'), 'Draft Recovery');
+  assert.strictEqual(api.uiText('diagnostics.metrics.workerFallback'), 'Worker fallback state');
+  assert.strictEqual(api.uiText('status.launchedFileOpened', { name: 'logo.png' }), 'Opened logo.png from the operating system.');
+  assert.strictEqual(api.uiText('snippets.androidMissing'), 'Run the Android preset to generate adaptive icon PNGs and ic_launcher.xml handoff files.');
   const appManifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.webmanifest'), 'utf8'));
   assert.strictEqual(appManifest.scope, './');
   assert.strictEqual(appManifest.launch_handler.client_mode, 'focus-existing');
@@ -854,7 +858,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.22');
+  assert.strictEqual(exportManifest.version, 'v0.4.23');
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');
@@ -894,7 +898,7 @@ async function main() {
     error: new Error('PNG encoder failed: no image data')
   });
   assert.strictEqual(diagnosticsReport.schema, 'iconforge-diagnostics-v1');
-  assert.strictEqual(diagnosticsReport.app.version, 'v0.4.22');
+  assert.strictEqual(diagnosticsReport.app.version, 'v0.4.23');
   assert.strictEqual(diagnosticsReport.preset.key, 'pwa');
   assert.deepStrictEqual([...diagnosticsReport.selectedFormats], ['png', 'webp']);
   assert.strictEqual(diagnosticsReport.browserSupport.flags.webpEncode, true);
