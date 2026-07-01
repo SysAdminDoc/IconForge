@@ -2,6 +2,13 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.17] - 2026-06-30
+
+### Added
+- Manifest metadata now supports optional `id` export.
+- Manifest exports can add a monochrome icon purpose entry from the largest non-maskable square PNG.
+- Regression coverage for omitted and populated manifest `id` and monochrome purpose fields.
+
 ## [v0.4.16] - 2026-06-30
 
 ### Added

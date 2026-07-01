@@ -244,6 +244,10 @@
                             <label for="manifestShortName">Short Name</label>
                             <input type="text" id="manifestShortName" maxlength="24" placeholder="Auto shortened">
                         </div>
+                        <div class="metadata-field">
+                            <label for="manifestId">ID</label>
+                            <input type="text" id="manifestId" maxlength="120" placeholder="./" spellcheck="false">
+                        </div>
                         <div class="metadata-field full">
                             <label for="manifestDescription">Description</label>
                             <input type="text" id="manifestDescription" maxlength="160" placeholder="Generated icon set for this app">
@@ -289,6 +293,13 @@
                                 <option value="rtl">Right to Left</option>
                                 <option value="">Unspecified</option>
                             </select>
+                        </div>
+                        <div class="metadata-field checkbox-field">
+                            <label for="manifestMonochrome">Icon Purpose</label>
+                            <label class="inline-check">
+                                <input type="checkbox" id="manifestMonochrome">
+                                Add monochrome entry
+                            </label>
                         </div>
                         <div class="metadata-field full">
                             <label for="manifestShortcuts">Shortcuts JSON</label>

@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.16';
+const APP_VERSION = 'v0.4.17';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 
 function limitImageSize(width, height) {
@@ -202,6 +202,7 @@ const manifestMetadataGrid = document.getElementById('manifestMetadataGrid');
 const manifestMetadataStatus = document.getElementById('manifestMetadataStatus');
 const manifestName = document.getElementById('manifestName');
 const manifestShortName = document.getElementById('manifestShortName');
+const manifestId = document.getElementById('manifestId');
 const manifestDescription = document.getElementById('manifestDescription');
 const manifestStartUrl = document.getElementById('manifestStartUrl');
 const manifestScope = document.getElementById('manifestScope');
@@ -211,6 +212,7 @@ const manifestThemeColor = document.getElementById('manifestThemeColor');
 const manifestBackgroundColor = document.getElementById('manifestBackgroundColor');
 const manifestLang = document.getElementById('manifestLang');
 const manifestDir = document.getElementById('manifestDir');
+const manifestMonochrome = document.getElementById('manifestMonochrome');
 const manifestShortcuts = document.getElementById('manifestShortcuts');
 const manifestScreenshots = document.getElementById('manifestScreenshots');
 const deploymentUrlGrid = document.getElementById('deploymentUrlGrid');
@@ -2328,6 +2330,7 @@ function getManifestMetadata() {
     const sourceName = getManifestSourceName();
     const name = metadataValue(manifestName) || sourceName;
     const shortName = metadataValue(manifestShortName) || name.slice(0, 12);
+    const id = metadataValue(manifestId);
     const description = metadataValue(manifestDescription) || `Generated icon set for ${name}.`;
     const startUrl = metadataValue(manifestStartUrl) || './index.html';
     const scope = metadataValue(manifestScope) || './';
@@ -2347,6 +2350,7 @@ function getManifestMetadata() {
     if (!shortName) errors.push('Short name is required.');
     if (!startUrl) errors.push('Start URL is required.');
     if (!scope) errors.push('Scope is required.');
+    if (id && /\s/.test(id)) errors.push('ID cannot contain whitespace. Use an encoded URL-style ID.');
     if (!MANIFEST_DISPLAY_MODES.has(display)) errors.push('Display must be fullscreen, standalone, minimal-ui, or browser.');
     if (dir && !MANIFEST_DIRECTIONS.has(dir)) errors.push('Direction must be auto, ltr, or rtl.');
 
@@ -2361,6 +2365,7 @@ function getManifestMetadata() {
         background_color: backgroundManifestColor
     };
 
+    if (id) metadata.id = id;
     if (categories.length) metadata.categories = categories;
     if (lang) metadata.lang = lang;
     if (dir) metadata.dir = dir;
@@ -2406,16 +2411,38 @@ if (deploymentUrlGrid) {
     validateDeploymentUrlOptions();
 }
 
-function buildManifestSnippet() {
-    const icons = generatedFiles
+function manifestIconFiles() {
+    return generatedFiles
         .filter(file => file.format === 'png' && file.size && file.size.width === file.size.height)
-        .filter(file => file.name.startsWith('pwa/') || file.name === 'icon-192.png' || file.name === 'icon-512.png' || [192, 512].includes(file.size.width))
-        .map(file => ({
-            src: hrefFor(file.name),
-            sizes: `${file.size.width}x${file.size.height}`,
-            type: 'image/png',
-            purpose: file.purpose || (file.name.includes('maskable') ? 'maskable' : 'any')
-        }));
+        .filter(file => file.name.startsWith('pwa/') || file.name === 'icon-192.png' || file.name === 'icon-512.png' || [192, 512].includes(file.size.width));
+}
+
+function manifestIconEntry(file, purpose = file.purpose || (file.name.includes('maskable') ? 'maskable' : 'any')) {
+    return {
+        src: hrefFor(file.name),
+        sizes: `${file.size.width}x${file.size.height}`,
+        type: 'image/png',
+        purpose
+    };
+}
+
+function manifestMonochromeEnabled() {
+    return Boolean(manifestMonochrome?.checked);
+}
+
+function monochromeManifestIconFile(files = manifestIconFiles()) {
+    return files
+        .filter(file => file.purpose !== 'maskable' && !file.name.includes('maskable'))
+        .sort((a, b) => b.size.width - a.size.width)[0] || null;
+}
+
+function buildManifestSnippet() {
+    const iconFiles = manifestIconFiles();
+    const icons = iconFiles.map(file => manifestIconEntry(file));
+    if (manifestMonochromeEnabled()) {
+        const monochromeFile = monochromeManifestIconFile(iconFiles);
+        if (monochromeFile) icons.push(manifestIconEntry(monochromeFile, 'monochrome'));
+    }
 
     if (icons.length === 0) return '';
     validateManifestMetadata();
@@ -3040,9 +3067,7 @@ function validateSupportFiles(checks) {
 
 function validateManifestIcons(checks) {
     if (activePresetKey !== 'web' && activePresetKey !== 'pwa') return;
-    const relevantIcons = generatedFiles
-        .filter(file => file.format === 'png' && file.size?.width === file.size?.height)
-        .filter(file => file.name.startsWith('pwa/icons/') || file.name === 'icon-192.png' || file.name === 'icon-512.png' || [192, 512].includes(file.size.width));
+    const relevantIcons = manifestIconFiles();
 
     if (relevantIcons.length === 0) {
         addValidationCheck(checks, 'warn', 'Manifest icon metadata', 'No manifest-sized PNG icons were generated for this export.');
@@ -3058,22 +3083,35 @@ function validateManifestIcons(checks) {
         const icons = Array.isArray(manifest.icons) ? manifest.icons : [];
         const mismatches = [];
         for (const file of relevantIcons) {
-            const expectedSrc = hrefFor(file.name);
-            const entry = icons.find(icon => icon.src === expectedSrc);
+            const expected = manifestIconEntry(file);
+            const entry = icons.find(icon => icon.src === expected.src && icon.purpose === expected.purpose);
             if (!entry) {
-                mismatches.push(`${file.name} missing`);
+                mismatches.push(`${file.name} ${expected.purpose} missing`);
                 continue;
             }
-            const expectedSizes = `${file.size.width}x${file.size.height}`;
-            const expectedPurpose = file.purpose || (file.name.includes('maskable') ? 'maskable' : 'any');
-            if (entry.sizes !== expectedSizes || entry.type !== 'image/png' || entry.purpose !== expectedPurpose) {
-                mismatches.push(`${file.name} metadata mismatch`);
+            if (entry.sizes !== expected.sizes || entry.type !== expected.type) {
+                mismatches.push(`${file.name} ${expected.purpose} metadata mismatch`);
+            }
+        }
+        if (manifestMonochromeEnabled()) {
+            const monochromeFile = monochromeManifestIconFile(relevantIcons);
+            if (!monochromeFile) {
+                mismatches.push('monochrome icon missing source file');
+            } else {
+                const expected = manifestIconEntry(monochromeFile, 'monochrome');
+                const entry = icons.find(icon => icon.src === expected.src && icon.purpose === 'monochrome');
+                if (!entry) {
+                    mismatches.push(`${monochromeFile.name} monochrome missing`);
+                } else if (entry.sizes !== expected.sizes || entry.type !== expected.type) {
+                    mismatches.push(`${monochromeFile.name} monochrome metadata mismatch`);
+                }
             }
         }
         if (mismatches.length) {
             addValidationCheck(checks, 'fail', 'Manifest icon metadata', fileSpecSummary(mismatches));
         } else {
-            addValidationCheck(checks, 'pass', 'Manifest icon metadata', `${relevantIcons.length} generated icon${relevantIcons.length === 1 ? '' : 's'} match manifest src, sizes, type, and purpose.`);
+            const iconCount = relevantIcons.length + (manifestMonochromeEnabled() && monochromeManifestIconFile(relevantIcons) ? 1 : 0);
+            addValidationCheck(checks, 'pass', 'Manifest icon metadata', `${iconCount} generated icon${iconCount === 1 ? '' : 's'} match manifest src, sizes, type, and purpose.`);
         }
     } catch (error) {
         addValidationCheck(checks, 'fail', 'Manifest icon metadata', `Manifest JSON is invalid: ${error.message}`);
@@ -3452,6 +3490,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                 const fieldMap = {
                     name: manifestName,
                     shortName: manifestShortName,
+                    id: manifestId,
                     description: manifestDescription,
                     startUrl: manifestStartUrl,
                     scope: manifestScope,
@@ -3461,12 +3500,17 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                     backgroundColor: manifestBackgroundColor,
                     lang: manifestLang,
                     dir: manifestDir,
+                    monochrome: manifestMonochrome,
                     shortcuts: manifestShortcuts,
                     screenshots: manifestScreenshots
                 };
                 for (const [key, value] of Object.entries(next.manifestMetadata || {})) {
                     if (fieldMap[key]) {
-                        fieldMap[key].value = Array.isArray(value) ? JSON.stringify(value) : String(value ?? '');
+                        if (fieldMap[key] === manifestMonochrome || fieldMap[key].type === 'checkbox') {
+                            fieldMap[key].checked = Boolean(value);
+                        } else {
+                            fieldMap[key].value = Array.isArray(value) ? JSON.stringify(value) : String(value ?? '');
+                        }
                     }
                 }
                 validateManifestMetadata();

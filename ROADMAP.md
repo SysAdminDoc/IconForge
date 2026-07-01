@@ -6,15 +6,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ## Research-Driven Additions
 
-### P1
-
-- [ ] P1 — Add manifest `id` and monochrome icon purpose support
-  Why: The manifest UI covers many fields, but not `id` or optional monochrome icon purpose; competitor issues show demand for both.
-  Evidence: `app.js:2092-2190`; W3C Web App Manifest; itgalaxy/favicons#452; itgalaxy/favicons#456.
-  Touches: `index.html`; `app.js`; `tests/export-regression.test.js`; `README.md`
-  Acceptance: Manifest metadata supports optional `id`; exports can include a monochrome icon entry when enabled; validation checks `src`, `sizes`, `type`, and `purpose`; regression tests cover omitted and populated fields.
-  Complexity: M
-
 ### P2
 
 - [ ] P2 — Add lossy codec quality and size-budget controls

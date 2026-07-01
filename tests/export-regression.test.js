@@ -157,6 +157,7 @@ function createDocumentMock() {
     svgDarkColor: '#ffffff',
     manifestName: '',
     manifestShortName: '',
+    manifestId: '',
     manifestDescription: '',
     manifestStartUrl: './index.html',
     manifestScope: './',
@@ -166,6 +167,7 @@ function createDocumentMock() {
     manifestBackgroundColor: '#09090b',
     manifestLang: 'en',
     manifestDir: 'auto',
+    manifestMonochrome: '',
     manifestShortcuts: '',
     manifestScreenshots: '',
     assetUrlMode: 'root',
@@ -181,6 +183,10 @@ function createDocumentMock() {
       if (Object.prototype.hasOwnProperty.call(defaults, id)) el.value = defaults[id];
       if (id === 'dropShadowToggle') el.checked = false;
       if (id === 'cacheBustToggle') el.checked = false;
+      if (id === 'manifestMonochrome') {
+        el.type = 'checkbox';
+        el.checked = false;
+      }
       elements.set(id, el);
     }
     return elements.get(id);
@@ -516,10 +522,12 @@ async function main() {
   assert.strictEqual(manifest.background_color, '#123456');
   assert.strictEqual(manifest.lang, 'en');
   assert.strictEqual(manifest.dir, 'auto');
+  assert(!Object.prototype.hasOwnProperty.call(manifest, 'id'), 'empty id should be omitted');
   assert(!Object.prototype.hasOwnProperty.call(manifest, 'categories'), 'empty categories should be omitted');
   assert(!Object.prototype.hasOwnProperty.call(manifest, 'shortcuts'), 'empty shortcuts should be omitted');
   assert(manifest.icons.some((icon) => icon.src === '/pwa/icons/icon-192x192.png' && icon.purpose === 'any'));
   assert(manifest.icons.some((icon) => icon.src === '/pwa/icons/icon-maskable-512x512.png' && icon.purpose === 'maskable'));
+  assert(!manifest.icons.some((icon) => icon.purpose === 'monochrome'), 'monochrome icon entry should be omitted by default');
 
   const svgFavicon = api.generateSvgFavicon(new ElementMock('img'), null);
   assert(svgFavicon.includes('<style>'), 'SVG favicon should embed its style block');
@@ -534,6 +542,7 @@ async function main() {
     manifestMetadata: {
       name: 'Acme Operations Console',
       shortName: 'Acme Ops',
+      id: './dashboard/',
       description: 'Local deployment assets for Acme operations.',
       startUrl: './dashboard/',
       scope: './',
@@ -543,6 +552,7 @@ async function main() {
       backgroundColor: '#445566',
       lang: 'ar',
       dir: 'rtl',
+      monochrome: true,
       shortcuts: [{ name: 'Reports', short_name: 'Reports', url: './reports/' }],
       screenshots: [{ src: '/screenshots/home.png', sizes: '1280x720', type: 'image/png' }]
     }
@@ -550,6 +560,7 @@ async function main() {
   const editedManifest = JSON.parse(api.buildManifestSnippet());
   assert.strictEqual(editedManifest.name, 'Acme Operations Console');
   assert.strictEqual(editedManifest.short_name, 'Acme Ops');
+  assert.strictEqual(editedManifest.id, './dashboard/');
   assert.strictEqual(editedManifest.description, 'Local deployment assets for Acme operations.');
   assert.strictEqual(editedManifest.start_url, './dashboard/');
   assert.strictEqual(editedManifest.display, 'minimal-ui');
@@ -558,6 +569,7 @@ async function main() {
   assert.strictEqual(editedManifest.background_color, '#445566');
   assert.strictEqual(editedManifest.lang, 'ar');
   assert.strictEqual(editedManifest.dir, 'rtl');
+  assert(editedManifest.icons.some((icon) => icon.src === '/pwa/icons/icon-192x192.png' && icon.purpose === 'monochrome' && icon.type === 'image/png'));
   assert.strictEqual(editedManifest.shortcuts[0].url, './reports/');
   assert.strictEqual(editedManifest.screenshots[0].sizes, '1280x720');
 
@@ -581,6 +593,7 @@ async function main() {
       backgroundColor: '#123456',
       lang: 'en',
       dir: 'auto',
+      monochrome: false,
       shortcuts: '',
       screenshots: ''
     }
@@ -792,7 +805,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.16');
+  assert.strictEqual(exportManifest.version, 'v0.4.17');
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');
