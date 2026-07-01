@@ -202,6 +202,20 @@
                     </div>
                 </div><!-- /emojiMode -->
 
+                <div class="draft-recovery" aria-labelledby="draftRecoveryLabel">
+                    <div class="draft-recovery-row">
+                        <label class="section-label" id="draftRecoveryLabel">Draft Recovery</label>
+                        <button class="btn-crop" id="btnClearDraft" type="button">Clear Draft</button>
+                    </div>
+                    <label class="inline-check draft-source-check">
+                        <input type="checkbox" id="draftSourceToggle">
+                        Restore source image after reload
+                    </label>
+                    <p class="helper-note compact" id="draftStatus" role="status" aria-live="polite">
+                        Settings save locally in this browser. Source images are stored only when this box is enabled.
+                    </p>
+                </div>
+
             </div>
 
             <!-- Right Panel - Options & Output -->

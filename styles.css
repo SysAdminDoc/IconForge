@@ -91,6 +91,12 @@ body {
     font-size: 0.65rem;
 }
 
+.inline-check {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
 header {
     text-align: center;
     margin-bottom: 2.5rem;
@@ -401,6 +407,32 @@ h1 {
 .btn-crop svg {
     width: 13px;
     height: 13px;
+}
+
+.draft-recovery {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    display: grid;
+    gap: 0.6rem;
+}
+
+.draft-recovery-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.draft-source-check {
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+}
+
+.draft-source-check input {
+    accent-color: var(--accent);
 }
 
 .crop-canvas-container {

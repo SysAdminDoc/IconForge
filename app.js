@@ -74,8 +74,9 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.20';
+const APP_VERSION = 'v0.4.21';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
+const DRAFT_STORAGE_KEY = 'iconforge-draft-v1';
 
 function limitImageSize(width, height) {
     const pixels = width * height;
@@ -204,6 +205,8 @@ const resampleSelect = document.getElementById('resampleSelect');
 const backgroundMode = document.getElementById('backgroundMode');
 const backgroundColor = document.getElementById('backgroundColor');
 const backgroundColor2 = document.getElementById('backgroundColor2');
+const svgLightColor = document.getElementById('svgLightColor');
+const svgDarkColor = document.getElementById('svgDarkColor');
 const manifestMetadataGrid = document.getElementById('manifestMetadataGrid');
 const manifestMetadataStatus = document.getElementById('manifestMetadataStatus');
 const manifestName = document.getElementById('manifestName');
@@ -233,6 +236,9 @@ const maskPreviewCtx = maskPreviewCanvas.getContext('2d');
 const maskShapeSelect = document.getElementById('maskShapeSelect');
 const replaceInput = document.getElementById('replaceInput');
 const replaceStatus = document.getElementById('replaceStatus');
+const draftSourceToggle = document.getElementById('draftSourceToggle');
+const btnClearDraft = document.getElementById('btnClearDraft');
+const draftStatus = document.getElementById('draftStatus');
 
 // Crop DOM Elements
 const cropSection = document.getElementById('cropSection');
@@ -258,6 +264,345 @@ function setElementVisible(element, visible, display = '') {
     if (!element) return;
     element.classList.toggle('is-hidden', !visible);
     element.style.display = visible ? display : 'none';
+}
+
+let draftSaveTimer = null;
+let isRestoringDraft = false;
+
+function draftStorage() {
+    try {
+        return typeof localStorage !== 'undefined' ? localStorage : null;
+    } catch {
+        return null;
+    }
+}
+
+function setDraftStatus(message, type = '') {
+    if (!draftStatus) return;
+    draftStatus.textContent = message;
+    draftStatus.classList.toggle('warning', type === 'warning');
+    draftStatus.classList.toggle('success', type === 'success');
+}
+
+function validDraftCrop(region, img = sourceImage) {
+    if (!region || !img) return null;
+    const x = Math.max(0, Math.round(Number(region.x) || 0));
+    const y = Math.max(0, Math.round(Number(region.y) || 0));
+    const width = Math.min(Math.round(Number(region.width) || 0), img.naturalWidth - x);
+    const height = Math.min(Math.round(Number(region.height) || 0), img.naturalHeight - y);
+    return width > 0 && height > 0 ? { x, y, width, height } : null;
+}
+
+function manifestDraftValues() {
+    return {
+        name: manifestName.value,
+        shortName: manifestShortName.value,
+        id: manifestId.value,
+        description: manifestDescription.value,
+        startUrl: manifestStartUrl.value,
+        scope: manifestScope.value,
+        display: manifestDisplay.value,
+        categories: manifestCategories.value,
+        themeColor: manifestThemeColor.value,
+        backgroundColor: manifestBackgroundColor.value,
+        lang: manifestLang.value,
+        dir: manifestDir.value,
+        monochrome: Boolean(manifestMonochrome.checked),
+        shortcuts: manifestShortcuts.value,
+        screenshots: manifestScreenshots.value
+    };
+}
+
+function applyManifestDraftValues(values = {}) {
+    const fieldMap = {
+        name: manifestName,
+        shortName: manifestShortName,
+        id: manifestId,
+        description: manifestDescription,
+        startUrl: manifestStartUrl,
+        scope: manifestScope,
+        display: manifestDisplay,
+        categories: manifestCategories,
+        themeColor: manifestThemeColor,
+        backgroundColor: manifestBackgroundColor,
+        lang: manifestLang,
+        dir: manifestDir,
+        shortcuts: manifestShortcuts,
+        screenshots: manifestScreenshots
+    };
+    Object.entries(fieldMap).forEach(([key, field]) => {
+        if (Object.prototype.hasOwnProperty.call(values, key)) field.value = String(values[key] ?? '');
+    });
+    if (Object.prototype.hasOwnProperty.call(values, 'monochrome')) {
+        manifestMonochrome.checked = Boolean(values.monochrome);
+    }
+    validateManifestMetadata();
+}
+
+function setShapeSelection(containerSelector, shape) {
+    const nextShape = ['rounded', 'circle', 'square'].includes(shape) ? shape : 'rounded';
+    document.querySelectorAll(`${containerSelector} .btn-crop`).forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.shape === nextShape);
+    });
+    return nextShape;
+}
+
+function setActivePresetButton(key) {
+    activePresetKey = key && PRESETS[key] ? key : null;
+    document.querySelectorAll('.btn-preset').forEach(btn => {
+        btn.classList.toggle('active', Boolean(activePresetKey && btn.dataset.preset === activePresetKey));
+    });
+}
+
+function setSelectedSizesFromDraft(sizes = []) {
+    const normalized = sizes
+        .map(entry => {
+            try {
+                return normalizeSizeEntry(entry);
+            } catch {
+                return null;
+            }
+        })
+        .filter(size => size?.width && size?.height);
+    normalized.forEach(ensureSizeOption);
+    sizeGrid.querySelectorAll('input[type="checkbox"]').forEach(input => {
+        const size = { width: parseInt(input.value, 10), height: parseInt(input.dataset.height, 10) || parseInt(input.value, 10) };
+        const selected = normalized.some(item => item.width === size.width && item.height === size.height);
+        input.checked = selected;
+        input.closest('.size-option').classList.toggle('selected', selected);
+    });
+}
+
+function setSelectedFormatsFromDraft(formats = []) {
+    const selected = new Set(formats.filter(format => OUTPUT_FORMATS.includes(format)));
+    formatOptions.querySelectorAll('input[type="checkbox"]').forEach(input => {
+        const checked = selected.has(input.value);
+        input.checked = checked;
+        input.closest('.format-option').classList.toggle('selected', checked);
+    });
+    setElementVisible(svgDarkmodeSection, selected.has('svg'), 'block');
+}
+
+function buildDraftSnapshot() {
+    const sourceImageDraftEnabled = Boolean(draftSourceToggle?.checked);
+    const sourceImageDraft = sourceImageDraftEnabled && originalImageData && sourceImage ? {
+        dataUrl: originalImageData,
+        mode: sourceMode,
+        name: sourceMode === 'upload' ? 'restored-image' : sourceFileName,
+        width: sourceImage.naturalWidth,
+        height: sourceImage.naturalHeight
+    } : null;
+
+    return {
+        schema: 'iconforge-draft-v1',
+        version: APP_VERSION,
+        savedAt: new Date().toISOString(),
+        inputMode: getActiveInputMode(),
+        sourceMode,
+        restoreSourceImage: sourceImageDraftEnabled,
+        sourceImage: sourceImageDraft,
+        cropRegion: validDraftCrop(cropRegion),
+        selectedSizes: getSelectedSizes(),
+        selectedFormats: getSelectedFormats(),
+        activePresetKey,
+        processing: {
+            safePadding: safePaddingSlider.value,
+            lossyQuality: lossyQualitySlider.value,
+            sizeBudgetKb: sizeBudgetInput.value,
+            resample: resampleSelect.value,
+            backgroundMode: backgroundMode.value,
+            backgroundColor: backgroundColor.value,
+            backgroundColor2: backgroundColor2.value,
+            effect: effectSelect.value,
+            dropShadow: Boolean(dropShadowToggle.checked),
+            maskShape: maskShapeSelect.value,
+            svgLightColor: svgLightColor.value,
+            svgDarkColor: svgDarkColor.value,
+            tolerance: toleranceSlider.value
+        },
+        sourceTools: {
+            text: {
+                value: textInput.value,
+                font: fontSelect.value,
+                textColor: textColor.value,
+                backgroundColor: textBgColor.value,
+                shape: textShape
+            },
+            emoji: {
+                value: selectedEmoji,
+                backgroundColor: emojiBgColor.value,
+                shape: emojiShape
+            }
+        },
+        deploymentUrls: {
+            mode: assetUrlMode.value,
+            customBase: assetUrlBase.value,
+            cacheBust: Boolean(cacheBustToggle.checked)
+        },
+        manifestMetadata: manifestDraftValues()
+    };
+}
+
+function readDraftSnapshot() {
+    const storage = draftStorage();
+    if (!storage) return null;
+    try {
+        const raw = storage.getItem(DRAFT_STORAGE_KEY);
+        if (!raw) return null;
+        const draft = JSON.parse(raw);
+        return draft?.schema === 'iconforge-draft-v1' ? draft : null;
+    } catch {
+        return null;
+    }
+}
+
+function saveDraftState({ silent = false } = {}) {
+    if (isRestoringDraft) return null;
+    const storage = draftStorage();
+    if (!storage) return null;
+    let snapshot = buildDraftSnapshot();
+    try {
+        storage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(snapshot));
+        return snapshot;
+    } catch {
+        if (snapshot.sourceImage) {
+            snapshot = { ...snapshot, sourceImage: null };
+            try {
+                storage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(snapshot));
+                if (!silent) setDraftStatus('Draft settings saved locally. Source image was too large for browser storage.', 'warning');
+                return snapshot;
+            } catch {
+                // Fall through to the generic warning.
+            }
+        }
+        if (!silent) setDraftStatus('Draft could not be saved in this browser.', 'warning');
+        return null;
+    }
+}
+
+function queueDraftSave() {
+    if (isRestoringDraft) return;
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = setTimeout(() => saveDraftState({ silent: true }), 250);
+}
+
+function clearDraftState() {
+    const storage = draftStorage();
+    try {
+        storage?.removeItem(DRAFT_STORAGE_KEY);
+    } catch {
+        setDraftStatus('Draft could not be cleared in this browser.', 'warning');
+        return;
+    }
+    if (draftSourceToggle) draftSourceToggle.checked = false;
+    setDraftStatus('Saved draft cleared. Current work stays open until you reload or choose a different source.', 'success');
+}
+
+function applyDraftControls(draft) {
+    if (!draft) return;
+    setInputMode(draft.inputMode || 'upload');
+    if (draftSourceToggle) draftSourceToggle.checked = Boolean(draft.restoreSourceImage);
+
+    if (draft.processing) {
+        safePaddingSlider.value = draft.processing.safePadding ?? safePaddingSlider.value;
+        lossyQualitySlider.value = draft.processing.lossyQuality ?? lossyQualitySlider.value;
+        sizeBudgetInput.value = draft.processing.sizeBudgetKb ?? '';
+        resampleSelect.value = draft.processing.resample || resampleSelect.value;
+        backgroundMode.value = draft.processing.backgroundMode || backgroundMode.value;
+        backgroundColor.value = draft.processing.backgroundColor || backgroundColor.value;
+        backgroundColor2.value = draft.processing.backgroundColor2 || backgroundColor2.value;
+        effectSelect.value = draft.processing.effect || effectSelect.value;
+        dropShadowToggle.checked = Boolean(draft.processing.dropShadow);
+        maskShapeSelect.value = draft.processing.maskShape || maskShapeSelect.value;
+        svgLightColor.value = draft.processing.svgLightColor || svgLightColor.value;
+        svgDarkColor.value = draft.processing.svgDarkColor || svgDarkColor.value;
+        toleranceSlider.value = draft.processing.tolerance || toleranceSlider.value;
+        toleranceValue.textContent = toleranceSlider.value;
+        updateProcessingControlLabels();
+    }
+
+    if (draft.sourceTools?.text) {
+        textInput.value = draft.sourceTools.text.value ?? textInput.value;
+        fontSelect.value = draft.sourceTools.text.font || fontSelect.value;
+        textColor.value = draft.sourceTools.text.textColor || textColor.value;
+        textBgColor.value = draft.sourceTools.text.backgroundColor || textBgColor.value;
+        textShape = setShapeSelection('#shapeOptions', draft.sourceTools.text.shape);
+        renderTextPreview();
+    }
+
+    if (draft.sourceTools?.emoji) {
+        selectedEmoji = draft.sourceTools.emoji.value || selectedEmoji;
+        emojiBgColor.value = draft.sourceTools.emoji.backgroundColor || emojiBgColor.value;
+        emojiShape = setShapeSelection('#emojiShapeOptions', draft.sourceTools.emoji.shape);
+        emojiGrid.querySelectorAll('.emoji-btn').forEach(btn => {
+            btn.classList.toggle('selected', btn.textContent === selectedEmoji);
+        });
+        renderEmojiPreview();
+    }
+
+    if (draft.deploymentUrls) {
+        assetUrlMode.value = draft.deploymentUrls.mode || assetUrlMode.value;
+        assetUrlBase.value = draft.deploymentUrls.customBase ?? assetUrlBase.value;
+        cacheBustToggle.checked = Boolean(draft.deploymentUrls.cacheBust);
+        validateDeploymentUrlOptions();
+    }
+
+    if (draft.manifestMetadata) applyManifestDraftValues(draft.manifestMetadata);
+    setActivePresetButton(draft.activePresetKey);
+    setSelectedSizesFromDraft(draft.selectedSizes || []);
+    setSelectedFormatsFromDraft(draft.selectedFormats || []);
+    updateMaskPreview();
+}
+
+async function restoreDraftSourceImage(draft) {
+    if (!draft?.restoreSourceImage || !draft.sourceImage?.dataUrl) return false;
+    try {
+        const img = await loadImageElement(draft.sourceImage.dataUrl);
+        sourceImage = img;
+        sourceFileName = draft.sourceImage.name || 'restored-image';
+        sourceMode = draft.sourceImage.mode || 'upload';
+        originalImageData = draft.sourceImage.dataUrl;
+        previewImage.src = originalImageData;
+        setPreviewInfo(sourceFileName, img.naturalWidth, img.naturalHeight, 'restored draft');
+        setElementVisible(dropZone, false);
+        previewContainer.classList.add('active');
+        btnGenerate.disabled = false;
+        setElementVisible(outputSection, false);
+        cropSection.classList.add('active');
+        cropRegion = validDraftCrop(draft.cropRegion, img);
+        currentCropRect = null;
+        isManualCropMode = false;
+        btnManualCrop.classList.remove('active');
+        setElementVisible(btnApplyCrop, false);
+        initCropCanvas();
+        if (cropRegion) updatePreviewWithCrop();
+        updateMaskPreview();
+        return true;
+    } catch {
+        setDraftStatus('Draft settings restored, but the saved source image could not be loaded.', 'warning');
+        return false;
+    }
+}
+
+async function restoreDraftState() {
+    const draft = readDraftSnapshot();
+    if (!draft) return;
+    isRestoringDraft = true;
+    let restoredCleanly = false;
+    try {
+        applyDraftControls(draft);
+        const sourceRestored = await restoreDraftSourceImage(draft);
+        setDraftStatus(sourceRestored
+            ? 'Draft restored locally, including the saved source image.'
+            : 'Draft settings restored locally. Enable source restore to keep the image across reloads.',
+            sourceRestored ? 'success' : '');
+        restoredCleanly = true;
+    } catch {
+        setDraftStatus('Saved draft could not be restored. Clear Draft removes the broken local copy.', 'warning');
+    } finally {
+        isRestoringDraft = false;
+        if (restoredCleanly) saveDraftState({ silent: true });
+    }
 }
 
 function createGenerationStats() {
@@ -745,28 +1090,34 @@ function updateMaskPreview() {
 }
 
 function switchToUploadMode() {
-    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-    document.querySelector('.mode-tab[data-mode="upload"]').classList.add('active');
-    setElementVisible(uploadMode, true);
-    setElementVisible(textMode, false);
-    setElementVisible(emojiMode, false);
+    setInputMode('upload');
 }
 
 // Input mode tabs
 const uploadMode = document.getElementById('uploadMode');
 const textMode = document.getElementById('textMode');
 const emojiMode = document.getElementById('emojiMode');
+
+function getActiveInputMode() {
+    return document.querySelector('.mode-tab.active')?.dataset.mode || 'upload';
+}
+
+function setInputMode(mode) {
+    const nextMode = ['upload', 'text', 'emoji'].includes(mode) ? mode : 'upload';
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.mode-tab[data-mode="${nextMode}"]`)?.classList.add('active');
+    setElementVisible(uploadMode, nextMode === 'upload');
+    setElementVisible(textMode, nextMode === 'text');
+    setElementVisible(emojiMode, nextMode === 'emoji');
+    if (nextMode === 'text') renderTextPreview();
+    if (nextMode === 'emoji') renderEmojiPreview();
+}
+
 document.querySelector('.input-mode-tabs').addEventListener('click', (e) => {
     const tab = e.target.closest('.mode-tab');
     if (!tab) return;
-    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    const mode = tab.dataset.mode;
-    setElementVisible(uploadMode, mode === 'upload');
-    setElementVisible(textMode, mode === 'text');
-    setElementVisible(emojiMode, mode === 'emoji');
-    if (mode === 'text') renderTextPreview();
-    if (mode === 'emoji') renderEmojiPreview();
+    setInputMode(tab.dataset.mode);
+    queueDraftSave();
 });
 
 // Text-to-favicon
@@ -785,10 +1136,14 @@ document.getElementById('shapeOptions').addEventListener('click', (e) => {
     btn.classList.add('active');
     textShape = btn.dataset.shape;
     renderTextPreview();
+    queueDraftSave();
 });
 
 [textInput, fontSelect, textColor, textBgColor].forEach(el => {
-    el.addEventListener('input', renderTextPreview);
+    el.addEventListener('input', () => {
+        renderTextPreview();
+        queueDraftSave();
+    });
 });
 
 function renderTextPreview() {
@@ -830,6 +1185,7 @@ document.getElementById('btnUseTextIcon').addEventListener('click', () => {
         cropRegion = null;
         initCropCanvas();
         updateMaskPreview();
+        saveDraftState({ silent: true });
     };
     img.src = textPreviewCanvas.toDataURL('image/png');
 });
@@ -850,12 +1206,13 @@ EMOJIS.forEach(em => {
     btn.className = 'emoji-btn' + (em === selectedEmoji ? ' selected' : '');
     btn.textContent = em;
     btn.setAttribute('aria-label', `Select emoji ${em}`);
-    btn.addEventListener('click', () => {
-        emojiGrid.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        selectedEmoji = em;
-        renderEmojiPreview();
-    });
+        btn.addEventListener('click', () => {
+            emojiGrid.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedEmoji = em;
+            renderEmojiPreview();
+            queueDraftSave();
+        });
     emojiGrid.appendChild(btn);
 });
 
@@ -871,9 +1228,13 @@ document.getElementById('emojiShapeOptions').addEventListener('click', (e) => {
     btn.classList.add('active');
     emojiShape = btn.dataset.shape;
     renderEmojiPreview();
+    queueDraftSave();
 });
 
-emojiBgColor.addEventListener('input', renderEmojiPreview);
+emojiBgColor.addEventListener('input', () => {
+    renderEmojiPreview();
+    queueDraftSave();
+});
 
 function renderEmojiPreview() {
     const size = 256;
@@ -911,6 +1272,7 @@ document.getElementById('btnUseEmojiIcon').addEventListener('click', () => {
         cropRegion = null;
         initCropCanvas();
         updateMaskPreview();
+        saveDraftState({ silent: true });
     };
     img.src = emojiPreviewCanvas.toDataURL('image/png');
 });
@@ -947,6 +1309,10 @@ btnChange.addEventListener('click', resetInput);
 btnAddSize.addEventListener('click', addCustomSize);
 btnGenerate.addEventListener('click', generateIcons);
 btnDownloadAll.addEventListener('click', downloadAll);
+draftSourceToggle?.addEventListener('change', () => {
+    saveDraftState({ silent: false });
+});
+btnClearDraft?.addEventListener('click', clearDraftState);
 btnCopyDiagnostics?.addEventListener('click', async function() {
     try {
         await navigator.clipboard.writeText(diagnosticsSupportJson());
@@ -975,14 +1341,16 @@ function updateProcessingControlLabels() {
     lossyQualityValue.textContent = `${getLossyQualityPercent()}%`;
 }
 
-[safePaddingSlider, lossyQualitySlider, sizeBudgetInput, resampleSelect, backgroundMode, backgroundColor, backgroundColor2, effectSelect, dropShadowToggle, maskShapeSelect].forEach(el => {
+[safePaddingSlider, lossyQualitySlider, sizeBudgetInput, resampleSelect, backgroundMode, backgroundColor, backgroundColor2, svgLightColor, svgDarkColor, effectSelect, dropShadowToggle, maskShapeSelect].forEach(el => {
     el.addEventListener('input', () => {
         updateProcessingControlLabels();
         updateMaskPreview();
+        queueDraftSave();
     });
     el.addEventListener('change', () => {
         updateProcessingControlLabels();
         updateMaskPreview();
+        queueDraftSave();
     });
 });
 updateProcessingControlLabels();
@@ -1070,6 +1438,7 @@ document.getElementById('presetButtons').addEventListener('click', (e) => {
 
     setElementVisible(svgDarkmodeSection, preset.formats.includes('svg'), 'block');
     updateMaskPreview();
+    saveDraftState({ silent: true });
 });
 
 // Crop Event Listeners
@@ -1079,6 +1448,7 @@ btnResetCrop.addEventListener('click', resetCrop);
 btnApplyCrop.addEventListener('click', applyCrop);
 toleranceSlider.addEventListener('input', (e) => {
     toleranceValue.textContent = e.target.value;
+    queueDraftSave();
 });
 
 // Canvas crop interaction
@@ -1107,6 +1477,7 @@ btnApplyNumericCrop.addEventListener('click', applyNumericCrop);
 sizeGrid.addEventListener('change', (e) => {
     if (e.target.type === 'checkbox') {
         e.target.closest('.size-option').classList.toggle('selected', e.target.checked);
+        queueDraftSave();
     }
 });
 
@@ -1118,6 +1489,7 @@ formatOptions.addEventListener('change', (e) => {
     }
     const svgChecked = formatOptions.querySelector('input[value="svg"]')?.checked;
     setElementVisible(svgDarkmodeSection, svgChecked, 'block');
+    queueDraftSave();
 });
 
 // Drag and Drop handlers
@@ -1282,6 +1654,7 @@ function activateLoadedImage(file, img, previewSrc, detail = '') {
     cropRegion = null;
     initCropCanvas();
     updateMaskPreview();
+    saveDraftState({ silent: true });
 }
 
 async function loadImage(file) {
@@ -1352,6 +1725,7 @@ function resetInput() {
     setElementVisible(btnApplyCrop, false);
     revokeOutputUrls();
     updateMaskPreview();
+    saveDraftState({ silent: true });
 }
 
 function revokeOutputUrls() {
@@ -1485,6 +1859,7 @@ function applyNumericCrop() {
     updatePreviewWithCrop();
     updateMaskPreview();
     cropStatus.textContent = 'Crop applied!';
+    saveDraftState({ silent: true });
     setTimeout(() => { cropStatus.textContent = ''; }, 2000);
 }
 
@@ -1508,6 +1883,7 @@ function performAutoCrop() {
             // Update preview
             updatePreviewWithCrop();
             updateMaskPreview();
+            saveDraftState({ silent: true });
         } else {
             cropStatus.textContent = 'No empty space detected';
         }
@@ -1678,6 +2054,7 @@ function applyCrop() {
         updateMaskPreview();
         
         cropStatus.textContent = 'Crop applied!';
+        saveDraftState({ silent: true });
         setTimeout(() => { cropStatus.textContent = ''; }, 2000);
     }
 }
@@ -1699,6 +2076,7 @@ function resetCrop() {
     updateCropInfo();
     updateMaskPreview();
     cropStatus.textContent = 'Crop reset';
+    saveDraftState({ silent: true });
     setTimeout(() => { cropStatus.textContent = ''; }, 2000);
 }
 
@@ -1865,6 +2243,7 @@ function addCustomSize() {
         existing.checked = true;
         existing.closest('.size-option').classList.add('selected');
         showStatus(`Size ${w}x${h} already exists and has been selected`, 'info');
+        saveDraftState({ silent: true });
         return;
     }
 
@@ -1884,6 +2263,7 @@ function addCustomSize() {
     customWidth.value = '';
     customHeight.value = '';
     showStatus(`Added custom size ${w}x${h}`, 'success');
+    saveDraftState({ silent: true });
 }
 
 function getSelectedSizes() {
@@ -2583,13 +2963,20 @@ function validateManifestMetadata() {
 }
 
 if (manifestMetadataGrid) {
-    manifestMetadataGrid.addEventListener('input', validateManifestMetadata);
-    manifestMetadataGrid.addEventListener('change', validateManifestMetadata);
+    manifestMetadataGrid.addEventListener('input', () => {
+        validateManifestMetadata();
+        queueDraftSave();
+    });
+    manifestMetadataGrid.addEventListener('change', () => {
+        validateManifestMetadata();
+        queueDraftSave();
+    });
     validateManifestMetadata();
 }
 
 async function handleDeploymentUrlChange() {
     validateDeploymentUrlOptions();
+    queueDraftSave();
     if (generatedFiles.length === 0) return;
     try {
         await generateSnippets(getSelectedSizes(), getSelectedFormats());
@@ -3618,6 +4005,7 @@ function hideUpdateNotice() {
 }
 
 btnReloadUpdate.addEventListener('click', () => {
+    saveDraftState({ silent: true });
     if (pendingServiceWorker) {
         reloadOnControllerChange = true;
         pendingServiceWorker.postMessage({ type: 'SKIP_WAITING' });
@@ -3675,6 +4063,11 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         buildGenerationDiagnostics,
         buildDiagnosticsSupportReport,
         diagnosticsSupportJson,
+        buildDraftSnapshot,
+        readDraftSnapshot,
+        saveDraftState,
+        clearDraftState,
+        applyDraftControls,
         getFeatureDiagnostics,
         getSkippedFormatDiagnostics,
         validateGeneratedExport,
@@ -3688,6 +4081,13 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         setState(next = {}) {
             if (Object.prototype.hasOwnProperty.call(next, 'sourceFileName')) sourceFileName = next.sourceFileName;
             if (Object.prototype.hasOwnProperty.call(next, 'sourceMode')) sourceMode = next.sourceMode;
+            if (Object.prototype.hasOwnProperty.call(next, 'originalImageData')) originalImageData = next.originalImageData;
+            if (Object.prototype.hasOwnProperty.call(next, 'sourceImageSize')) {
+                const size = next.sourceImageSize;
+                sourceImage = size ? { naturalWidth: size.width, naturalHeight: size.height } : null;
+            }
+            if (Object.prototype.hasOwnProperty.call(next, 'cropRegion')) cropRegion = next.cropRegion;
+            if (Object.prototype.hasOwnProperty.call(next, 'draftSourceEnabled')) draftSourceToggle.checked = Boolean(next.draftSourceEnabled);
             if (Object.prototype.hasOwnProperty.call(next, 'generatedFiles')) generatedFiles = next.generatedFiles;
             if (Object.prototype.hasOwnProperty.call(next, 'activePresetKey')) activePresetKey = next.activePresetKey;
             if (Object.prototype.hasOwnProperty.call(next, 'featureSupport')) Object.assign(featureSupport, next.featureSupport);
@@ -3746,6 +4146,9 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
             return {
                 sourceFileName,
                 sourceMode,
+                originalImageData,
+                cropRegion,
+                draftSourceEnabled: Boolean(draftSourceToggle?.checked),
                 generatedFiles,
                 activePresetKey,
                 replacementTargetNames: Array.from(replacementTargetNames),
@@ -3765,10 +4168,14 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
     };
 }
 
+restoreDraftState();
+window.addEventListener?.('beforeunload', () => saveDraftState({ silent: true }));
+
 if ('serviceWorker' in navigator) {
     const hadController = Boolean(navigator.serviceWorker.controller);
     navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (reloadOnControllerChange) {
+            saveDraftState({ silent: true });
             window.location.reload();
             return;
         }

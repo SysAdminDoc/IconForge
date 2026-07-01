@@ -218,6 +218,7 @@ function createDocumentMock() {
 
 function loadApp() {
   const document = createDocumentMock();
+  const localStorageData = new Map();
   const context = {
     console,
     Blob,
@@ -239,6 +240,17 @@ function loadApp() {
     Array,
     parseInt,
     document,
+    localStorage: {
+      getItem(key) {
+        return localStorageData.has(key) ? localStorageData.get(key) : null;
+      },
+      setItem(key, value) {
+        localStorageData.set(key, String(value));
+      },
+      removeItem(key) {
+        localStorageData.delete(key);
+      }
+    },
     crypto: crypto.webcrypto,
     navigator: {
       clipboard: { writeText: async () => {} },
@@ -832,7 +844,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.20');
+  assert.strictEqual(exportManifest.version, 'v0.4.21');
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');
@@ -871,7 +883,7 @@ async function main() {
     error: new Error('PNG encoder failed: no image data')
   });
   assert.strictEqual(diagnosticsReport.schema, 'iconforge-diagnostics-v1');
-  assert.strictEqual(diagnosticsReport.app.version, 'v0.4.20');
+  assert.strictEqual(diagnosticsReport.app.version, 'v0.4.21');
   assert.strictEqual(diagnosticsReport.preset.key, 'pwa');
   assert.deepStrictEqual([...diagnosticsReport.selectedFormats], ['png', 'webp']);
   assert.strictEqual(diagnosticsReport.browserSupport.flags.webpEncode, true);
@@ -887,6 +899,51 @@ async function main() {
   assert(!JSON.stringify(diagnosticsReport).includes('data:image'), 'diagnostics JSON must not include source image bytes');
   api.renderGenerationDiagnostics({ selectedFormats: ['png'], validationResult: diagnosticsValidation });
   assert.strictEqual(api.getState().latestDiagnosticsSupportReport.selectedFormats[0], 'png');
+
+  api.setState({
+    sourceMode: 'upload',
+    sourceFileName: 'Sensitive Client Logo',
+    sourceImageSize: { width: 128, height: 128 },
+    originalImageData: 'data:image/png;base64,RESTOREDRAFT',
+    cropRegion: { x: 4, y: 5, width: 64, height: 63 },
+    draftSourceEnabled: false,
+    activePresetKey: 'web',
+    lossyQualityPercent: 78,
+    sizeBudgetKb: 2,
+    deploymentUrlMode: 'custom',
+    deploymentAssetBase: 'https://cdn.example.test/icons',
+    cacheBust: true,
+    manifestMetadata: {
+      name: 'Draft App',
+      shortName: 'Draft',
+      id: './draft/',
+      description: 'Saved draft manifest.',
+      lang: 'en',
+      dir: 'ltr',
+      monochrome: true
+    }
+  });
+  let draft = JSON.parse(JSON.stringify(api.buildDraftSnapshot()));
+  assert.strictEqual(draft.schema, 'iconforge-draft-v1');
+  assert.strictEqual(draft.restoreSourceImage, false);
+  assert.strictEqual(draft.sourceImage, null, 'source image data should be omitted until restore is enabled');
+  assert.strictEqual(draft.cropRegion.width, 64);
+  assert.strictEqual(draft.processing.lossyQuality, '78');
+  assert.strictEqual(draft.processing.sizeBudgetKb, '2');
+  assert.strictEqual(draft.deploymentUrls.cacheBust, true);
+  assert.strictEqual(draft.manifestMetadata.name, 'Draft App');
+
+  api.setState({ draftSourceEnabled: true });
+  draft = JSON.parse(JSON.stringify(api.saveDraftState({ silent: true })));
+  assert.strictEqual(draft.restoreSourceImage, true);
+  assert.strictEqual(draft.sourceImage.name, 'restored-image', 'upload draft should not preserve the original local filename');
+  assert.strictEqual(draft.sourceImage.dataUrl, 'data:image/png;base64,RESTOREDRAFT');
+  const savedDraft = JSON.parse(JSON.stringify(api.readDraftSnapshot()));
+  assert.strictEqual(savedDraft.sourceImage.width, 128);
+  assert.strictEqual(savedDraft.cropRegion.height, 63);
+  api.clearDraftState();
+  assert.strictEqual(api.readDraftSnapshot(), null);
+  assert.strictEqual(api.getState().draftSourceEnabled, false);
 
   console.log('export regression tests ok');
 }

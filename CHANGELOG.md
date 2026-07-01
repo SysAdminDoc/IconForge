@@ -2,6 +2,13 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.21] - 2026-06-30
+
+### Added
+- Draft recovery saves recent settings locally and can optionally store the source image for reload recovery.
+- Clear Draft action removes the saved local draft while leaving the current workspace open.
+- Regression coverage verifies draft metadata, crop, processing settings, source-image opt-in behavior, and clear/read lifecycle.
+
 ## [v0.4.20] - 2026-06-30
 
 ### Added

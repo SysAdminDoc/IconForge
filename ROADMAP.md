@@ -8,13 +8,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ### P2
 
-- [ ] P2 — Preserve draft state across reloads
-  Why: Installed/offline users can lose selected source mode, processing settings, crop values, and metadata after a service-worker update reload or accidental refresh.
-  Evidence: `sw.js:1-34`; update notice flow in `app.js:3113-3159`; no localStorage/IndexedDB draft persistence in source scan.
-  Touches: `app.js`; `index.html`; `tests/export-regression.test.js`
-  Acceptance: Recent non-sensitive settings and optional local source image draft restore after reload with a visible reset action; privacy copy explains data stays local; service-worker reload preserves the draft when enabled.
-  Complexity: M
-
 - [ ] P2 — Add installed-PWA file handling for image files
   Why: IconForge is an installable local image utility, and file handling lets installed PWAs open image files directly into the app.
   Evidence: `manifest.webmanifest`; `app.js:997-1070`; Chrome File Handling API documentation.
