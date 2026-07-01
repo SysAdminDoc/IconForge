@@ -46,4 +46,34 @@ for (const match of controls) {
 }
 
 assert.deepStrictEqual(unlabeled, []);
+
+const snippetTabs = Array.from(documentHtml.matchAll(/<button\b[^>]*\bdata-handoff-tab=["'][^"']+["'][^>]*>/gi), (match) => match[0]);
+assert.strictEqual(snippetTabs.length, 8, 'handoff snippet tab count should match the supported snippets');
+
+const snippetTabIds = new Set();
+let selectedSnippetTabs = 0;
+for (const tabTag of snippetTabs) {
+  const tabAttrs = attrs(tabTag);
+  assert.strictEqual(tabAttrs.role, 'tab', `${tabAttrs['data-handoff-tab']} should expose role=tab`);
+  assert(tabAttrs.id, `${tabAttrs['data-handoff-tab']} tab should have a stable id`);
+  assert.strictEqual(tabAttrs['aria-controls'], 'handoffSnippet', `${tabAttrs.id} should control the handoff snippet panel`);
+  assert(['true', 'false'].includes(tabAttrs['aria-selected']), `${tabAttrs.id} should declare aria-selected`);
+  if (tabAttrs['aria-selected'] === 'true') {
+    selectedSnippetTabs += 1;
+    assert.strictEqual(tabAttrs.tabindex, '0', `${tabAttrs.id} should be tabbable when selected`);
+  } else {
+    assert.strictEqual(tabAttrs.tabindex, '-1', `${tabAttrs.id} should use roving tabindex when inactive`);
+  }
+  snippetTabIds.add(tabAttrs.id);
+}
+assert.strictEqual(selectedSnippetTabs, 1, 'exactly one handoff snippet tab should be selected by default');
+
+const handoffPanelTag = documentHtml.match(/<pre\b[^>]*\bid=["']handoffSnippet["'][^>]*>/i);
+assert(handoffPanelTag, 'handoff snippet panel should exist');
+const handoffPanelAttrs = attrs(handoffPanelTag[0]);
+assert.strictEqual(handoffPanelAttrs.role, 'tabpanel');
+assert.strictEqual(handoffPanelAttrs.tabindex, '0');
+assert(snippetTabIds.has(handoffPanelAttrs['aria-labelledby']), 'handoff snippet panel should be labelled by a tab id');
+
 console.log('visible form controls have labels');
+console.log('handoff snippet tabs expose tabpanel relationships');

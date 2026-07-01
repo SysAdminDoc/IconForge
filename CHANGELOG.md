@@ -2,6 +2,12 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.19] - 2026-06-30
+
+### Fixed
+- Handoff snippet tabs now expose stable tab/panel relationships, roving tabindex, and Arrow/Home/End navigation.
+- Accessibility coverage now checks snippet tab IDs, `aria-controls`, selected state, and panel labelling.
+
 ## [v0.4.18] - 2026-06-30
 
 ### Added

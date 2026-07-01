@@ -613,14 +613,14 @@
                         </div>
 
                         <div class="snippet-tabs" id="handoffTabs" role="tablist" aria-label="Framework handoff snippets">
-                            <button class="snippet-tab active" type="button" role="tab" aria-selected="true" data-handoff-tab="plain">Plain HTML</button>
-                            <button class="snippet-tab" type="button" role="tab" aria-selected="false" data-handoff-tab="vite">Vite</button>
-                            <button class="snippet-tab" type="button" role="tab" aria-selected="false" data-handoff-tab="next">Next.js</button>
-                            <button class="snippet-tab" type="button" role="tab" aria-selected="false" data-handoff-tab="astro">Astro</button>
-                            <button class="snippet-tab" type="button" role="tab" aria-selected="false" data-handoff-tab="chrome">Chrome MV3</button>
-                            <button class="snippet-tab" type="button" role="tab" aria-selected="false" data-handoff-tab="firefox">Firefox MV3</button>
-                            <button class="snippet-tab" type="button" role="tab" aria-selected="false" data-handoff-tab="android">Android</button>
-                            <button class="snippet-tab" type="button" role="tab" aria-selected="false" data-handoff-tab="ios">iOS</button>
+                            <button class="snippet-tab active" id="handoffTabPlain" type="button" role="tab" aria-selected="true" aria-controls="handoffSnippet" tabindex="0" data-handoff-tab="plain">Plain HTML</button>
+                            <button class="snippet-tab" id="handoffTabVite" type="button" role="tab" aria-selected="false" aria-controls="handoffSnippet" tabindex="-1" data-handoff-tab="vite">Vite</button>
+                            <button class="snippet-tab" id="handoffTabNext" type="button" role="tab" aria-selected="false" aria-controls="handoffSnippet" tabindex="-1" data-handoff-tab="next">Next.js</button>
+                            <button class="snippet-tab" id="handoffTabAstro" type="button" role="tab" aria-selected="false" aria-controls="handoffSnippet" tabindex="-1" data-handoff-tab="astro">Astro</button>
+                            <button class="snippet-tab" id="handoffTabChrome" type="button" role="tab" aria-selected="false" aria-controls="handoffSnippet" tabindex="-1" data-handoff-tab="chrome">Chrome MV3</button>
+                            <button class="snippet-tab" id="handoffTabFirefox" type="button" role="tab" aria-selected="false" aria-controls="handoffSnippet" tabindex="-1" data-handoff-tab="firefox">Firefox MV3</button>
+                            <button class="snippet-tab" id="handoffTabAndroid" type="button" role="tab" aria-selected="false" aria-controls="handoffSnippet" tabindex="-1" data-handoff-tab="android">Android</button>
+                            <button class="snippet-tab" id="handoffTabIos" type="button" role="tab" aria-selected="false" aria-controls="handoffSnippet" tabindex="-1" data-handoff-tab="ios">iOS</button>
                         </div>
 
                         <div class="snippet-block" id="handoffSnippetBlock">
@@ -631,7 +631,7 @@
                                     Copy
                                 </button>
                             </div>
-                            <pre class="snippet-code" id="handoffSnippet" role="tabpanel"></pre>
+                            <pre class="snippet-code" id="handoffSnippet" role="tabpanel" aria-labelledby="handoffTabPlain" tabindex="0"></pre>
                         </div>
 
                         <div class="snippet-block">

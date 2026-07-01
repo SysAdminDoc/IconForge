@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.18';
+const APP_VERSION = 'v0.4.19';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 
 function limitImageSize(width, height) {
@@ -138,14 +138,14 @@ const PRESET_LABELS = {
     all: 'All Sizes'
 };
 const HANDOFF_SNIPPET_TABS = [
-    { key: 'plain', label: 'Plain HTML' },
-    { key: 'vite', label: 'Vite' },
-    { key: 'next', label: 'Next.js app router' },
-    { key: 'astro', label: 'Astro' },
-    { key: 'chrome', label: 'Chrome MV3' },
-    { key: 'firefox', label: 'Firefox MV3' },
-    { key: 'android', label: 'Android' },
-    { key: 'ios', label: 'iOS' }
+    { key: 'plain', label: 'Plain HTML', tabId: 'handoffTabPlain' },
+    { key: 'vite', label: 'Vite', tabId: 'handoffTabVite' },
+    { key: 'next', label: 'Next.js app router', tabId: 'handoffTabNext' },
+    { key: 'astro', label: 'Astro', tabId: 'handoffTabAstro' },
+    { key: 'chrome', label: 'Chrome MV3', tabId: 'handoffTabChrome' },
+    { key: 'firefox', label: 'Firefox MV3', tabId: 'handoffTabFirefox' },
+    { key: 'android', label: 'Android', tabId: 'handoffTabAndroid' },
+    { key: 'ios', label: 'iOS', tabId: 'handoffTabIos' }
 ];
 const featureSupport = {
     workerApi: typeof Worker !== 'undefined',
@@ -869,11 +869,40 @@ if ('showDirectoryPicker' in window) {
     btnSaveToFolder.addEventListener('click', saveToFolder);
 }
 
+function getHandoffTabMeta(key) {
+    return HANDOFF_SNIPPET_TABS.find(tab => tab.key === key) || null;
+}
+
+function activateHandoffSnippetTab(key, focusTab = false) {
+    if (!getHandoffTabMeta(key)) return;
+    activeHandoffSnippetKey = key;
+    renderHandoffSnippetTabs();
+    if (focusTab) {
+        handoffTabs?.querySelector(`[data-handoff-tab="${key}"]`)?.focus();
+    }
+}
+
 handoffTabs?.addEventListener('click', (e) => {
     const tab = e.target.closest('[data-handoff-tab]');
     if (!tab) return;
-    activeHandoffSnippetKey = tab.dataset.handoffTab;
-    renderHandoffSnippetTabs();
+    activateHandoffSnippetTab(tab.dataset.handoffTab);
+});
+
+handoffTabs?.addEventListener('keydown', (e) => {
+    const currentTab = e.target.closest('[data-handoff-tab]');
+    if (!currentTab) return;
+    const currentIndex = HANDOFF_SNIPPET_TABS.findIndex(tab => tab.key === currentTab.dataset.handoffTab);
+    if (currentIndex === -1) return;
+
+    let nextIndex = null;
+    if (e.key === 'ArrowRight') nextIndex = (currentIndex + 1) % HANDOFF_SNIPPET_TABS.length;
+    if (e.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + HANDOFF_SNIPPET_TABS.length) % HANDOFF_SNIPPET_TABS.length;
+    if (e.key === 'Home') nextIndex = 0;
+    if (e.key === 'End') nextIndex = HANDOFF_SNIPPET_TABS.length - 1;
+    if (nextIndex === null) return;
+
+    e.preventDefault();
+    activateHandoffSnippetTab(HANDOFF_SNIPPET_TABS[nextIndex].key, true);
 });
 
 // Preset buttons
@@ -2755,15 +2784,21 @@ function renderHandoffSnippetTabs() {
     const snippets = generatedSnippets.handoff || {};
     if (!handoffTabs || !handoffSnippet || !handoffSnippetTitle) return;
     if (!snippets[activeHandoffSnippetKey]) activeHandoffSnippetKey = 'plain';
-    const tabMeta = HANDOFF_SNIPPET_TABS.find(tab => tab.key === activeHandoffSnippetKey) || HANDOFF_SNIPPET_TABS[0];
+    const tabMeta = getHandoffTabMeta(activeHandoffSnippetKey) || HANDOFF_SNIPPET_TABS[0];
 
     handoffTabs.querySelectorAll('[data-handoff-tab]').forEach(tab => {
         const active = tab.dataset.handoffTab === tabMeta.key;
+        const meta = getHandoffTabMeta(tab.dataset.handoffTab);
+        if (meta) tab.id = meta.tabId;
+        tab.setAttribute('aria-controls', handoffSnippet.id);
         tab.classList.toggle('active', active);
         tab.setAttribute('aria-selected', active ? 'true' : 'false');
+        tab.setAttribute('tabindex', active ? '0' : '-1');
     });
 
     handoffSnippetTitle.textContent = tabMeta.label;
+    handoffSnippet.setAttribute('aria-labelledby', tabMeta.tabId);
+    handoffSnippet.setAttribute('tabindex', '0');
     handoffSnippet.textContent = snippets[tabMeta.key] || '';
 }
 

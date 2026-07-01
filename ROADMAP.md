@@ -8,13 +8,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ### P2
 
-- [ ] P2 — Complete ARIA tab semantics for snippet handoffs
-  Why: Snippet tabs expose tab roles but lack full tabpanel relationships and standard tablist navigation semantics.
-  Evidence: `index.html:568-587`; WAI-ARIA Authoring Practices tabs pattern; `tests/a11y-labels.test.js`.
-  Touches: `index.html`; `app.js`; `tests/a11y-labels.test.js`
-  Acceptance: Each snippet tab has stable `id`, `aria-controls`, and linked tabpanel metadata; arrow/Home/End navigation follows the ARIA tabs pattern without adding app-wide shortcuts; accessibility tests cover the relationships.
-  Complexity: S
-
 - [ ] P2 — Add copy/download diagnostics support JSON
   Why: Diagnostics are visible but not shareable, making bug reports harder without telemetry.
   Evidence: `app.js:349-419`; `app.js:2621-2642`; rendered diagnostics panel.
