@@ -439,6 +439,12 @@ function makeAndroidDensityFiles() {
 
 async function main() {
   const api = loadApp();
+  const appManifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.webmanifest'), 'utf8'));
+  assert.strictEqual(appManifest.scope, './');
+  assert.strictEqual(appManifest.launch_handler.client_mode, 'focus-existing');
+  assert(appManifest.file_handlers.some((handler) => handler.action === './index.html' && handler.accept['image/png'].includes('.png')));
+  assert(appManifest.file_handlers.some((handler) => handler.accept['image/svg+xml'].includes('.svg')));
+  assert(appManifest.file_handlers.some((handler) => handler.accept['image/x-icon'].includes('.ico')));
 
   const zipBlob = api.buildZip([
     { name: 'pwa/icons/icon-192x192.png', data: new Uint8Array([1, 2, 3]) },
@@ -693,6 +699,7 @@ async function main() {
       workerApi: true,
       offscreenCanvas: true,
       fileSystemAccess: false,
+      fileHandling: false,
       blobWorker: false,
       webpEncode: false,
       webpChecked: true,
@@ -721,6 +728,9 @@ async function main() {
   assert.strictEqual(metric('Total bytes'), `${pwaBundleFiles.length * 4} B`);
   assert.strictEqual(metric('Validation status'), 'Export validation passed');
   assert(diagnostics.features.some((feature) => feature.label === 'File System Access' && feature.status === 'warn'));
+  assert(diagnostics.features.some((feature) => feature.label === 'PWA file handling' && feature.status === 'warn'));
+  api.setState({ featureSupport: { fileHandling: true } });
+  assert(api.getFeatureDiagnostics().some((feature) => feature.label === 'PWA file handling' && feature.status === 'pass'));
 
   api.setState({ lossyQualityPercent: 65, sizeBudgetKb: 0.1 });
   assert.strictEqual(api.getState().lossyQualityPercent, 65);
@@ -844,7 +854,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.21');
+  assert.strictEqual(exportManifest.version, 'v0.4.22');
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');
@@ -868,6 +878,7 @@ async function main() {
       avifChecked: true,
       workerApi: true,
       offscreenCanvas: false,
+      fileHandling: true,
       blobWorker: true
     },
     generationStats: {
@@ -883,10 +894,11 @@ async function main() {
     error: new Error('PNG encoder failed: no image data')
   });
   assert.strictEqual(diagnosticsReport.schema, 'iconforge-diagnostics-v1');
-  assert.strictEqual(diagnosticsReport.app.version, 'v0.4.21');
+  assert.strictEqual(diagnosticsReport.app.version, 'v0.4.22');
   assert.strictEqual(diagnosticsReport.preset.key, 'pwa');
   assert.deepStrictEqual([...diagnosticsReport.selectedFormats], ['png', 'webp']);
   assert.strictEqual(diagnosticsReport.browserSupport.flags.webpEncode, true);
+  assert.strictEqual(diagnosticsReport.browserSupport.flags.fileHandling, true);
   assert(diagnosticsReport.browserSupport.checks.some((check) => check.label === 'AVIF encoder' && check.status === 'warn'));
   assert(diagnosticsReport.generation.workerFallbackState.includes('canvas fallback for 1'));
   assert.strictEqual(diagnosticsReport.generation.workerJobs, 2);

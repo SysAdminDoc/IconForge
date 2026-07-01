@@ -6,15 +6,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ## Research-Driven Additions
 
-### P2
-
-- [ ] P2 — Add installed-PWA file handling for image files
-  Why: IconForge is an installable local image utility, and file handling lets installed PWAs open image files directly into the app.
-  Evidence: `manifest.webmanifest`; `app.js:997-1070`; Chrome File Handling API documentation.
-  Touches: `manifest.webmanifest`; `app.js`; `sw.js`; `README.md`
-  Acceptance: Installed Chrome/Edge PWA declares image file handlers, launch handling imports the selected file through the existing `loadImage()` path, unsupported browsers keep the current upload/drop workflow, and diagnostics reports file-handling support.
-  Complexity: L
-
 ### P3
 
 - [ ] P3 — Introduce a UI string catalog before localization

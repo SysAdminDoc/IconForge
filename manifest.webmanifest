@@ -1,11 +1,30 @@
 {
   "name": "Icon Forge",
   "short_name": "IconForge",
-  "description": "Resize images to multiple sizes and formats — entirely in your browser",
+  "description": "Resize images to multiple sizes and formats - entirely in your browser",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#09090b",
   "theme_color": "#09090b",
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "file_handlers": [
+    {
+      "action": "./index.html",
+      "accept": {
+        "image/png": [".png"],
+        "image/jpeg": [".jpg", ".jpeg"],
+        "image/webp": [".webp"],
+        "image/svg+xml": [".svg"],
+        "image/gif": [".gif"],
+        "image/bmp": [".bmp"],
+        "image/tiff": [".tif", ".tiff"],
+        "image/x-icon": [".ico"]
+      }
+    }
+  ],
   "icons": [
     {
       "src": "icon.png",

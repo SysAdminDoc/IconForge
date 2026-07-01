@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.21';
+const APP_VERSION = 'v0.4.22';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 const DRAFT_STORAGE_KEY = 'iconforge-draft-v1';
 
@@ -152,6 +152,7 @@ const featureSupport = {
     workerApi: typeof Worker !== 'undefined',
     offscreenCanvas: typeof OffscreenCanvas !== 'undefined',
     fileSystemAccess: typeof window !== 'undefined' && 'showDirectoryPicker' in window,
+    fileHandling: typeof window !== 'undefined' && 'launchQueue' in window && typeof LaunchParams !== 'undefined' && 'files' in LaunchParams.prototype,
     blobWorker: false,
     webpEncode: false,
     webpChecked: false,
@@ -662,6 +663,12 @@ function getFeatureDiagnostics() {
             'ZIP download remains available; direct folder save is hidden.'
         ),
         supportCheck(
+            'PWA file handling',
+            featureSupport.fileHandling,
+            'Installed app launches can receive image files.',
+            'Open-with-file support is unavailable; upload, paste, and drag/drop still work.'
+        ),
+        supportCheck(
             'OffscreenCanvas',
             featureSupport.offscreenCanvas,
             'Worker resizing can use OffscreenCanvas.',
@@ -752,6 +759,7 @@ function getFeatureSupportSnapshot() {
         avifEncode: featureSupport.avifEncode,
         avifChecked: featureSupport.avifChecked,
         fileSystemAccess: featureSupport.fileSystemAccess,
+        fileHandling: featureSupport.fileHandling,
         offscreenCanvas: featureSupport.offscreenCanvas,
         workerApi: featureSupport.workerApi,
         blobWorker: featureSupport.blobWorker
@@ -1684,7 +1692,7 @@ async function loadImage(file) {
         const safeSize = limitImageSize(img.naturalWidth, img.naturalHeight);
         if (!safeSize.scaled) {
             activateLoadedImage(file, img, dataUrl);
-            return;
+            return true;
         }
 
         const tmpCanvas = document.createElement('canvas');
@@ -1697,14 +1705,43 @@ async function loadImage(file) {
             const scaledImg = await loadImageElement(scaledDataUrl);
             activateLoadedImage(file, scaledImg, scaledDataUrl, `downscaled from ${img.naturalWidth}x${img.naturalHeight}`);
             showStatus(`Image was downscaled from ${img.naturalWidth}x${img.naturalHeight} to ${safeSize.width}x${safeSize.height} (browser canvas limit)`, 'warning');
+            return true;
         } finally {
             tmpCanvas.width = 0;
             tmpCanvas.height = 0;
         }
     } catch (error) {
         reportImageInputError(error);
+        return false;
     }
 }
+
+async function handleLaunchFiles(fileHandles = []) {
+    const handles = Array.from(fileHandles || []).filter(handle => typeof handle?.getFile === 'function');
+    if (!handles.length) return false;
+    const handle = handles[0];
+    try {
+        const file = await handle.getFile();
+        const loaded = await loadImage(file);
+        if (!loaded) return false;
+        showStatus(handles.length > 1
+            ? `Opened ${file.name}; ${handles.length - 1} additional file${handles.length === 2 ? '' : 's'} ignored.`
+            : `Opened ${file.name} from the operating system.`,
+            handles.length > 1 ? 'warning' : 'success');
+        return true;
+    } catch (error) {
+        showStatus(`Could not open launched file: ${error.message}`, 'error');
+        return false;
+    }
+}
+
+function initFileHandlingLaunch() {
+    if (!featureSupport.fileHandling || typeof window.launchQueue?.setConsumer !== 'function') return;
+    window.launchQueue.setConsumer((launchParams) => {
+        handleLaunchFiles(launchParams.files);
+    });
+}
+initFileHandlingLaunch();
 
 function resetInput() {
     sourceImage = null;
@@ -4068,6 +4105,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         saveDraftState,
         clearDraftState,
         applyDraftControls,
+        handleLaunchFiles,
         getFeatureDiagnostics,
         getSkippedFormatDiagnostics,
         validateGeneratedExport,

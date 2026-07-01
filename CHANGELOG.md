@@ -2,6 +2,13 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.22] - 2026-06-30
+
+### Added
+- Installed PWA manifest now declares image file handlers for PNG, JPG, WebP, SVG, GIF, BMP, TIFF, and ICO files.
+- Runtime launch handling imports files received through the File Handling API using the existing image-loading path.
+- Diagnostics now report PWA file-handling support.
+
 ## [v0.4.21] - 2026-06-30
 
 ### Added
