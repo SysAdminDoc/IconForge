@@ -2,6 +2,13 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.16] - 2026-06-30
+
+### Added
+- PWA splash generation now covers 19 current unique Apple portrait dimensions, including iPhone 16/iPhone 15 families, iPad Air 13/11, iPad 11, and iPad mini 8.3.
+- Generated startup-image snippets now include every generated portrait and landscape splash asset.
+- PWA validation now reports the full generated splash dimension matrix.
+
 ## [v0.4.15] - 2026-06-30
 
 ### Added

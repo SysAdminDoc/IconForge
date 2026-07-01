@@ -8,13 +8,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ### P1
 
-- [ ] P1 — Refresh PWA and Apple splash device data
-  Why: Fixed splash specs cover only six older devices, and competitor issue trackers show Apple-device asset matrices require recurring updates.
-  Evidence: `app.js:1902-1908`; pwa-asset-generator#1274; itgalaxy/favicons#450.
-  Touches: `app.js`; `tests/export-regression.test.js`; `README.md`
-  Acceptance: Splash specs are data-driven, current through the latest public iPhone/iPad sizes used by comparable generators, validation names every generated splash dimension, and tests fail when expected splash files drift.
-  Complexity: M
-
 - [ ] P1 — Add manifest `id` and monochrome icon purpose support
   Why: The manifest UI covers many fields, but not `id` or optional monochrome icon purpose; competitor issues show demand for both.
   Evidence: `app.js:2092-2190`; W3C Web App Manifest; itgalaxy/favicons#452; itgalaxy/favicons#456.

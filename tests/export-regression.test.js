@@ -339,12 +339,25 @@ function makeBlob(size = 4, type = 'image/png') {
 function makePwaBundleFiles() {
   const iconSizes = [72, 96, 128, 144, 152, 192, 384, 512];
   const splashSpecs = [
-    { width: 640, height: 1136, name: 'iphone-se' },
-    { width: 750, height: 1334, name: 'iphone-8' },
+    { width: 2048, height: 2732, name: 'ipad-pro-12-9' },
+    { width: 1668, height: 2388, name: 'ipad-pro-11' },
+    { width: 1536, height: 2048, name: 'ipad-9-7' },
+    { width: 1640, height: 2360, name: 'ipad-air-11' },
+    { width: 1668, height: 2224, name: 'ipad-air-10-5' },
+    { width: 1620, height: 2160, name: 'ipad-10-2' },
+    { width: 1488, height: 2266, name: 'ipad-mini-8-3' },
+    { width: 1320, height: 2868, name: 'iphone-16-pro-max' },
+    { width: 1206, height: 2622, name: 'iphone-16-pro' },
+    { width: 1290, height: 2796, name: 'iphone-16-plus' },
+    { width: 1179, height: 2556, name: 'iphone-16' },
+    { width: 1170, height: 2532, name: 'iphone-16e' },
+    { width: 1284, height: 2778, name: 'iphone-14-plus' },
+    { width: 1125, height: 2436, name: 'iphone-13-mini' },
+    { width: 1242, height: 2688, name: 'iphone-11-pro-max' },
     { width: 828, height: 1792, name: 'iphone-11' },
-    { width: 1179, height: 2556, name: 'iphone-14-pro' },
-    { width: 1536, height: 2048, name: 'ipad' },
-    { width: 2048, height: 2732, name: 'ipad-pro' }
+    { width: 1242, height: 2208, name: 'iphone-8-plus' },
+    { width: 750, height: 1334, name: 'iphone-8' },
+    { width: 640, height: 1136, name: 'iphone-se-4' }
   ];
   return [
     ...iconSizes.flatMap((px) => [
@@ -635,9 +648,14 @@ async function main() {
     backgroundColor: '#123456'
   });
   await api.generateSnippets([], []);
+  const pwaSnippets = api.getState().generatedSnippets;
+  assert(pwaSnippets.html.includes('/pwa/splash/apple-splash-iphone-16-pro-max-1320x2868.png'), 'PWA snippets should include latest iPhone splash dimensions');
+  assert.strictEqual((pwaSnippets.html.match(/apple-touch-startup-image/g) || []).length, 38, 'PWA snippets should include every generated splash orientation');
   const pwaValidation = api.validateGeneratedExport();
   assert.strictEqual(pwaValidation.status, 'pass');
   assert(pwaValidation.checks.some((check) => check.label === 'PWA icon files' && check.status === 'pass'));
+  const splashCheck = pwaValidation.checks.find((check) => check.label === 'PWA splash files');
+  assert(splashCheck && splashCheck.detail.includes('1320x2868') && splashCheck.detail.includes('2868x1320'), 'PWA validation should name generated splash dimensions');
   assert(pwaValidation.checks.some((check) => check.label === 'Manifest icon metadata' && check.status === 'pass'));
   api.setState({
     featureSupport: {
@@ -774,7 +792,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.15');
+  assert.strictEqual(exportManifest.version, 'v0.4.16');
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');

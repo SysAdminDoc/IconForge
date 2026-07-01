@@ -44,12 +44,12 @@ EXPECTED = {
         "files": {
             "pwa/icons/icon-192x192.png",
             "pwa/icons/icon-maskable-192x192.png",
-            "pwa/splash/apple-splash-iphone-14-pro-1179x2556.png",
+            "pwa/splash/apple-splash-iphone-16-pro-max-1320x2868.png",
         },
         "png": {
             "pwa/icons/icon-192x192.png": (192, 192),
             "pwa/icons/icon-maskable-192x192.png": (192, 192),
-            "pwa/splash/apple-splash-iphone-14-pro-1179x2556.png": (1179, 2556),
+            "pwa/splash/apple-splash-iphone-16-pro-max-1320x2868.png": (1320, 2868),
         },
         "zip": {"pwa/manifest.webmanifest", "iconforge-export.json"},
         "ico": {},

@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.15';
+const APP_VERSION = 'v0.4.16';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 
 function limitImageSize(width, height) {
@@ -2011,12 +2011,25 @@ async function generatePlatformBundle(img, crop, sizes, formats) {
 
 const PWA_ICON_SIZES = [72, 96, 128, 144, 152, 192, 384, 512];
 const PWA_SPLASH_SPECS = [
-    { width: 640, height: 1136, name: 'iphone-se' },
-    { width: 750, height: 1334, name: 'iphone-8' },
+    { width: 2048, height: 2732, name: 'ipad-pro-12-9' },
+    { width: 1668, height: 2388, name: 'ipad-pro-11' },
+    { width: 1536, height: 2048, name: 'ipad-9-7' },
+    { width: 1640, height: 2360, name: 'ipad-air-11' },
+    { width: 1668, height: 2224, name: 'ipad-air-10-5' },
+    { width: 1620, height: 2160, name: 'ipad-10-2' },
+    { width: 1488, height: 2266, name: 'ipad-mini-8-3' },
+    { width: 1320, height: 2868, name: 'iphone-16-pro-max' },
+    { width: 1206, height: 2622, name: 'iphone-16-pro' },
+    { width: 1290, height: 2796, name: 'iphone-16-plus' },
+    { width: 1179, height: 2556, name: 'iphone-16' },
+    { width: 1170, height: 2532, name: 'iphone-16e' },
+    { width: 1284, height: 2778, name: 'iphone-14-plus' },
+    { width: 1125, height: 2436, name: 'iphone-13-mini' },
+    { width: 1242, height: 2688, name: 'iphone-11-pro-max' },
     { width: 828, height: 1792, name: 'iphone-11' },
-    { width: 1179, height: 2556, name: 'iphone-14-pro' },
-    { width: 1536, height: 2048, name: 'ipad' },
-    { width: 2048, height: 2732, name: 'ipad-pro' }
+    { width: 1242, height: 2208, name: 'iphone-8-plus' },
+    { width: 750, height: 1334, name: 'iphone-8' },
+    { width: 640, height: 1136, name: 'iphone-se-4' }
 ];
 
 const WINDOWS_TILE_SPECS = [
@@ -2701,7 +2714,7 @@ async function generateSnippets(sizes, formats) {
     if (svgFile) lines.push(`<link rel="icon" href="${hrefFor(svgFile.name)}" type="image/svg+xml">`);
     if (appleFile) lines.push(`<link rel="apple-touch-icon" href="${hrefFor(appleFile.name)}">`);
     if (manifest) lines.push(`<link rel="manifest" href="${webManifestHref(manifest)}">`);
-    for (const splash of splashFiles.slice(0, 6)) {
+    for (const splash of splashFiles) {
         lines.push(`<link rel="apple-touch-startup-image" href="${hrefFor(splash.name)}" media="(device-width: ${splash.size.width}px) and (device-height: ${splash.size.height}px)">`);
     }
     if (activePresetKey === 'windows') {
@@ -2910,7 +2923,10 @@ function checkFileSet(checks, label, specs) {
         if (wrong.length) details.push(`Wrong dimensions: ${fileSpecSummary(wrong)}`);
         addValidationCheck(checks, 'fail', label, details.join(' | '));
     } else {
-        addValidationCheck(checks, 'pass', label, `${specs.length} expected file${specs.length === 1 ? '' : 's'} present with expected dimensions.`);
+        const dimensions = label === 'PWA splash files'
+            ? ` Dimensions: ${specs.map(spec => `${spec.width}x${spec.height}`).join(', ')}.`
+            : '';
+        addValidationCheck(checks, 'pass', label, `${specs.length} expected file${specs.length === 1 ? '' : 's'} present with expected dimensions.${dimensions}`);
     }
 }
 
