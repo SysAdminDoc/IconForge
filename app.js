@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.17';
+const APP_VERSION = 'v0.4.18';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 
 function limitImageSize(width, height) {
@@ -194,6 +194,9 @@ const handoffSnippetTitle = document.getElementById('handoffSnippetTitle');
 const handoffSnippet = document.getElementById('handoffSnippet');
 const safePaddingSlider = document.getElementById('safePaddingSlider');
 const safePaddingValue = document.getElementById('safePaddingValue');
+const lossyQualitySlider = document.getElementById('lossyQualitySlider');
+const lossyQualityValue = document.getElementById('lossyQualityValue');
+const sizeBudgetInput = document.getElementById('sizeBudgetInput');
 const resampleSelect = document.getElementById('resampleSelect');
 const backgroundMode = document.getElementById('backgroundMode');
 const backgroundColor = document.getElementById('backgroundColor');
@@ -374,6 +377,8 @@ function buildGenerationDiagnostics({ selectedFormats = getSelectedFormats(), va
             { label: 'Selected formats', value: selectedFormatText },
             { label: 'Skipped / hidden formats', value: skippedFormats.length ? skippedFormats.join('; ') : 'None' },
             { label: 'Worker fallback state', value: getWorkerDiagnostics() },
+            { label: 'Lossy quality', value: `${getLossyQualityPercent()}% for JPG/WebP/AVIF` },
+            { label: 'Size budget', value: getSizeBudgetStatus(totalBytes) },
             { label: 'Generated file count', value: String(generatedFiles.length) },
             { label: 'Total bytes', value: totalBytes ? formatFileSize(totalBytes) : '0 B' },
             { label: 'Validation status', value: validationStatus }
@@ -470,6 +475,34 @@ function baseName(path) {
 
 function normalizeTemplateName(path) {
     return path.replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase();
+}
+
+function clampNumber(value, min, max, fallback) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.min(max, Math.max(min, parsed));
+}
+
+function getLossyQualityPercent() {
+    return Math.round(clampNumber(lossyQualitySlider?.value, 40, 100, 92));
+}
+
+function getLossyQuality() {
+    return getLossyQualityPercent() / 100;
+}
+
+function getSizeBudgetBytes() {
+    const kb = clampNumber(sizeBudgetInput?.value, 0, 102400, 0);
+    return kb > 0 ? Math.round(kb * 1024) : null;
+}
+
+function getSizeBudgetStatus(totalBytes) {
+    const budgetBytes = getSizeBudgetBytes();
+    if (!budgetBytes) return 'Not set';
+    const delta = Math.abs(totalBytes - budgetBytes);
+    return totalBytes > budgetBytes
+        ? `${formatFileSize(totalBytes)} total, ${formatFileSize(delta)} over ${formatFileSize(budgetBytes)} budget`
+        : `${formatFileSize(totalBytes)} total, ${formatFileSize(delta)} under ${formatFileSize(budgetBytes)} budget`;
 }
 
 function getProcessingOptions(overrides = {}) {
@@ -812,16 +845,22 @@ btnChange.addEventListener('click', resetInput);
 btnAddSize.addEventListener('click', addCustomSize);
 btnGenerate.addEventListener('click', generateIcons);
 btnDownloadAll.addEventListener('click', downloadAll);
-[safePaddingSlider, resampleSelect, backgroundMode, backgroundColor, backgroundColor2, effectSelect, dropShadowToggle, maskShapeSelect].forEach(el => {
+function updateProcessingControlLabels() {
+    safePaddingValue.textContent = `${safePaddingSlider.value}%`;
+    lossyQualityValue.textContent = `${getLossyQualityPercent()}%`;
+}
+
+[safePaddingSlider, lossyQualitySlider, sizeBudgetInput, resampleSelect, backgroundMode, backgroundColor, backgroundColor2, effectSelect, dropShadowToggle, maskShapeSelect].forEach(el => {
     el.addEventListener('input', () => {
-        safePaddingValue.textContent = `${safePaddingSlider.value}%`;
+        updateProcessingControlLabels();
         updateMaskPreview();
     });
     el.addEventListener('change', () => {
-        safePaddingValue.textContent = `${safePaddingSlider.value}%`;
+        updateProcessingControlLabels();
         updateMaskPreview();
     });
 });
+updateProcessingControlLabels();
 replaceInput.addEventListener('change', handleReplacementTemplate);
 
 const btnSaveToFolder = document.getElementById('btnSaveToFolder');
@@ -1614,7 +1653,7 @@ initWorker();
     }, 'image/webp');
 })();
 
-function resizeInWorker(bitmap, width, height, format, crop) {
+function resizeInWorker(bitmap, width, height, format, crop, quality) {
     return new Promise((resolve, reject) => {
         const id = ++workerJobId;
         const timer = setTimeout(() => {
@@ -1626,7 +1665,7 @@ function resizeInWorker(bitmap, width, height, format, crop) {
             if (errorMsg) reject(new Error(errorMsg));
             else resolve(blobOrNull);
         });
-        resizeWorker.postMessage({ id, bitmap, width, height, format, crop }, [bitmap]);
+        resizeWorker.postMessage({ id, bitmap, width, height, format, crop, quality }, [bitmap]);
     });
 }
 
@@ -1802,7 +1841,9 @@ async function generateIcons() {
         await generatePlatformBundle(imgSource, crop, sizes, formats);
         setElementVisible(outputSection, true, 'block');
         const totalSize = generatedFiles.reduce((s, f) => s + f.blob.size, 0);
-        showStatus(`Generated ${generatedFiles.length} files (${formatFileSize(totalSize)} total)`, 'success');
+        const budgetBytes = getSizeBudgetBytes();
+        const budgetImpact = budgetBytes ? `; ${getSizeBudgetStatus(totalSize)}` : '';
+        showStatus(`Generated ${generatedFiles.length} files (${formatFileSize(totalSize)} total${budgetImpact})`, 'success');
         await generateSnippets(sizes, formats);
         const validationResult = renderExportValidation();
         renderGenerationDiagnostics({ selectedFormats: formats, validationResult });
@@ -1855,8 +1896,9 @@ async function generateImage(img, size, format, crop = null, bitmap = null) {
     if (resizeWorker && featureSupport.offscreenCanvas && !customProcessing) {
         try {
             const bmp = bitmap || await createImageBitmap(img);
+            const quality = format === 'png' ? undefined : getLossyQuality();
             const blob = assertValidOutputBlob(
-                await resizeInWorker(bmp, size.width, size.height, format, crop),
+                await resizeInWorker(bmp, size.width, size.height, format, crop, quality),
                 `${formatLabel(format)} ${size.width}x${size.height} worker export`
             );
             noteWorkerJob();
@@ -1884,7 +1926,7 @@ async function generateImage(img, size, format, crop = null, bitmap = null) {
     drawIconToContext(ctx, img, size.width, size.height, crop, options);
 
     const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : format === 'avif' ? 'image/avif' : 'image/png';
-    const quality = format === 'png' ? undefined : 0.92;
+    const quality = format === 'png' ? undefined : getLossyQuality();
 
     try {
         const blob = await canvasToOutputBlob(canvas, mimeType, quality, `${formatLabel(format)} ${size.width}x${size.height}`);
@@ -1967,7 +2009,7 @@ async function renderIconBlob(img, width, height, crop, options, format = 'png')
     drawIconToContext(ctx, img, width, height, crop, options);
     const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : format === 'avif' ? 'image/avif' : 'image/png';
     try {
-        return await canvasToOutputBlob(canvas, mimeType, format === 'png' ? undefined : 0.92, `${formatLabel(format)} ${width}x${height}`);
+        return await canvasToOutputBlob(canvas, mimeType, format === 'png' ? undefined : getLossyQuality(), `${formatLabel(format)} ${width}x${height}`);
     } finally {
         canvas.width = 0;
         canvas.height = 0;
@@ -2848,7 +2890,12 @@ function getExportOptionsSnapshot() {
     return {
         sizes: getSelectedSizes(),
         formats: getSelectedFormats(),
-        processing: getProcessingOptions(),
+        processing: {
+            ...getProcessingOptions(),
+            lossyQuality: getLossyQuality(),
+            lossyQualityPercent: getLossyQualityPercent(),
+            sizeBudgetBytes: getSizeBudgetBytes()
+        },
         replacementTemplate: {
             active: replacementTargetNames.size > 0,
             targets: Array.from(replacementTargetNames).sort()
@@ -3133,6 +3180,17 @@ function validateMaskableSafeZone(checks) {
     }
 }
 
+function validateSizeBudget(checks) {
+    const budgetBytes = getSizeBudgetBytes();
+    if (!budgetBytes) return;
+    const totalBytes = generatedFiles.reduce((sum, file) => sum + (file.blob?.size || 0), 0);
+    if (totalBytes > budgetBytes) {
+        addValidationCheck(checks, 'warn', 'Size budget', `${formatFileSize(totalBytes)} total exceeds ${formatFileSize(budgetBytes)} budget by ${formatFileSize(totalBytes - budgetBytes)}.`);
+    } else {
+        addValidationCheck(checks, 'pass', 'Size budget', `${formatFileSize(totalBytes)} total is within the ${formatFileSize(budgetBytes)} budget.`);
+    }
+}
+
 function validateGeneratedExport() {
     const checks = [];
     if (generatedFiles.length === 0) {
@@ -3152,6 +3210,7 @@ function validateGeneratedExport() {
     validateManifestIcons(checks);
     validateMaskableSafeZone(checks);
     validateSupportFiles(checks);
+    validateSizeBudget(checks);
 
     const status = checks.some(check => check.status === 'fail') ? 'fail' : checks.some(check => check.status === 'warn') ? 'warn' : 'pass';
     return {
@@ -3483,6 +3542,11 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
             }
             if (Object.prototype.hasOwnProperty.call(next, 'generatedSnippets')) generatedSnippets = next.generatedSnippets;
             if (Object.prototype.hasOwnProperty.call(next, 'backgroundColor')) backgroundColor.value = next.backgroundColor;
+            if (Object.prototype.hasOwnProperty.call(next, 'lossyQualityPercent')) {
+                lossyQualitySlider.value = String(clampNumber(next.lossyQualityPercent, 40, 100, 92));
+                updateProcessingControlLabels();
+            }
+            if (Object.prototype.hasOwnProperty.call(next, 'sizeBudgetKb')) sizeBudgetInput.value = String(next.sizeBudgetKb ?? '');
             if (Object.prototype.hasOwnProperty.call(next, 'deploymentUrlMode')) assetUrlMode.value = next.deploymentUrlMode;
             if (Object.prototype.hasOwnProperty.call(next, 'deploymentAssetBase')) assetUrlBase.value = next.deploymentAssetBase;
             if (Object.prototype.hasOwnProperty.call(next, 'cacheBust')) cacheBustToggle.checked = Boolean(next.cacheBust);
@@ -3526,6 +3590,8 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                 generatedSnippets,
                 assetCacheBusters: Array.from(assetCacheBusters.entries()),
                 deploymentUrls: getDeploymentUrlOptions(),
+                lossyQualityPercent: getLossyQualityPercent(),
+                sizeBudgetBytes: getSizeBudgetBytes(),
                 featureSupport: { ...featureSupport },
                 generationStats: {
                     ...generationStats,

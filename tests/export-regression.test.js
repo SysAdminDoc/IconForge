@@ -145,6 +145,9 @@ function createDocumentMock() {
     backgroundMode: 'solid',
     safePaddingSlider: '0',
     safePaddingValue: '0%',
+    lossyQualitySlider: '92',
+    lossyQualityValue: '92%',
+    sizeBudgetInput: '',
     resampleSelect: 'auto',
     effectSelect: 'none',
     maskShapeSelect: 'circle',
@@ -649,6 +652,9 @@ async function main() {
   assert.strictEqual(customExportManifest.options.deploymentUrls.mode, 'custom');
   assert.strictEqual(customExportManifest.options.deploymentUrls.customBase, 'https://cdn.example.com/assets');
   assert.strictEqual(customExportManifest.options.deploymentUrls.cacheBust, true);
+  assert.strictEqual(customExportManifest.options.processing.lossyQualityPercent, 92);
+  assert.strictEqual(customExportManifest.options.processing.lossyQuality, 0.92);
+  assert.strictEqual(customExportManifest.options.processing.sizeBudgetBytes, null);
   api.setState({ deploymentUrlMode: 'root', deploymentAssetBase: '/assets/', cacheBust: false, generatedSnippets: {} });
 
   const pwaBundleFiles = makePwaBundleFiles();
@@ -697,10 +703,31 @@ async function main() {
   assert(metric('Skipped / hidden formats').includes('WebP hidden: encoder unsupported'));
   assert(metric('Skipped / hidden formats').includes('AVIF hidden: encoder unsupported'));
   assert(metric('Worker fallback state').includes('Canvas fallback for 3 resizes'));
+  assert.strictEqual(metric('Lossy quality'), '92% for JPG/WebP/AVIF');
+  assert.strictEqual(metric('Size budget'), 'Not set');
   assert.strictEqual(metric('Generated file count'), String(pwaBundleFiles.length));
   assert.strictEqual(metric('Total bytes'), `${pwaBundleFiles.length * 4} B`);
   assert.strictEqual(metric('Validation status'), 'Export validation passed');
   assert(diagnostics.features.some((feature) => feature.label === 'File System Access' && feature.status === 'warn'));
+
+  api.setState({ lossyQualityPercent: 65, sizeBudgetKb: 0.1 });
+  assert.strictEqual(api.getState().lossyQualityPercent, 65);
+  assert.strictEqual(api.getState().sizeBudgetBytes, 102);
+  const budgetValidation = api.validateGeneratedExport();
+  assert.strictEqual(budgetValidation.status, 'warn');
+  assert(budgetValidation.checks.some((check) => check.label === 'Size budget' && check.status === 'warn'));
+  const qualityDiagnostics = api.buildGenerationDiagnostics({
+    selectedFormats: ['jpg', 'webp'],
+    validationResult: budgetValidation
+  });
+  const qualityMetric = (label) => qualityDiagnostics.metrics.find((item) => item.label === label)?.value;
+  assert.strictEqual(qualityMetric('Lossy quality'), '65% for JPG/WebP/AVIF');
+  assert(qualityMetric('Size budget').includes('over 102 B budget'));
+  const qualityExportManifest = await api.buildExportManifest(api.getExportFiles());
+  assert.strictEqual(qualityExportManifest.options.processing.lossyQualityPercent, 65);
+  assert.strictEqual(qualityExportManifest.options.processing.lossyQuality, 0.65);
+  assert.strictEqual(qualityExportManifest.options.processing.sizeBudgetBytes, 102);
+  api.setState({ lossyQualityPercent: 92, sizeBudgetKb: '' });
   assert(diagnostics.features.some((feature) => feature.label === 'Blob Worker' && feature.status === 'warn'));
 
   const brokenPwaFiles = pwaBundleFiles
@@ -805,7 +832,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.17');
+  assert.strictEqual(exportManifest.version, 'v0.4.18');
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');

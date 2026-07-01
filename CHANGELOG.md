@@ -2,6 +2,12 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.18] - 2026-06-30
+
+### Added
+- Lossy JPG/WebP/AVIF quality control with export-manifest and diagnostics coverage.
+- Optional total size-budget warnings in validation, diagnostics, and generation status.
+
 ## [v0.4.17] - 2026-06-30
 
 ### Added

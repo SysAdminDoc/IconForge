@@ -1498,7 +1498,8 @@ footer a:hover {
 }
 
 .control-field select,
-.control-field input[type="file"] {
+.control-field input[type="file"],
+.control-field input[type="number"] {
     width: 100%;
     min-height: 34px;
     padding: 0.4rem 0.55rem;

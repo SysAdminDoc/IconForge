@@ -492,6 +492,14 @@
                             </select>
                         </div>
                         <div class="control-field">
+                            <label for="lossyQualitySlider">Lossy Quality <span class="range-value" id="lossyQualityValue">92%</span></label>
+                            <input type="range" id="lossyQualitySlider" min="40" max="100" value="92" aria-label="JPG, WebP, and AVIF quality percent">
+                        </div>
+                        <div class="control-field">
+                            <label for="sizeBudgetInput">Size Budget KB</label>
+                            <input type="number" id="sizeBudgetInput" min="1" max="102400" placeholder="Optional">
+                        </div>
+                        <div class="control-field">
                             <label for="backgroundMode">Background</label>
                             <select id="backgroundMode">
                                 <option value="transparent">Transparent</option>

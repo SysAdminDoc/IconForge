@@ -8,13 +8,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ### P2
 
-- [ ] P2 — Add lossy codec quality and size-budget controls
-  Why: JPG/WebP/AVIF paths hardcode quality at 0.92, while image tools like Squoosh expose quality/size tradeoffs users expect before export.
-  Evidence: `app.js:1471-1490`; `app.js:1749-1785`; Squoosh codec workflow and AVIF/JXL issue signals.
-  Touches: `index.html`; `app.js`; `styles.css`; `tests/export-regression.test.js`
-  Acceptance: Users can set JPG/WebP/AVIF quality and optional target-size warnings; diagnostics and export manifest record quality; generated output displays before/after byte impact; tests cover default and edited quality.
-  Complexity: M
-
 - [ ] P2 — Complete ARIA tab semantics for snippet handoffs
   Why: Snippet tabs expose tab roles but lack full tabpanel relationships and standard tablist navigation semantics.
   Evidence: `index.html:568-587`; WAI-ARIA Authoring Practices tabs pattern; `tests/a11y-labels.test.js`.

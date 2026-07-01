@@ -1,4 +1,4 @@
-const CACHE_NAME = 'iconforge-v0.4.17';
+const CACHE_NAME = 'iconforge-v0.4.18';
 const ASSETS = [
   './app.js',
   './styles.css',
