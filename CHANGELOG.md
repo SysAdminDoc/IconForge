@@ -2,6 +2,12 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [v0.4.20] - 2026-06-30
+
+### Added
+- Diagnostics panel can copy or download a support JSON report with app version, browser support, preset, selected formats, validation checks, worker fallback state, encoder errors, and generated-file metadata.
+- Regression coverage verifies diagnostics JSON does not include Blob payloads or source image data URLs.
+
 ## [v0.4.19] - 2026-06-30
 
 ### Fixed

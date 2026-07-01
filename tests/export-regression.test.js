@@ -832,7 +832,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.19');
+  assert.strictEqual(exportManifest.version, 'v0.4.20');
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');
@@ -847,6 +847,46 @@ async function main() {
   assert.deepStrictEqual(iconRecord.dimensions, { width: 192, height: 192 });
   assert.strictEqual(iconRecord.sha256, crypto.createHash('sha256').update(Buffer.from([7, 7, 7, 7])).digest('hex'));
   assert(exportManifest.files.some((file) => file.name === 'README.txt' && file.kind === 'support'));
+
+  api.setState({
+    featureSupport: {
+      webpEncode: true,
+      webpChecked: true,
+      avifEncode: false,
+      avifChecked: true,
+      workerApi: true,
+      offscreenCanvas: false,
+      blobWorker: true
+    },
+    generationStats: {
+      workerJobs: 2,
+      canvasFallbacks: 1,
+      fallbackReasons: ['OffscreenCanvas unavailable']
+    }
+  });
+  const diagnosticsValidation = api.validateGeneratedExport();
+  const diagnosticsReport = api.buildDiagnosticsSupportReport({
+    selectedFormats: ['png', 'webp'],
+    validationResult: diagnosticsValidation,
+    error: new Error('PNG encoder failed: no image data')
+  });
+  assert.strictEqual(diagnosticsReport.schema, 'iconforge-diagnostics-v1');
+  assert.strictEqual(diagnosticsReport.app.version, 'v0.4.20');
+  assert.strictEqual(diagnosticsReport.preset.key, 'pwa');
+  assert.deepStrictEqual([...diagnosticsReport.selectedFormats], ['png', 'webp']);
+  assert.strictEqual(diagnosticsReport.browserSupport.flags.webpEncode, true);
+  assert(diagnosticsReport.browserSupport.checks.some((check) => check.label === 'AVIF encoder' && check.status === 'warn'));
+  assert(diagnosticsReport.generation.workerFallbackState.includes('canvas fallback for 1'));
+  assert.strictEqual(diagnosticsReport.generation.workerJobs, 2);
+  assert(diagnosticsReport.validation.checks.length > 0, 'diagnostics JSON should include validation checks');
+  assert.strictEqual(diagnosticsReport.encoderErrors[0].message, 'PNG encoder failed: no image data');
+  const diagnosticsIconRecord = diagnosticsReport.generatedFileMetadata.find((file) => file.name === 'pwa/icons/icon-192x192.png');
+  assert(diagnosticsIconRecord, 'diagnostics JSON should include generated file metadata');
+  assert.strictEqual(diagnosticsIconRecord.byteSize, 4);
+  assert(!Object.prototype.hasOwnProperty.call(diagnosticsIconRecord, 'blob'), 'diagnostics JSON must not include Blob payloads');
+  assert(!JSON.stringify(diagnosticsReport).includes('data:image'), 'diagnostics JSON must not include source image bytes');
+  api.renderGenerationDiagnostics({ selectedFormats: ['png'], validationResult: diagnosticsValidation });
+  assert.strictEqual(api.getState().latestDiagnosticsSupportReport.selectedFormats[0], 'png');
 
   console.log('export regression tests ok');
 }

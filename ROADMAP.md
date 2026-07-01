@@ -8,13 +8,6 @@ Blocked or product-gated items live in `Roadmap_Blocked.md`.
 
 ### P2
 
-- [ ] P2 — Add copy/download diagnostics support JSON
-  Why: Diagnostics are visible but not shareable, making bug reports harder without telemetry.
-  Evidence: `app.js:349-419`; `app.js:2621-2642`; rendered diagnostics panel.
-  Touches: `index.html`; `app.js`; `styles.css`; `tests/export-regression.test.js`
-  Acceptance: Diagnostics panel can copy/download JSON containing app version, browser support, preset, selected formats, validation checks, worker fallback state, and encoder errors without including source image bytes.
-  Complexity: S
-
 - [ ] P2 — Preserve draft state across reloads
   Why: Installed/offline users can lose selected source mode, processing settings, crop values, and metadata after a service-worker update reload or accidental refresh.
   Evidence: `sw.js:1-34`; update notice flow in `app.js:3113-3159`; no localStorage/IndexedDB draft persistence in source scan.

@@ -74,7 +74,7 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.19';
+const APP_VERSION = 'v0.4.20';
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 
 function limitImageSize(width, height) {
@@ -159,6 +159,7 @@ const featureSupport = {
 };
 let generationStats = createGenerationStats();
 let activeHandoffSnippetKey = 'plain';
+let latestDiagnosticsSupportReport = null;
 
 // Crop state
 let originalImageData = null;  // Store original for reset
@@ -189,6 +190,8 @@ const diagnosticsSection = document.getElementById('diagnosticsSection');
 const diagnosticsSummary = document.getElementById('diagnosticsSummary');
 const diagnosticsGrid = document.getElementById('diagnosticsGrid');
 const diagnosticsFeatureList = document.getElementById('diagnosticsFeatureList');
+const btnCopyDiagnostics = document.getElementById('btnCopyDiagnostics');
+const btnDownloadDiagnostics = document.getElementById('btnDownloadDiagnostics');
 const handoffTabs = document.getElementById('handoffTabs');
 const handoffSnippetTitle = document.getElementById('handoffSnippetTitle');
 const handoffSnippet = document.getElementById('handoffSnippet');
@@ -387,6 +390,99 @@ function buildGenerationDiagnostics({ selectedFormats = getSelectedFormats(), va
     };
 }
 
+function getBrowserEnvironmentDiagnostics() {
+    const nav = typeof navigator !== 'undefined' ? navigator : {};
+    return {
+        userAgent: nav.userAgent || null,
+        language: nav.language || null,
+        platform: nav.platform || null,
+        online: typeof nav.onLine === 'boolean' ? nav.onLine : null
+    };
+}
+
+function getFeatureSupportSnapshot() {
+    return {
+        webpEncode: featureSupport.webpEncode,
+        webpChecked: featureSupport.webpChecked,
+        avifEncode: featureSupport.avifEncode,
+        avifChecked: featureSupport.avifChecked,
+        fileSystemAccess: featureSupport.fileSystemAccess,
+        offscreenCanvas: featureSupport.offscreenCanvas,
+        workerApi: featureSupport.workerApi,
+        blobWorker: featureSupport.blobWorker
+    };
+}
+
+function diagnosticsFileRecord(file) {
+    return {
+        name: normalizedFileName(file.name),
+        format: file.format || null,
+        role: file.role || file.purpose || null,
+        dimensions: dimensionsForFile(file),
+        mimeType: mimeTypeForFile(file),
+        byteSize: file.blob?.size || 0
+    };
+}
+
+function buildDiagnosticsSupportReport({ selectedFormats = getSelectedFormats(), validationResult = null, error = null, diagnostics = null } = {}) {
+    const metrics = diagnostics || buildGenerationDiagnostics({ selectedFormats, validationResult, error });
+    const totalBytes = generatedFiles.reduce((sum, file) => sum + (file.blob?.size || 0), 0);
+    return {
+        schema: 'iconforge-diagnostics-v1',
+        createdAt: new Date().toISOString(),
+        app: {
+            name: 'IconForge',
+            version: APP_VERSION
+        },
+        browser: getBrowserEnvironmentDiagnostics(),
+        browserSupport: {
+            flags: getFeatureSupportSnapshot(),
+            checks: metrics.features
+        },
+        preset: {
+            key: activePresetKey || 'custom',
+            label: PRESET_LABELS[activePresetKey] || 'Custom'
+        },
+        selectedFormats: [...selectedFormats],
+        selectedSizes: getSelectedSizes(),
+        generation: {
+            fileCount: generatedFiles.length,
+            totalBytes,
+            workerFallbackState: getWorkerDiagnostics(),
+            workerJobs: generationStats.workerJobs,
+            canvasFallbacks: generationStats.canvasFallbacks,
+            fallbackReasons: [...generationStats.fallbackReasons],
+            lossyQualityPercent: getLossyQualityPercent(),
+            sizeBudgetBytes: getSizeBudgetBytes()
+        },
+        validation: validationResult ? {
+            status: validationResult.status,
+            title: validationResult.title,
+            checks: validationResult.checks
+        } : {
+            status: error ? 'error' : 'not-run',
+            title: error ? 'Not run after generation error' : 'Not run',
+            checks: []
+        },
+        encoderErrors: error ? [{
+            name: error.name || 'Error',
+            message: error.message || String(error)
+        }] : [],
+        visibleDiagnostics: {
+            title: metrics.title,
+            detail: metrics.detail,
+            metrics: metrics.metrics,
+            features: metrics.features
+        },
+        generatedFileMetadata: generatedFiles.map(diagnosticsFileRecord)
+    };
+}
+
+function diagnosticsSupportJson() {
+    const report = latestDiagnosticsSupportReport || buildDiagnosticsSupportReport();
+    return JSON.stringify(report, null, 2);
+}
+
 function appendMetric(container, label, value) {
     const item = document.createElement('div');
     item.className = 'diagnostics-metric';
@@ -416,7 +512,13 @@ function appendFeature(container, feature) {
 
 function renderGenerationDiagnostics(options = {}) {
     if (!diagnosticsSection || !diagnosticsSummary || !diagnosticsGrid || !diagnosticsFeatureList) return null;
-    const diagnostics = buildGenerationDiagnostics(options);
+    const selectedFormats = options.selectedFormats || getSelectedFormats();
+    const diagnostics = buildGenerationDiagnostics({ ...options, selectedFormats });
+    latestDiagnosticsSupportReport = buildDiagnosticsSupportReport({
+        ...options,
+        selectedFormats,
+        diagnostics
+    });
 
     setElementVisible(diagnosticsSection, true, 'block');
     diagnosticsSummary.textContent = '';
@@ -845,6 +947,29 @@ btnChange.addEventListener('click', resetInput);
 btnAddSize.addEventListener('click', addCustomSize);
 btnGenerate.addEventListener('click', generateIcons);
 btnDownloadAll.addEventListener('click', downloadAll);
+btnCopyDiagnostics?.addEventListener('click', async function() {
+    try {
+        await navigator.clipboard.writeText(diagnosticsSupportJson());
+        showCopyFeedback(this);
+        showStatus('Diagnostics JSON copied', 'success');
+    } catch {
+        showStatus('Failed to copy diagnostics JSON', 'error');
+    }
+});
+btnDownloadDiagnostics?.addEventListener('click', function() {
+    try {
+        const blob = new Blob([diagnosticsSupportJson()], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'iconforge-diagnostics.json';
+        link.click();
+        URL.revokeObjectURL(url);
+        showStatus('Diagnostics JSON downloaded', 'success');
+    } catch (error) {
+        showStatus(`Failed to download diagnostics JSON: ${error.message}`, 'error');
+    }
+});
 function updateProcessingControlLabels() {
     safePaddingValue.textContent = `${safePaddingSlider.value}%`;
     lossyQualityValue.textContent = `${getLossyQualityPercent()}%`;
@@ -3548,6 +3673,8 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         buildExportManifest,
         getExportFilesWithManifest,
         buildGenerationDiagnostics,
+        buildDiagnosticsSupportReport,
+        diagnosticsSupportJson,
         getFeatureDiagnostics,
         getSkippedFormatDiagnostics,
         validateGeneratedExport,
@@ -3631,7 +3758,8 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                 generationStats: {
                     ...generationStats,
                     fallbackReasons: [...generationStats.fallbackReasons]
-                }
+                },
+                latestDiagnosticsSupportReport
             };
         }
     };
