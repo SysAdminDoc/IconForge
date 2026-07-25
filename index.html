@@ -4,7 +4,7 @@
     <meta name="description" content="Icon Forge — resize and convert images to favicons, PWA icons, and extension icons. 100% client-side, no uploads.">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; media-src 'none'; form-action 'none'">
     <link rel="icon" href="icon.png">
-    <meta name="theme-color" content="#09090b">
+    <meta name="theme-color" content="#07090f">
     <meta charset="UTF-8">
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,21 +13,49 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <div class="logo">
-                <div class="logo-icon" aria-hidden="true">&#128293;</div>
-                <h1 data-i18n="shell.appName">Icon Forge</h1>
+        <header class="app-header">
+            <div class="brand-lockup">
+                <div class="logo">
+                    <div class="logo-icon" aria-hidden="true">&#128293;</div>
+                    <h1 data-i18n="shell.appName">Icon Forge</h1>
+                </div>
+                <p class="tagline" data-i18n="shell.tagline">Generate favicons, PWA icons, and extension assets in seconds</p>
             </div>
-            <p class="tagline" data-i18n="shell.tagline">Generate favicons, PWA icons, and extension assets in seconds</p>
             <div class="trust-signal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span data-i18n="shell.trustSignal">100% client-side - your images never leave your browser</span>
+                <span data-i18n="shell.trustSignal">Your images stay in this browser</span>
             </div>
         </header>
 
-        <div class="main-grid">
+        <nav class="workflow-rail" aria-label="Icon generation workflow">
+            <div class="workflow-step is-current" aria-current="step">
+                <span class="workflow-number">1</span>
+                <span class="workflow-copy">
+                    <strong>Source</strong>
+                    <small>Add an image, text, or emoji</small>
+                </span>
+            </div>
+            <div class="workflow-connector" aria-hidden="true"></div>
+            <div class="workflow-step">
+                <span class="workflow-number">2</span>
+                <span class="workflow-copy">
+                    <strong>Configure</strong>
+                    <small>Shape every platform output</small>
+                </span>
+            </div>
+            <div class="workflow-connector" aria-hidden="true"></div>
+            <div class="workflow-step">
+                <span class="workflow-number">3</span>
+                <span class="workflow-copy">
+                    <strong>Export</strong>
+                    <small>Forge, validate, and download</small>
+                </span>
+            </div>
+        </nav>
+
+        <main class="main-grid">
             <!-- Left Panel - Input -->
-            <div class="panel">
+            <div class="panel source-panel">
                 <div class="panel-header">
                     <div class="panel-icon">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -227,7 +255,7 @@
             </div>
 
             <!-- Right Panel - Options & Output -->
-            <div class="panel">
+            <div class="panel forge-panel">
                 <div class="panel-header">
                     <div class="panel-icon">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -366,8 +394,9 @@
                     </div>
                 </div>
 
-                <label class="section-label">Standard Icon Sizes</label>
-                <div class="size-grid" id="sizeGrid">
+                <div class="output-shape-card">
+                    <label class="section-label">Standard Icon Sizes</label>
+                    <div class="size-grid" id="sizeGrid">
                     <label class="size-option selected">
                         <input type="checkbox" value="16" checked>
                         <span class="size-checkbox">
@@ -449,47 +478,48 @@
                         </span>
                         <span class="size-label">512x512 <small>PWA</small></span>
                     </label>
-                </div>
-
-                <div class="custom-size-section">
-                    <label class="section-label">Custom Size</label>
-                    <div class="custom-size-input">
-                        <label class="sr-only" for="customWidth">Custom icon width</label>
-                        <input type="number" id="customWidth" placeholder="256" min="1" max="4096">
-                        <span aria-hidden="true">x</span>
-                        <label class="sr-only" for="customHeight">Custom icon height</label>
-                        <input type="number" id="customHeight" placeholder="256" min="1" max="4096">
-                        <button class="btn-add-size" id="btnAddSize">Add</button>
                     </div>
-                </div>
 
-                <div class="format-section">
-                    <label class="section-label">Output Formats</label>
-                    <div class="format-options" id="formatOptions">
-                        <label class="format-option selected">
-                            <input type="checkbox" value="png" checked>
-                            PNG
-                        </label>
-                        <label class="format-option selected">
-                            <input type="checkbox" value="ico" checked>
-                            ICO
-                        </label>
-                        <label class="format-option">
-                            <input type="checkbox" value="jpg">
-                            JPG
-                        </label>
-                        <label class="format-option is-hidden" id="webpFormatOption">
-                            <input type="checkbox" value="webp">
-                            WebP
-                        </label>
-                        <label class="format-option is-hidden" id="avifFormatOption">
-                            <input type="checkbox" value="avif">
-                            AVIF
-                        </label>
-                        <label class="format-option">
-                            <input type="checkbox" value="svg">
-                            SVG
-                        </label>
+                    <div class="custom-size-section">
+                        <label class="section-label">Custom Size</label>
+                        <div class="custom-size-input">
+                            <label class="sr-only" for="customWidth">Custom icon width</label>
+                            <input type="number" id="customWidth" placeholder="256" min="1" max="4096">
+                            <span aria-hidden="true">x</span>
+                            <label class="sr-only" for="customHeight">Custom icon height</label>
+                            <input type="number" id="customHeight" placeholder="256" min="1" max="4096">
+                            <button class="btn-add-size" id="btnAddSize">Add</button>
+                        </div>
+                    </div>
+
+                    <div class="format-section">
+                        <label class="section-label">Output Formats</label>
+                        <div class="format-options" id="formatOptions">
+                            <label class="format-option selected">
+                                <input type="checkbox" value="png" checked>
+                                PNG
+                            </label>
+                            <label class="format-option selected">
+                                <input type="checkbox" value="ico" checked>
+                                ICO
+                            </label>
+                            <label class="format-option">
+                                <input type="checkbox" value="jpg">
+                                JPG
+                            </label>
+                            <label class="format-option is-hidden" id="webpFormatOption">
+                                <input type="checkbox" value="webp">
+                                WebP
+                            </label>
+                            <label class="format-option is-hidden" id="avifFormatOption">
+                                <input type="checkbox" value="avif">
+                                AVIF
+                            </label>
+                            <label class="format-option">
+                                <input type="checkbox" value="svg">
+                                SVG
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -572,30 +602,36 @@
                     </div>
                 </div>
 
-                <div class="generation-actions">
-                    <button class="btn-generate" id="btnGenerate" disabled>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                        </svg>
-                        Generate Icons
-                    </button>
-                    <button class="btn-cancel is-hidden" id="btnCancelOperation" type="button">Cancel</button>
-                </div>
-
-                <div class="generation-progress is-hidden" id="generationProgress">
-                    <div class="generation-progress-track"
-                         id="generationProgressBar"
-                         role="progressbar"
-                         aria-labelledby="generationProgressLabel"
-                         aria-valuemin="0"
-                         aria-valuemax="100"
-                         aria-valuenow="0">
-                        <span id="generationProgressFill"></span>
+                <section class="generation-console" aria-labelledby="forgeReadyLabel">
+                    <div class="generation-copy">
+                        <span class="generation-kicker" id="forgeReadyLabel">Ready to forge</span>
+                        <p>Generate a complete, validated bundle from your current source and settings.</p>
                     </div>
-                    <span id="generationProgressLabel">Preparing export…</span>
-                </div>
+                    <div class="generation-actions">
+                        <button class="btn-generate" id="btnGenerate" disabled>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                            </svg>
+                            Generate Icons
+                        </button>
+                        <button class="btn-cancel is-hidden" id="btnCancelOperation" type="button">Cancel</button>
+                    </div>
 
-                <div class="status" id="status" role="status" aria-live="polite" tabindex="-1"></div>
+                    <div class="generation-progress is-hidden" id="generationProgress">
+                        <div class="generation-progress-track"
+                             id="generationProgressBar"
+                             role="progressbar"
+                             aria-labelledby="generationProgressLabel"
+                             aria-valuemin="0"
+                             aria-valuemax="100"
+                             aria-valuenow="0">
+                            <span id="generationProgressFill"></span>
+                        </div>
+                        <span id="generationProgressLabel">Preparing export…</span>
+                    </div>
+
+                    <div class="status" id="status" role="status" aria-live="polite" tabindex="-1"></div>
+                </section>
 
                 <div class="output-section is-hidden" id="outputSection">
                     <div class="panel-header spaced">
@@ -765,7 +801,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </main>
 
         <footer>
             <p>Icon Forge &middot; Open source &middot; No tracking &middot; Works offline</p>
