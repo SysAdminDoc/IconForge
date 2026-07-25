@@ -675,6 +675,11 @@ h1 {
 }
 
 /* Generate Button */
+.generation-actions {
+    display: flex;
+    gap: 0.65rem;
+}
+
 .btn-generate {
     width: 100%;
     padding: 0.875rem 2rem;
@@ -711,6 +716,47 @@ h1 {
     background: var(--bg-hover);
     color: var(--text-muted);
     box-shadow: none;
+}
+
+.btn-cancel {
+    min-width: 7rem;
+    padding: 0.875rem 1rem;
+    background: transparent;
+    border: 1px solid var(--error);
+    border-radius: var(--radius-md);
+    color: #fca5a5;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-cancel:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.generation-progress {
+    margin-top: 0.75rem;
+    display: grid;
+    gap: 0.4rem;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+}
+
+.generation-progress-track {
+    height: 0.45rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--bg-hover);
+}
+
+.generation-progress-track span {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+    transition: width 120ms ease;
 }
 
 /* Output Section */

@@ -249,6 +249,31 @@ def run_preset(page, url: str, preset: str) -> dict:
     page.locator(f'button[data-preset="{preset}"]').click()
     if preset == "pwa":
         page.locator("#manifestMonochrome").check()
+        page.locator("#btnGenerate").click()
+        page.wait_for_function(
+            """() => {
+                const cancel = document.querySelector("#btnCancelOperation");
+                const progress = document.querySelector("#generationProgressLabel")?.textContent || "";
+                return cancel && getComputedStyle(cancel).display !== "none" && progress.includes("—");
+            }"""
+        )
+        page.locator("#btnCancelOperation").click()
+        page.wait_for_function(
+            """() => {
+                const button = document.querySelector("#btnGenerate");
+                const status = document.querySelector("#status")?.textContent || "";
+                return button && !button.disabled && /cancelled/i.test(status);
+            }"""
+        )
+        cancel_recovery = page.evaluate(
+            """() => ({
+                partialItems: document.querySelectorAll("#outputGrid .output-item").length,
+                outputHidden: getComputedStyle(document.querySelector("#outputSection")).display === "none",
+                progressHidden: getComputedStyle(document.querySelector("#generationProgress")).display === "none"
+            })"""
+        )
+    else:
+        cancel_recovery = None
     page.locator("#btnGenerate").click()
     page.wait_for_function(
         """() => {
@@ -259,6 +284,7 @@ def run_preset(page, url: str, preset: str) -> dict:
         timeout=60000,
     )
     result = page.evaluate(COLLECT_SCRIPT, preset)
+    result["cancelRecovery"] = cancel_recovery
     page.set_viewport_size({"width": 390, "height": 844})
     result["mobileOverflow"] = page.evaluate(
         "() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1"
@@ -271,6 +297,12 @@ def validate_result(result: dict) -> list[str]:
     preset = result["preset"]
     expected = EXPECTED[preset]
     failures = []
+    if preset == "pwa" and result.get("cancelRecovery") != {
+        "partialItems": 0,
+        "outputHidden": True,
+        "progressHidden": True,
+    }:
+        failures.append(f"pwa cancellation did not cleanly reset: {result.get('cancelRecovery')}")
     names = set(result["files"])
     zip_names = set(result["zipNames"])
 

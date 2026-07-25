@@ -35,6 +35,81 @@ class WorkerMock {
 }
 WorkerMock.instances = [];
 
+function fileSystemError(name, message) {
+  const error = new Error(message);
+  error.name = name;
+  return error;
+}
+
+class FileHandleMock {
+  constructor(root, path) {
+    this.root = root;
+    this.path = path;
+    this.blob = null;
+  }
+
+  async createWritable() {
+    const handle = this;
+    return {
+      async write(blob) {
+        if (handle.root.failWritePath === handle.path) throw new Error(`synthetic write failure: ${handle.path}`);
+        handle.blob = blob;
+      },
+      async close() {},
+      async abort() {
+        handle.blob = null;
+      }
+    };
+  }
+}
+
+class DirectoryHandleMock {
+  constructor(name = '', root = null, path = '') {
+    this.name = name;
+    this.root = root || this;
+    this.path = path;
+    this.entries = new Map();
+    if (!root) {
+      this.failWritePath = '';
+      this.failRemove = false;
+    }
+  }
+
+  childPath(name) {
+    return this.path ? `${this.path}/${name}` : name;
+  }
+
+  async getDirectoryHandle(name, options = {}) {
+    const entry = this.entries.get(name);
+    if (entry) {
+      if (!(entry instanceof DirectoryHandleMock)) throw fileSystemError('TypeMismatchError', `${name} is a file`);
+      return entry;
+    }
+    if (!options.create) throw fileSystemError('NotFoundError', `${name} does not exist`);
+    const directory = new DirectoryHandleMock(name, this.root, this.childPath(name));
+    this.entries.set(name, directory);
+    return directory;
+  }
+
+  async getFileHandle(name, options = {}) {
+    const entry = this.entries.get(name);
+    if (entry) {
+      if (!(entry instanceof FileHandleMock)) throw fileSystemError('TypeMismatchError', `${name} is a directory`);
+      return entry;
+    }
+    if (!options.create) throw fileSystemError('NotFoundError', `${name} does not exist`);
+    const file = new FileHandleMock(this.root, this.childPath(name));
+    this.entries.set(name, file);
+    return file;
+  }
+
+  async removeEntry(name) {
+    if (this.root.failRemove) throw new Error('synthetic rollback failure');
+    if (!this.entries.has(name)) throw fileSystemError('NotFoundError', `${name} does not exist`);
+    this.entries.delete(name);
+  }
+}
+
 class ClassListMock {
   constructor() {
     this.classes = new Set();
@@ -261,6 +336,7 @@ function loadApp() {
     Math,
     JSON,
     Promise,
+    AbortController,
     Error,
     Set,
     Map,
@@ -546,6 +622,58 @@ async function main() {
   await assert.rejects(
     api.canvasToOutputBlob({ toBlob(callback) { callback(null); } }, 'image/png', undefined, 'PNG 32x32', 50),
     /PNG 32x32 encoder did not produce a file blob/
+  );
+
+  const folderRoot = new DirectoryHandleMock();
+  await folderRoot.getDirectoryHandle('IconForge-Acme-icons', { create: true });
+  const folderFiles = [
+    { name: 'icon.png', blob: makeBlob() },
+    { name: 'snippets/head.html', blob: new Blob(['<link>'], { type: 'text/html' }) }
+  ];
+  const folderResult = await api.saveExportBundleToDirectory(
+    folderRoot,
+    folderFiles,
+    'IconForge-Acme-icons'
+  );
+  assert.strictEqual(folderResult.directoryName, 'IconForge-Acme-icons-2');
+  assert.deepStrictEqual([...folderResult.conflicts], ['IconForge-Acme-icons']);
+  assert.deepStrictEqual([...folderResult.written], ['icon.png', 'snippets/head.html']);
+  const savedBundle = folderRoot.entries.get('IconForge-Acme-icons-2');
+  assert(savedBundle.entries.get('icon.png').blob, 'root export file should be committed');
+  assert(savedBundle.entries.get('snippets').entries.get('head.html').blob, 'nested export file should be committed');
+
+  const rollbackRoot = new DirectoryHandleMock();
+  rollbackRoot.failWritePath = 'IconForge-Rollback-icons/snippets/head.html';
+  await assert.rejects(
+    api.saveExportBundleToDirectory(rollbackRoot, folderFiles, 'IconForge-Rollback-icons'),
+    (error) => {
+      assert.match(error.message, /incomplete folder "IconForge-Rollback-icons" was removed/);
+      assert.strictEqual(error.exportResult.rolledBack, true);
+      assert.deepStrictEqual([...error.exportResult.written], ['icon.png']);
+      return true;
+    }
+  );
+  assert.strictEqual(rollbackRoot.entries.has('IconForge-Rollback-icons'), false);
+
+  const partialRoot = new DirectoryHandleMock();
+  partialRoot.failWritePath = 'IconForge-Partial-icons/snippets/head.html';
+  partialRoot.failRemove = true;
+  await assert.rejects(
+    api.saveExportBundleToDirectory(partialRoot, folderFiles, 'IconForge-Partial-icons'),
+    (error) => {
+      assert.match(error.message, /Files written: icon\.png/);
+      assert.match(error.message, /Remove that folder before retrying/);
+      assert.strictEqual(error.exportResult.rolledBack, false);
+      return true;
+    }
+  );
+  assert.strictEqual(partialRoot.entries.has('IconForge-Partial-icons'), true);
+
+  const cancelledWrite = new AbortController();
+  cancelledWrite.abort();
+  await assert.rejects(
+    api.writeFileToDirectory(new DirectoryHandleMock(), 'icon.png', makeBlob(), cancelledWrite.signal),
+    (error) => error.name === 'AbortError'
   );
   assert.strictEqual(api.uiText('shell.draftRecovery'), 'Draft Recovery');
   assert.strictEqual(api.uiText('diagnostics.metrics.workerFallback'), 'Worker fallback state');

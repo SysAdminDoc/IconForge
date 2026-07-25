@@ -118,6 +118,7 @@ let activePresetKey = null;
 let replacementTargetNames = new Set();
 let generatedSnippets = {};
 let assetCacheBusters = new Map();
+let activeOperation = null;
 
 const OUTPUT_FORMATS = ['png', 'jpg', 'ico', 'webp', 'avif', 'svg'];
 const UI_STRINGS = Object.freeze({
@@ -312,10 +313,16 @@ const customHeight = document.getElementById('customHeight');
 const btnAddSize = document.getElementById('btnAddSize');
 const formatOptions = document.getElementById('formatOptions');
 const btnGenerate = document.getElementById('btnGenerate');
+const btnCancelOperation = document.getElementById('btnCancelOperation');
+const generationProgress = document.getElementById('generationProgress');
+const generationProgressBar = document.getElementById('generationProgressBar');
+const generationProgressFill = document.getElementById('generationProgressFill');
+const generationProgressLabel = document.getElementById('generationProgressLabel');
 const status = document.getElementById('status');
 const outputSection = document.getElementById('outputSection');
 const outputGrid = document.getElementById('outputGrid');
 const btnDownloadAll = document.getElementById('btnDownloadAll');
+const btnSaveToFolder = document.getElementById('btnSaveToFolder');
 const diagnosticsSection = document.getElementById('diagnosticsSection');
 const diagnosticsSummary = document.getElementById('diagnosticsSummary');
 const diagnosticsGrid = document.getElementById('diagnosticsGrid');
@@ -1448,6 +1455,7 @@ fileInput.addEventListener('change', handleFileSelect);
 btnChange.addEventListener('click', resetInput);
 btnAddSize.addEventListener('click', addCustomSize);
 btnGenerate.addEventListener('click', generateIcons);
+btnCancelOperation?.addEventListener('click', cancelActiveOperation);
 btnDownloadAll.addEventListener('click', downloadAll);
 draftSourceToggle?.addEventListener('change', () => {
     saveDraftState({ silent: false });
@@ -1496,7 +1504,6 @@ function updateProcessingControlLabels() {
 updateProcessingControlLabels();
 replaceInput.addEventListener('change', handleReplacementTemplate);
 
-const btnSaveToFolder = document.getElementById('btnSaveToFolder');
 if ('showDirectoryPicker' in window) {
     setElementVisible(btnSaveToFolder, true);
     btnSaveToFolder.addEventListener('click', saveToFolder);
@@ -2540,6 +2547,91 @@ function getSelectedFormats() {
     return formats;
 }
 
+class OperationCancelledError extends Error {
+    constructor(message = 'Operation cancelled.') {
+        super(message);
+        this.name = 'AbortError';
+    }
+}
+
+function throwIfOperationCancelled(signal) {
+    if (signal?.aborted) throw new OperationCancelledError();
+}
+
+function setOperationProgress(stage, fileName, completed, total) {
+    const safeTotal = Math.max(1, total || 1);
+    const safeCompleted = Math.min(safeTotal, Math.max(0, completed || 0));
+    const percent = Math.round((safeCompleted / safeTotal) * 100);
+    generationProgressBar?.setAttribute('aria-valuenow', String(percent));
+    if (generationProgressFill) generationProgressFill.style.width = `${percent}%`;
+    if (generationProgressLabel) {
+        const detail = fileName ? ` — ${fileName}` : '';
+        generationProgressLabel.textContent = `${stage}${detail} (${safeCompleted}/${safeTotal})`;
+    }
+}
+
+function beginOperation(kind, total) {
+    if (activeOperation) throw new Error(`Another ${activeOperation.kind} operation is already running.`);
+    const operation = {
+        kind,
+        total: Math.max(1, total || 1),
+        completed: 0,
+        controller: new AbortController()
+    };
+    activeOperation = operation;
+    setElementVisible(generationProgress, true);
+    setElementVisible(btnCancelOperation, true);
+    setOperationProgress(kind === 'generation' ? 'Preparing generation' : 'Preparing folder export', '', 0, operation.total);
+    return operation;
+}
+
+function finishOperation(operation) {
+    if (activeOperation !== operation) return;
+    activeOperation = null;
+    setElementVisible(generationProgress, false);
+    setElementVisible(btnCancelOperation, false);
+}
+
+function cancelActiveOperation() {
+    if (!activeOperation || activeOperation.controller.signal.aborted) return;
+    activeOperation.controller.abort();
+    if (activeOperation.kind === 'generation') {
+        disposeResizeWorker('Generation cancelled.');
+    }
+    showStatus(`Cancelling ${activeOperation.kind}…`, 'warning');
+}
+
+async function runOperationStep(operation, stage, fileName, action) {
+    const signal = operation.controller.signal;
+    throwIfOperationCancelled(signal);
+    setOperationProgress(stage, fileName, operation.completed, operation.total);
+    let abortHandler = null;
+    const abortPromise = new Promise((resolve, reject) => {
+        abortHandler = () => reject(new OperationCancelledError());
+        signal.addEventListener('abort', abortHandler, { once: true });
+    });
+    let result;
+    try {
+        result = await Promise.race([Promise.resolve().then(action), abortPromise]);
+    } finally {
+        if (abortHandler) signal.removeEventListener('abort', abortHandler);
+    }
+    throwIfOperationCancelled(signal);
+    operation.completed++;
+    setOperationProgress(stage, fileName, operation.completed, operation.total);
+    return result;
+}
+
+function getPlatformGenerationOperationCount() {
+    let count = 0;
+    if (activePresetKey === 'pwa') count = PWA_ICON_SIZES.length * 2 + PWA_SPLASH_SPECS.length * 2;
+    else if (activePresetKey === 'android') count = ANDROID_DENSITY_SPECS.length * 3;
+    else if (activePresetKey === 'ios') count = IOS_ICON_SPECS.length;
+    else if (activePresetKey === 'windows') count = WINDOWS_TILE_SPECS.length;
+    if (manifestMonochromeEnabled() && ['web', 'pwa', 'all'].includes(activePresetKey)) count++;
+    return count;
+}
+
 async function generateIcons() {
     if (!sourceImage) return;
 
@@ -2567,18 +2659,21 @@ async function generateIcons() {
         return;
     }
 
+    const baseOps = formats.reduce((n, f) => n + (f === 'ico' || f === 'svg' ? 1 : sizes.length), 0);
+    const operation = beginOperation('generation', baseOps + getPlatformGenerationOperationCount() + 2);
     btnGenerate.disabled = true;
+    btnDownloadAll.disabled = true;
+    if (btnSaveToFolder) btnSaveToFolder.disabled = true;
     btnGenerate.innerHTML = '<span class="spinner"></span> Generating...';
-    showStatus('Generating icons...', 'info');
+    showStatus('Preparing icon generation…', 'info');
 
+    if (featureSupport.workerApi && featureSupport.offscreenCanvas && !resizeWorker) initWorker();
     revokeOutputUrls();
     outputGrid.innerHTML = '';
+    setElementVisible(outputSection, false);
     generatedFiles = [];
     generatedSnippets = {};
     generationStats = createGenerationStats();
-
-    const totalOps = Math.max(1, formats.reduce((n, f) => n + (f === 'ico' || f === 'svg' ? 1 : sizes.length), 0));
-    let completedOps = 0;
 
     try {
         const imgSource = sourceImage;
@@ -2587,54 +2682,65 @@ async function generateIcons() {
         for (const format of formats) {
             if (format === 'ico') {
                 const icoSizes = sizes.filter(s => s.width <= 256 && s.width === s.height);
-                if (icoSizes.length > 0) {
-                    const blob = await generateICO(imgSource, icoSizes, crop);
-                    const fileName = getOutputFileName({ format, size: { width: 'multi', height: 'multi' } });
+                const fileName = getOutputFileName({ format, size: { width: 'multi', height: 'multi' } });
+                const blob = await runOperationStep(operation, 'Encoding', fileName, () =>
+                    icoSizes.length > 0 ? generateICO(imgSource, icoSizes, crop) : null
+                );
+                if (blob) {
                     addGeneratedFile(fileName, blob, { width: 'multi', height: 'multi' }, 'ico', { icoSizes });
                 }
-                completedOps++;
-                showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
             } else if (format === 'svg') {
-                const svgStr = generateSvgFavicon(imgSource, crop);
-                const blob = new Blob([svgStr], { type: 'image/svg+xml' });
                 const fileName = getOutputFileName({ format, size: { width: 'svg', height: '' } });
+                const svgStr = await runOperationStep(operation, 'Encoding', fileName, () => generateSvgFavicon(imgSource, crop));
+                const blob = new Blob([svgStr], { type: 'image/svg+xml' });
                 addGeneratedFile(fileName, blob, { width: 'svg', height: '' }, 'svg');
-                completedOps++;
-                showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
             } else {
                 for (const size of sizes) {
-                    const { blob } = await generateImage(imgSource, size, format, crop);
                     const fileName = getOutputFileName({ format, size });
+                    const { blob } = await runOperationStep(operation, 'Encoding', fileName, () =>
+                        generateImage(imgSource, size, format, crop)
+                    );
                     addGeneratedFile(fileName, blob, size, format, getGeneratedFileMeta(format, size));
-                    completedOps++;
-                    showStatus(`Generating... ${completedOps}/${totalOps}`, 'info');
                 }
             }
         }
 
-        await generatePlatformBundle(imgSource, crop, sizes, formats);
+        await generatePlatformBundle(imgSource, crop, sizes, formats, operation);
+        await runOperationStep(operation, 'Building metadata', 'snippets and manifests', () => generateSnippets(sizes, formats));
         setElementVisible(outputSection, true, 'block');
+        const validationResult = await runOperationStep(operation, 'Validating', 'generated artifact contracts', () => renderExportValidation());
+        renderGenerationDiagnostics({ selectedFormats: formats, validationResult });
         const totalSize = generatedFiles.reduce((s, f) => s + f.blob.size, 0);
         const budgetBytes = getSizeBudgetBytes();
         const budgetImpact = budgetBytes ? `; ${getSizeBudgetStatus(totalSize)}` : '';
         showStatus(`Generated ${generatedFiles.length} files (${formatFileSize(totalSize)} total${budgetImpact})`, 'success');
-        await generateSnippets(sizes, formats);
-        const validationResult = await renderExportValidation();
-        renderGenerationDiagnostics({ selectedFormats: formats, validationResult });
     } catch (error) {
-        setElementVisible(outputSection, true, 'block');
-        renderGenerationDiagnostics({ selectedFormats: formats, error });
-        showStatus(`Error: ${error.message}`, 'error');
-        console.error(error);
+        if (error.name === 'AbortError') {
+            disposeResizeWorker('Generation cancelled.');
+            revokeOutputUrls();
+            outputGrid.innerHTML = '';
+            generatedFiles = [];
+            generatedSnippets = {};
+            setElementVisible(outputSection, false);
+            showStatus('Generation cancelled. No partial output was retained; Generate Icons is ready to retry.', 'warning');
+        } else {
+            setElementVisible(outputSection, true, 'block');
+            renderGenerationDiagnostics({ selectedFormats: formats, error });
+            showStatus(`Error: ${error.message}`, 'error');
+            console.error(error);
+        }
+    } finally {
+        finishOperation(operation);
+        btnGenerate.disabled = false;
+        btnDownloadAll.disabled = false;
+        if (btnSaveToFolder) btnSaveToFolder.disabled = false;
+        btnGenerate.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            Generate Icons
+        `;
     }
-
-    btnGenerate.disabled = false;
-    btnGenerate.innerHTML = `
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-        </svg>
-        Generate Icons
-    `;
 }
 
 function assertValidOutputBlob(blob, context = 'Generated image') {
@@ -2860,22 +2966,24 @@ async function renderMonochromeBlob(img, width, height, crop) {
     }
 }
 
-async function generatePlatformBundle(img, crop, sizes, formats) {
+async function generatePlatformBundle(img, crop, sizes, formats, operation) {
     if (activePresetKey === 'pwa') {
-        await generatePwaBundle(img, crop);
+        await generatePwaBundle(img, crop, operation);
     } else if (activePresetKey === 'android') {
-        await generateAndroidBundle(img, crop);
+        await generateAndroidBundle(img, crop, operation);
     } else if (activePresetKey === 'ios') {
-        await generateIosBundle(img, crop);
+        await generateIosBundle(img, crop, operation);
     } else if (activePresetKey === 'windows') {
-        await generateWindowsBundle(img, crop);
+        await generateWindowsBundle(img, crop, operation);
     }
 
     if (manifestMonochromeEnabled() && ['web', 'pwa', 'all'].includes(activePresetKey)) {
         const monochromeName = activePresetKey === 'pwa'
             ? 'pwa/icons/icon-monochrome-512x512.png'
             : 'icon-monochrome-512.png';
-        const monochrome = await renderMonochromeBlob(img, 512, 512, crop);
+        const monochrome = await runOperationStep(operation, 'Platform assets', monochromeName, () =>
+            renderMonochromeBlob(img, 512, 512, crop)
+        );
         addGeneratedFile(monochromeName, monochrome, { width: 512, height: 512 }, 'png', {
             purpose: 'monochrome',
             monochromeMethod: 'alpha-silhouette'
@@ -2928,22 +3036,26 @@ const ANDROID_DENSITY_SPECS = [
     { density: 'xxxhdpi', adaptive: 432, legacy: 192 }
 ];
 
-async function generatePwaBundle(img, crop) {
+async function generatePwaBundle(img, crop, operation) {
     const maskablePadding = Math.max(parseInt(safePaddingSlider.value, 10) || 0, 22);
     for (const px of PWA_ICON_SIZES) {
         const anyName = `pwa/icons/icon-${px}x${px}.png`;
-        if (!hasGeneratedFile(anyName)) {
-            const blob = await renderIconBlob(img, px, px, crop, getProcessingOptions(), 'png');
-            addGeneratedFile(anyName, blob, { width: px, height: px }, 'png', { purpose: 'any' });
+        const anyBlob = await runOperationStep(operation, 'PWA icons', anyName, () =>
+            hasGeneratedFile(anyName) ? null : renderIconBlob(img, px, px, crop, getProcessingOptions(), 'png')
+        );
+        if (anyBlob) {
+            addGeneratedFile(anyName, anyBlob, { width: px, height: px }, 'png', { purpose: 'any' });
         }
 
         const maskName = `pwa/icons/icon-maskable-${px}x${px}.png`;
-        const blob = await renderIconBlob(img, px, px, crop, getProcessingOptions({
-            paddingPercent: maskablePadding,
-            backgroundMode: 'solid',
-            dropShadow: false
-        }), 'png');
-        addGeneratedFile(maskName, blob, { width: px, height: px }, 'png', {
+        const maskBlob = await runOperationStep(operation, 'PWA maskable icons', maskName, () =>
+            renderIconBlob(img, px, px, crop, getProcessingOptions({
+                paddingPercent: maskablePadding,
+                backgroundMode: 'solid',
+                dropShadow: false
+            }), 'png')
+        );
+        addGeneratedFile(maskName, maskBlob, { width: px, height: px }, 'png', {
             purpose: 'maskable',
             safeZoneRadiusRatio: 0.4,
             safeZonePaddingPercent: maskablePadding,
@@ -2953,14 +3065,18 @@ async function generatePwaBundle(img, crop) {
 
     for (const splash of PWA_SPLASH_SPECS) {
         const portraitName = `pwa/splash/apple-splash-${splash.name}-${splash.width}x${splash.height}.png`;
-        const portrait = await renderSplashBlob(img, splash.width, splash.height, crop);
+        const portrait = await runOperationStep(operation, 'Apple startup images', portraitName, () =>
+            renderSplashBlob(img, splash.width, splash.height, crop)
+        );
         addGeneratedFile(portraitName, portrait, { width: splash.width, height: splash.height }, 'png', {
             role: 'splash',
             splashSpec: { ...splash, orientation: 'portrait' }
         });
 
         const landscapeName = `pwa/splash/apple-splash-${splash.name}-${splash.height}x${splash.width}.png`;
-        const landscape = await renderSplashBlob(img, splash.height, splash.width, crop);
+        const landscape = await runOperationStep(operation, 'Apple startup images', landscapeName, () =>
+            renderSplashBlob(img, splash.height, splash.width, crop)
+        );
         addGeneratedFile(landscapeName, landscape, { width: splash.height, height: splash.width }, 'png', {
             role: 'splash',
             splashSpec: {
@@ -2973,7 +3089,7 @@ async function generatePwaBundle(img, crop) {
     }
 }
 
-async function generateAndroidBundle(img, crop) {
+async function generateAndroidBundle(img, crop, operation) {
     const foregroundOptions = getProcessingOptions({
         paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 18),
         backgroundMode: 'transparent'
@@ -2985,20 +3101,29 @@ async function generateAndroidBundle(img, crop) {
 
     for (const spec of ANDROID_DENSITY_SPECS) {
         const basePath = `android/mipmap-${spec.density}`;
-        const foreground = await renderIconBlob(img, spec.adaptive, spec.adaptive, crop, foregroundOptions, 'png');
-        addGeneratedFile(`${basePath}/ic_launcher_foreground.png`, foreground, { width: spec.adaptive, height: spec.adaptive }, 'png', {
+        const foregroundName = `${basePath}/ic_launcher_foreground.png`;
+        const foreground = await runOperationStep(operation, 'Android density assets', foregroundName, () =>
+            renderIconBlob(img, spec.adaptive, spec.adaptive, crop, foregroundOptions, 'png')
+        );
+        addGeneratedFile(foregroundName, foreground, { width: spec.adaptive, height: spec.adaptive }, 'png', {
             role: 'android-foreground',
             density: spec.density
         });
 
-        const background = await renderBackgroundBlob(spec.adaptive, spec.adaptive);
-        addGeneratedFile(`${basePath}/ic_launcher_background.png`, background, { width: spec.adaptive, height: spec.adaptive }, 'png', {
+        const backgroundName = `${basePath}/ic_launcher_background.png`;
+        const background = await runOperationStep(operation, 'Android density assets', backgroundName, () =>
+            renderBackgroundBlob(spec.adaptive, spec.adaptive)
+        );
+        addGeneratedFile(backgroundName, background, { width: spec.adaptive, height: spec.adaptive }, 'png', {
             role: 'android-background',
             density: spec.density
         });
 
-        const legacy = await renderIconBlob(img, spec.legacy, spec.legacy, crop, legacyOptions, 'png');
-        addGeneratedFile(`${basePath}/ic_launcher.png`, legacy, { width: spec.legacy, height: spec.legacy }, 'png', {
+        const legacyName = `${basePath}/ic_launcher.png`;
+        const legacy = await runOperationStep(operation, 'Android density assets', legacyName, () =>
+            renderIconBlob(img, spec.legacy, spec.legacy, crop, legacyOptions, 'png')
+        );
+        addGeneratedFile(legacyName, legacy, { width: spec.legacy, height: spec.legacy }, 'png', {
             role: 'android-legacy',
             density: spec.density
         });
@@ -3022,26 +3147,29 @@ function iosIconFileName(size, scale) {
     return `Icon-App-${size.replace('.', '-')}-${scale}.png`;
 }
 
-async function generateIosBundle(img, crop) {
+async function generateIosBundle(img, crop, operation) {
     for (const [idiom, pointSize, scale, pixels] of IOS_ICON_SPECS) {
         const name = `ios/AppIcon.appiconset/${iosIconFileName(pointSize, scale)}`;
-        const blob = await renderIconBlob(img, pixels, pixels, crop, getProcessingOptions({
-            paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 4),
-            backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
-        }), 'png');
+        const blob = await runOperationStep(operation, 'iOS AppIcon set', name, () =>
+            renderIconBlob(img, pixels, pixels, crop, getProcessingOptions({
+                paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 4),
+                backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
+            }), 'png')
+        );
         addGeneratedFile(name, blob, { width: pixels, height: pixels }, 'png', { role: 'ios', idiom, pointSize, scale });
     }
 }
 
-async function generateWindowsBundle(img, crop) {
+async function generateWindowsBundle(img, crop, operation) {
     for (const tile of WINDOWS_TILE_SPECS) {
         const name = `windows/mstile-${tile.width}x${tile.height}.png`;
-        if (hasGeneratedFile(name)) continue;
-        const blob = await renderIconBlob(img, tile.width, tile.height, crop, getProcessingOptions({
-            paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 10),
-            backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
-        }), 'png');
-        addGeneratedFile(name, blob, tile, 'png', { role: 'windows-tile' });
+        const blob = await runOperationStep(operation, 'Windows tile assets', name, () =>
+            hasGeneratedFile(name) ? null : renderIconBlob(img, tile.width, tile.height, crop, getProcessingOptions({
+                paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 10),
+                backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
+            }), 'png')
+        );
+        if (blob) addGeneratedFile(name, blob, tile, 'png', { role: 'windows-tile' });
     }
 }
 
@@ -4666,30 +4794,145 @@ async function downloadAll() {
 
 async function saveToFolder() {
     if (generatedFiles.length === 0) return;
+    let operation = null;
     try {
         const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
         const exportFiles = await getExportFilesWithManifest();
-        for (const file of exportFiles) {
-            await writeFileToDirectory(dirHandle, file.name, file.blob);
-        }
-        showStatus(`Saved ${exportFiles.length} files to folder`, 'success');
+        operation = beginOperation('folder export', exportFiles.length);
+        btnGenerate.disabled = true;
+        btnDownloadAll.disabled = true;
+        btnSaveToFolder.disabled = true;
+        const result = await saveExportBundleToDirectory(
+            dirHandle,
+            exportFiles,
+            `IconForge-${cleanPathSegment(sourceFileName)}-icons`,
+            operation
+        );
+        const conflictNote = result.conflicts.length
+            ? ` (${result.conflicts.length} existing destination${result.conflicts.length === 1 ? '' : 's'} skipped)`
+            : '';
+        showStatus(`Saved ${result.written.length} files to new folder "${result.directoryName}"${conflictNote}.`, 'success');
     } catch (err) {
         if (err.name !== 'AbortError') {
             showStatus(`Error saving: ${err.message}`, 'error');
+        } else if (operation) {
+            showStatus(err.message, 'warning');
         }
+    } finally {
+        if (operation) finishOperation(operation);
+        btnGenerate.disabled = false;
+        btnDownloadAll.disabled = false;
+        btnSaveToFolder.disabled = false;
     }
 }
 
-async function writeFileToDirectory(rootHandle, path, blob) {
+async function directoryEntryExists(rootHandle, name) {
+    try {
+        await rootHandle.getDirectoryHandle(name);
+        return true;
+    } catch (error) {
+        if (!['NotFoundError', 'TypeMismatchError'].includes(error.name)) throw error;
+    }
+    try {
+        await rootHandle.getFileHandle(name);
+        return true;
+    } catch (error) {
+        if (!['NotFoundError', 'TypeMismatchError'].includes(error.name)) throw error;
+    }
+    return false;
+}
+
+async function chooseUniqueBundleDirectory(rootHandle, requestedName) {
+    const base = cleanPathSegment(requestedName);
+    const conflicts = [];
+    for (let suffix = 1; suffix <= 1000; suffix++) {
+        const candidate = suffix === 1 ? base : `${base}-${suffix}`;
+        if (!await directoryEntryExists(rootHandle, candidate)) {
+            return { directoryName: candidate, conflicts };
+        }
+        conflicts.push(candidate);
+    }
+    throw new Error(`Could not find an unused export folder after checking 1000 names based on "${base}".`);
+}
+
+async function saveExportBundleToDirectory(rootHandle, exportFiles, requestedName, operation = null) {
+    const { directoryName, conflicts } = await chooseUniqueBundleDirectory(rootHandle, requestedName);
+    throwIfOperationCancelled(operation?.controller.signal);
+    const bundleHandle = await rootHandle.getDirectoryHandle(directoryName, { create: true });
+    const written = [];
+    try {
+        for (const file of exportFiles) {
+            if (operation) {
+                await runOperationStep(operation, 'Writing folder', file.name, () =>
+                    writeFileToDirectory(bundleHandle, file.name, file.blob, operation.controller.signal)
+                );
+            } else {
+                await writeFileToDirectory(bundleHandle, file.name, file.blob);
+            }
+            written.push(file.name);
+        }
+        return { directoryName, conflicts, written, rolledBack: false };
+    } catch (error) {
+        let rollbackError = null;
+        try {
+            await rootHandle.removeEntry(directoryName, { recursive: true });
+        } catch (removeError) {
+            rollbackError = removeError;
+        }
+        const cancelled = error.name === 'AbortError';
+        if (!rollbackError) {
+            const result = new OperationCancelledError(
+                `${cancelled ? 'Folder export cancelled' : 'Folder export failed'}; incomplete folder "${directoryName}" was removed. It is safe to retry.`
+            );
+            if (!cancelled) result.name = 'Error';
+            result.exportResult = { directoryName, conflicts, written, rolledBack: true };
+            throw result;
+        }
+        const partialFiles = written.length ? written.join(', ') : 'none';
+        const result = new OperationCancelledError(
+            `${cancelled ? 'Folder export cancelled' : 'Folder export failed'} and "${directoryName}" could not be removed. Files written: ${partialFiles}. Remove that folder before retrying. Rollback error: ${rollbackError.message}`
+        );
+        if (!cancelled) result.name = 'Error';
+        result.exportResult = { directoryName, conflicts, written, rolledBack: false };
+        throw result;
+    }
+}
+
+async function writeFileToDirectory(rootHandle, path, blob, signal = null) {
     const parts = path.split('/').filter(Boolean);
+    if (!parts.length || parts.some(part => part === '.' || part === '..')) {
+        throw new Error(`Unsafe export path: ${path}`);
+    }
+    throwIfOperationCancelled(signal);
     let dir = rootHandle;
     for (const part of parts.slice(0, -1)) {
+        throwIfOperationCancelled(signal);
         dir = await dir.getDirectoryHandle(part, { create: true });
     }
     const fileHandle = await dir.getFileHandle(parts[parts.length - 1], { create: true });
     const writable = await fileHandle.createWritable();
-    await writable.write(blob);
-    await writable.close();
+    const abortWritable = async () => {
+        try {
+            await writable.abort?.();
+        } catch {
+            // The write may already be closed.
+        }
+    };
+    const handleAbort = () => {
+        void abortWritable();
+    };
+    signal?.addEventListener('abort', handleAbort, { once: true });
+    try {
+        throwIfOperationCancelled(signal);
+        await writable.write(blob);
+        throwIfOperationCancelled(signal);
+        await writable.close();
+    } catch (error) {
+        await abortWritable();
+        throw error;
+    } finally {
+        signal?.removeEventListener('abort', handleAbort);
+    }
 }
 
 // ICO Generation
@@ -4900,6 +5143,10 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         initWorker,
         resizeInWorker,
         disposeResizeWorker,
+        directoryEntryExists,
+        chooseUniqueBundleDirectory,
+        saveExportBundleToDirectory,
+        writeFileToDirectory,
         getWorkerDebugState() {
             return {
                 active: Boolean(resizeWorker),

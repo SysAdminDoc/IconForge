@@ -25,6 +25,8 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Deployable ZIPs** - exports generated images plus README.txt and the platform support files needed by the selected bundle
 - **Export manifest** - ZIP and folder exports include `iconforge-export.json` with file inventory, dimensions, MIME types, byte sizes, and SHA-256 hashes
 - **Export validation** - decodes generated PNG/JPG/WebP/AVIF/ICO/SVG bytes, verifies MIME types and dimensions, parses support files, and checks manifest-purpose semantics before deployment
+- **Observable, cancellable generation** - shows the current stage and filename for large bundles, cancels promptly, clears partial output, and supports immediate retry
+- **Conflict-safe folder exports** - writes each bundle into a new collision-free folder and removes the entire folder after a failed or cancelled write
 - **Generation diagnostics** - reports browser feature support, selected preset/formats, skipped formats, worker fallback state, file count, byte total, and validation status
 - **Draft recovery** - saves recent settings locally and can optionally restore the source image after reloads
 - **Installed file handling** - installed Chrome/Edge PWAs can open supported image files from the operating system
@@ -41,7 +43,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 2. Upload an image, use text mode, or use emoji mode.
 3. Select sizes and formats, or pick a platform preset.
 4. Click **Generate Icons**.
-5. Download individually, download a deployable ZIP, save to a folder, or copy the generated snippets.
+5. Download individually, download a deployable ZIP, save to a collision-safe new folder, or copy the generated snippets.
 
 No build step, no package manager, no dependencies.
 
