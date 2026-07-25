@@ -7,6 +7,14 @@ const vm = require('vm');
 const root = path.resolve(__dirname, '..');
 const scriptSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 
+class URLMock extends URL {
+  static createObjectURL() {
+    return 'blob:iconforge-test';
+  }
+
+  static revokeObjectURL() {}
+}
+
 class ClassListMock {
   constructor() {
     this.classes = new Set();
@@ -266,10 +274,7 @@ function loadApp() {
       }
     },
     location: { reload() {} },
-    URL: {
-      createObjectURL: () => 'blob:iconforge-test',
-      revokeObjectURL: () => {}
-    },
+    URL: URLMock,
     Image: class {
       constructor() {
         this.naturalWidth = 256;
@@ -443,6 +448,25 @@ async function main() {
   assert.strictEqual(api.uiText('diagnostics.metrics.workerFallback'), 'Worker fallback state');
   assert.strictEqual(api.uiText('status.launchedFileOpened', { name: 'logo.png' }), 'Opened logo.png from the operating system.');
   assert.strictEqual(api.uiText('snippets.androidMissing'), 'Run the Android preset to generate adaptive icon PNGs and ic_launcher.xml handoff files.');
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(api.inspectAssetBase('https://cdn.example.com/assets'))),
+    { valid: true, normalized: 'https://cdn.example.com/assets/', error: '' }
+  );
+  assert.strictEqual(api.inspectAssetBase('./assets').normalized, './assets/');
+  assert.strictEqual(api.inspectAssetBase('/assets').normalized, '/assets/');
+  [
+    '',
+    'javascript:alert(1)',
+    'data:text/html,unsafe',
+    '//cdn.example.com/assets',
+    'https://user:secret@cdn.example.com/assets',
+    'https://cdn.example.com/assets?version=1',
+    'https://cdn.example.com/\"><script>alert(1)</script>',
+    'assets\\icons',
+    'assets/%zz'
+  ].forEach((base) => {
+    assert.strictEqual(api.inspectAssetBase(base).valid, false, `asset base should be rejected: ${base}`);
+  });
   const appManifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.webmanifest'), 'utf8'));
   assert.strictEqual(appManifest.scope, './');
   assert.strictEqual(appManifest.launch_handler.client_mode, 'focus-existing');
@@ -677,6 +701,24 @@ async function main() {
   assert.strictEqual(customExportManifest.options.processing.lossyQualityPercent, 92);
   assert.strictEqual(customExportManifest.options.processing.lossyQuality, 0.92);
   assert.strictEqual(customExportManifest.options.processing.sizeBudgetBytes, null);
+  api.setState({
+    deploymentUrlMode: 'custom',
+    deploymentAssetBase: 'https://cdn.example.com/assets&brands',
+    cacheBust: false,
+    generatedSnippets: {}
+  });
+  await api.generateSnippets([], []);
+  const escapedCustomSnippets = api.getState().generatedSnippets;
+  assert(escapedCustomSnippets.html.includes('https://cdn.example.com/assets&amp;brands/favicon.ico'), 'HTML URL attributes should escape ampersands');
+  assert(JSON.parse(escapedCustomSnippets.manifest).icons.some((icon) => icon.src === 'https://cdn.example.com/assets&brands/pwa/icons/icon-192x192.png'), 'JSON URLs should remain unescaped data');
+  api.setState({
+    deploymentUrlMode: 'custom',
+    deploymentAssetBase: 'javascript:alert(1)',
+    cacheBust: false,
+    generatedSnippets: {}
+  });
+  assert.strictEqual(api.validateDeploymentUrlOptions().valid, false);
+  assert.throws(() => api.deploymentUrlFor('favicon.ico'), /must use http/);
   api.setState({ deploymentUrlMode: 'root', deploymentAssetBase: '/assets/', cacheBust: false, generatedSnippets: {} });
 
   const pwaBundleFiles = makePwaBundleFiles();

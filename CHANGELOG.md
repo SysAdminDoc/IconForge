@@ -2,6 +2,12 @@
 
 All notable changes to IconForge will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Custom deployment bases now reject unsafe schemes, credentials, queries, fragments, controls, quotes, markup, malformed escapes, and protocol-relative URLs.
+- Generated HTML and XML URL attributes are encoded before they are copied or exported.
+
 ## [v0.4.23] - 2026-06-30
 
 ### Added

@@ -2485,6 +2485,12 @@ async function generateIcons() {
 
     const sizes = getSelectedSizes();
     const formats = getSelectedFormats();
+    const deploymentValidation = validateDeploymentUrlOptions();
+
+    if (!deploymentValidation.valid) {
+        showStatus(deploymentValidation.error, 'error');
+        return;
+    }
 
     if (sizes.length === 0) {
         showStatus('Please select at least one size', 'warning');
@@ -2963,15 +2969,59 @@ function showCopyFeedback(button) {
 
 
 const ASSET_URL_MODES = new Set(['root', 'relative', 'custom']);
+const ASSET_BASE_SCHEME = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
+const UNSAFE_ASSET_BASE_CHARS = /[\u0000-\u001F\u007F"'<>`\\]/;
 
 function assetPathFor(name) {
     return normalizedFileName(name).replace(/^\/+/, '');
 }
 
-function normalizeAssetBase(base) {
+function inspectAssetBase(base) {
     const value = String(base || '').trim();
-    if (!value) return '/';
-    return value.endsWith('/') ? value : `${value}/`;
+    if (!value) {
+        return { valid: false, normalized: '', error: 'Enter a custom asset base.' };
+    }
+    if (UNSAFE_ASSET_BASE_CHARS.test(value) || /\s/.test(value)) {
+        return { valid: false, normalized: '', error: 'Custom asset bases cannot contain whitespace, controls, quotes, markup, or backslashes.' };
+    }
+    if (value.startsWith('//')) {
+        return { valid: false, normalized: '', error: 'Protocol-relative asset bases are not allowed. Use https:// or a relative path.' };
+    }
+
+    if (ASSET_BASE_SCHEME.test(value)) {
+        let parsed;
+        try {
+            parsed = new URL(value);
+        } catch {
+            return { valid: false, normalized: '', error: 'Custom asset base must be a valid HTTP(S) URL or relative path.' };
+        }
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+            return { valid: false, normalized: '', error: 'Custom asset base URLs must use http:// or https://.' };
+        }
+        if (parsed.username || parsed.password) {
+            return { valid: false, normalized: '', error: 'Custom asset base URLs cannot contain credentials.' };
+        }
+        if (parsed.search || parsed.hash) {
+            return { valid: false, normalized: '', error: 'Custom asset bases cannot contain a query string or fragment.' };
+        }
+        parsed.pathname = parsed.pathname.endsWith('/') ? parsed.pathname : `${parsed.pathname}/`;
+        return { valid: true, normalized: parsed.href, error: '' };
+    }
+
+    if (value.includes('?') || value.includes('#') || /%(?![0-9a-fA-F]{2})/.test(value)) {
+        return { valid: false, normalized: '', error: 'Relative asset bases cannot contain queries, fragments, or malformed percent escapes.' };
+    }
+    return {
+        valid: true,
+        normalized: value.endsWith('/') ? value : `${value}/`,
+        error: ''
+    };
+}
+
+function normalizeAssetBase(base) {
+    const result = inspectAssetBase(base);
+    if (!result.valid) throw new Error(result.error);
+    return result.normalized;
 }
 
 function getDeploymentUrlOptions() {
@@ -3005,16 +3055,27 @@ function hrefFor(name) {
 }
 
 function validateDeploymentUrlOptions() {
-    if (!deploymentUrlStatus) return getDeploymentUrlOptions();
     const deployment = getDeploymentUrlOptions();
+    const customBase = deployment.mode === 'custom'
+        ? inspectAssetBase(deployment.customBase)
+        : { valid: true, normalized: '', error: '' };
+    const result = {
+        ...deployment,
+        valid: customBase.valid,
+        normalizedBase: customBase.normalized,
+        error: customBase.error
+    };
+    if (!deploymentUrlStatus) return result;
     const modeLabel = deployment.mode === 'relative'
         ? 'Relative URLs'
         : deployment.mode === 'custom'
-            ? `Custom base: ${normalizeAssetBase(deployment.customBase)}`
+            ? customBase.valid
+                ? `Custom base: ${customBase.normalized}`
+                : customBase.error
             : 'Root-relative URLs';
     deploymentUrlStatus.textContent = deployment.cacheBust ? `${modeLabel}, SHA-256 queries` : modeLabel;
-    deploymentUrlStatus.classList.toggle('error', deployment.mode === 'custom' && !deployment.customBase);
-    return deployment;
+    deploymentUrlStatus.classList.toggle('error', !customBase.valid);
+    return result;
 }
 
 async function refreshAssetCacheBusters() {
@@ -3144,8 +3205,9 @@ if (manifestMetadataGrid) {
 }
 
 async function handleDeploymentUrlChange() {
-    validateDeploymentUrlOptions();
+    const validation = validateDeploymentUrlOptions();
     queueDraftSave();
+    if (!validation.valid) return;
     if (generatedFiles.length === 0) return;
     try {
         await generateSnippets(getSelectedSizes(), getSelectedFormats());
@@ -3240,10 +3302,10 @@ function buildWindowsBrowserConfig() {
 <browserconfig>
   <msapplication>
     <tile>
-      <square70x70logo src="${hrefFor('windows/mstile-70x70.png')}"/>
-      <square150x150logo src="${hrefFor('windows/mstile-150x150.png')}"/>
-      <wide310x150logo src="${hrefFor('windows/mstile-310x150.png')}"/>
-      <square310x310logo src="${hrefFor('windows/mstile-310x310.png')}"/>
+      <square70x70logo src="${escapeAttribute(hrefFor('windows/mstile-70x70.png'))}"/>
+      <square150x150logo src="${escapeAttribute(hrefFor('windows/mstile-150x150.png'))}"/>
+      <wide310x150logo src="${escapeAttribute(hrefFor('windows/mstile-310x150.png'))}"/>
+      <square310x310logo src="${escapeAttribute(hrefFor('windows/mstile-310x310.png'))}"/>
       <TileColor>${backgroundColor.value}</TileColor>
     </tile>
   </msapplication>
@@ -3283,14 +3345,14 @@ function buildSocialSnippet() {
         `<meta property="og:title" content="${title}">`,
         `<meta property="og:description" content="${description}">`,
         '<meta property="og:type" content="website">',
-        `<meta property="og:image" content="${hrefFor(og.name)}">`,
+        `<meta property="og:image" content="${escapeAttribute(hrefFor(og.name))}">`,
         `<meta property="og:image:width" content="${og.size.width}">`,
         `<meta property="og:image:height" content="${og.size.height}">`,
         `<meta property="og:image:alt" content="${alt}">`,
         '<meta name="twitter:card" content="summary_large_image">',
         `<meta name="twitter:title" content="${title}">`,
         `<meta name="twitter:description" content="${description}">`,
-        `<meta name="twitter:image" content="${hrefFor(twitter.name)}">`
+        `<meta name="twitter:image" content="${escapeAttribute(hrefFor(twitter.name))}">`
     ];
     return lines.join('\n');
 }
@@ -3495,15 +3557,15 @@ async function generateSnippets(sizes, formats) {
     const splashFiles = generatedFiles.filter(file => file.role === 'splash');
     const social = buildSocialSnippet();
 
-    if (icoFile) lines.push(`<link rel="icon" href="${hrefFor(icoFile.name)}" sizes="32x32">`);
-    if (svgFile) lines.push(`<link rel="icon" href="${hrefFor(svgFile.name)}" type="image/svg+xml">`);
-    if (appleFile) lines.push(`<link rel="apple-touch-icon" href="${hrefFor(appleFile.name)}">`);
-    if (manifest) lines.push(`<link rel="manifest" href="${webManifestHref(manifest)}">`);
+    if (icoFile) lines.push(`<link rel="icon" href="${escapeAttribute(hrefFor(icoFile.name))}" sizes="32x32">`);
+    if (svgFile) lines.push(`<link rel="icon" href="${escapeAttribute(hrefFor(svgFile.name))}" type="image/svg+xml">`);
+    if (appleFile) lines.push(`<link rel="apple-touch-icon" href="${escapeAttribute(hrefFor(appleFile.name))}">`);
+    if (manifest) lines.push(`<link rel="manifest" href="${escapeAttribute(webManifestHref(manifest))}">`);
     for (const splash of splashFiles) {
-        lines.push(`<link rel="apple-touch-startup-image" href="${hrefFor(splash.name)}" media="(device-width: ${splash.size.width}px) and (device-height: ${splash.size.height}px)">`);
+        lines.push(`<link rel="apple-touch-startup-image" href="${escapeAttribute(hrefFor(splash.name))}" media="(device-width: ${splash.size.width}px) and (device-height: ${splash.size.height}px)">`);
     }
     if (activePresetKey === 'windows') {
-        lines.push(`<meta name="msapplication-config" content="${deploymentUrlFor('windows/browserconfig.xml', { cacheBust: false })}">`);
+        lines.push(`<meta name="msapplication-config" content="${escapeAttribute(deploymentUrlFor('windows/browserconfig.xml', { cacheBust: false }))}">`);
     }
     if (social) lines.push(social);
 
@@ -4220,6 +4282,10 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         cleanPathSegment,
         baseName,
         normalizeTemplateName,
+        inspectAssetBase,
+        normalizeAssetBase,
+        deploymentUrlFor,
+        validateDeploymentUrlOptions,
         getOutputFileName,
         iosIconFileName,
         getManifestMetadata,
