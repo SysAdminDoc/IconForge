@@ -311,11 +311,13 @@ def main() -> int:
     page_errors: list[str] = []
     results = []
     failures = []
+    offline_shell = {"root": False, "index": False}
 
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            page = browser.new_page(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+            context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+            page = context.new_page()
             page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
             page.on("console", lambda msg: console_messages.append({"type": msg.type, "text": msg.text}))
             page.on("pageerror", lambda exc: page_errors.append(str(exc)))
@@ -323,6 +325,22 @@ def main() -> int:
                 result = run_preset(page, url, preset)
                 results.append(result)
                 failures.extend(validate_result(result))
+
+            page.goto(url, wait_until="networkidle")
+            page.wait_for_function("() => navigator.serviceWorker?.ready")
+            page.wait_for_function("() => Boolean(navigator.serviceWorker?.controller)", timeout=10000)
+            context.set_offline(True)
+            offline_page = context.new_page()
+            try:
+                offline_page.goto(url, wait_until="domcontentloaded")
+                offline_shell["root"] = offline_page.locator("h1").get_by_text("Icon Forge").is_visible()
+                offline_page.goto(f"{url}index.html", wait_until="domcontentloaded")
+                offline_shell["index"] = offline_page.locator("#btnGenerate").is_visible()
+            finally:
+                offline_page.close()
+                context.set_offline(False)
+            if not all(offline_shell.values()):
+                failures.append(f"offline shell did not render both navigation forms: {offline_shell}")
             browser.close()
     finally:
         server.shutdown()
@@ -346,6 +364,7 @@ def main() -> int:
             }
             for item in results
         ],
+        "offlineShell": offline_shell,
         "failures": failures,
     }
     print(json.dumps(summary, indent=2))

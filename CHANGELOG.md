@@ -7,6 +7,10 @@ All notable changes to IconForge will be documented in this file.
 ### Fixed
 - Custom deployment bases now reject unsafe schemes, credentials, queries, fragments, controls, quotes, markup, malformed escapes, and protocol-relative URLs.
 - Generated HTML and XML URL attributes are encoded before they are copied or exported.
+- The service worker now pre-caches both root and `index.html` shell navigations, falls back to the cached shell offline, and returns deterministic failures for uncached static assets.
+
+### Tests
+- Browser smoke now verifies a freshly installed service worker can render both `/` and `/index.html` while the browser is offline.
 
 ## [v0.4.23] - 2026-06-30
 

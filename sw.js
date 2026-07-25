@@ -1,5 +1,8 @@
 const CACHE_NAME = 'iconforge-v0.4.23';
+const SHELL_URL = './index.html';
 const ASSETS = [
+  './',
+  SHELL_URL,
   './app.js',
   './styles.css',
   './icon.png',
@@ -34,23 +37,45 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
 
   const url = new URL(e.request.url);
+  if (url.origin !== self.location.origin) return;
   const isHTML = e.request.destination === 'document' || url.pathname.endsWith('.html') || url.pathname.endsWith('/');
 
   if (isHTML) {
-    // Network-first for HTML — always get fresh content when online
     e.respondWith(
       fetch(e.request)
         .then(response => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+          if (response.ok) {
+            const clone = response.clone();
+            e.waitUntil(
+              caches.open(CACHE_NAME).then(cache => Promise.all([
+                cache.put(e.request, clone),
+                cache.put(SHELL_URL, response.clone())
+              ]))
+            );
+          }
           return response;
         })
-        .catch(() => caches.match(e.request))
+        .catch(async () => (
+          await caches.match(e.request) ||
+          await caches.match(SHELL_URL) ||
+          Response.error()
+        ))
     );
   } else {
-    // Cache-first for static assets
     e.respondWith(
-      caches.match(e.request).then(cached => cached || fetch(e.request))
+      caches.match(e.request).then(async cached => {
+        if (cached) return cached;
+        try {
+          const response = await fetch(e.request);
+          if (response.ok) {
+            const clone = response.clone();
+            e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone)));
+          }
+          return response;
+        } catch {
+          return Response.error();
+        }
+      })
     );
   }
 });
