@@ -127,6 +127,9 @@ let replacementTargetNames = new Set();
 let generatedSnippets = {};
 let assetCacheBusters = new Map();
 let activeOperation = null;
+let latestOperationSnapshot = null;
+let latestExportWriteResult = null;
+let serviceWorkerRegistration = null;
 
 const OUTPUT_FORMATS = ['png', 'jpg', 'ico', 'webp', 'avif', 'svg'];
 const UI_STRINGS = Object.freeze({
@@ -1348,12 +1351,72 @@ function diagnosticsFileRecord(file) {
     };
 }
 
+function diagnosticsErrorCode(error, stage = '') {
+    if (typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]+$/.test(error.code)) return error.code;
+    const message = String(error?.message || error || '').toLowerCase();
+    if (error?.name === 'AbortError') return 'OPERATION_CANCELLED';
+    if (message.includes('encoder')) return 'ENCODER_FAILED';
+    if (message.includes('worker')) return 'WORKER_FAILED';
+    if (message.includes('folder') || stage === 'folder-export') return 'FOLDER_WRITE_FAILED';
+    if (message.includes('manifest')) return 'MANIFEST_INVALID';
+    return 'RUNTIME_ERROR';
+}
+
+function structuredDiagnosticError(error, stage = 'runtime') {
+    return {
+        code: diagnosticsErrorCode(error, stage),
+        stage,
+        name: error?.name || 'Error',
+        message: error?.message || String(error)
+    };
+}
+
+function serviceWorkerDiagnostics() {
+    const serviceWorker = typeof navigator !== 'undefined' ? navigator.serviceWorker : null;
+    return {
+        supported: Boolean(serviceWorker),
+        controlled: Boolean(serviceWorker?.controller),
+        controllerState: serviceWorker?.controller?.state || null,
+        scope: serviceWorkerRegistration?.scope || null,
+        activeState: serviceWorkerRegistration?.active?.state || null,
+        waitingState: serviceWorkerRegistration?.waiting?.state || null,
+        installingState: serviceWorkerRegistration?.installing?.state || null
+    };
+}
+
+function operationDiagnosticsSnapshot(operation = activeOperation) {
+    if (!operation) return latestOperationSnapshot;
+    const endedAtMs = operation.endedAtMs || Date.now();
+    return {
+        kind: operation.kind,
+        status: operation.status || 'running',
+        startedAt: operation.startedAt,
+        endedAt: operation.endedAt || null,
+        durationMs: Math.max(0, endedAtMs - operation.startedAtMs),
+        completedSteps: operation.completed,
+        totalSteps: operation.total,
+        currentStage: operation.currentStage || null,
+        currentFile: operation.currentFile || null,
+        stages: Object.entries(operation.stageTimings || {}).map(([stage, timing]) => ({
+            stage,
+            status: timing.status,
+            count: timing.count,
+            durationMs: timing.durationMs,
+            lastFile: timing.lastFile || null
+        })),
+        error: operation.error || null
+    };
+}
+
 function buildDiagnosticsSupportReport({ selectedFormats = getSelectedFormats(), validationResult = null, error = null, diagnostics = null } = {}) {
     const metrics = diagnostics || buildGenerationDiagnostics({ selectedFormats, validationResult, error });
     const totalBytes = generatedFiles.reduce((sum, file) => sum + (file.blob?.size || 0), 0);
+    const errors = error ? [structuredDiagnosticError(error, activeOperation?.currentStage || 'generation')] : [];
     return {
-        schema: 'iconforge-diagnostics-v1',
+        schema: 'iconforge-diagnostics',
+        schemaVersion: 2,
         createdAt: new Date().toISOString(),
+        status: error ? 'error' : validationResult?.status || 'not-run',
         app: {
             name: 'IconForge',
             version: APP_VERSION
@@ -1379,6 +1442,9 @@ function buildDiagnosticsSupportReport({ selectedFormats = getSelectedFormats(),
             lossyQualityPercent: getLossyQualityPercent(),
             sizeBudgetBytes: getSizeBudgetBytes()
         },
+        operation: operationDiagnosticsSnapshot(),
+        serviceWorker: serviceWorkerDiagnostics(),
+        folderExport: latestExportWriteResult,
         validation: validationResult ? {
             status: validationResult.status,
             title: validationResult.title,
@@ -1388,10 +1454,8 @@ function buildDiagnosticsSupportReport({ selectedFormats = getSelectedFormats(),
             title: error ? 'Not run after generation error' : 'Not run',
             checks: []
         },
-        encoderErrors: error ? [{
-            name: error.name || 'Error',
-            message: error.message || String(error)
-        }] : [],
+        errors,
+        encoderErrors: errors,
         visibleDiagnostics: {
             title: metrics.title,
             detail: metrics.detail,
@@ -3119,7 +3183,16 @@ function beginOperation(kind, total) {
         kind,
         total: Math.max(1, total || 1),
         completed: 0,
-        controller: new AbortController()
+        controller: new AbortController(),
+        status: 'running',
+        startedAt: new Date().toISOString(),
+        startedAtMs: Date.now(),
+        endedAt: null,
+        endedAtMs: null,
+        currentStage: null,
+        currentFile: null,
+        stageTimings: {},
+        error: null
     };
     activeOperation = operation;
     setElementVisible(generationProgress, true);
@@ -3130,6 +3203,11 @@ function beginOperation(kind, total) {
 
 function finishOperation(operation) {
     if (activeOperation !== operation) return;
+    if (operation.status === 'running') operation.status = operation.controller.signal.aborted ? 'cancelled' : 'completed';
+    operation.endedAt = new Date().toISOString();
+    operation.endedAtMs = Date.now();
+    latestOperationSnapshot = operationDiagnosticsSnapshot(operation);
+    if (latestDiagnosticsSupportReport) latestDiagnosticsSupportReport.operation = latestOperationSnapshot;
     activeOperation = null;
     setElementVisible(generationProgress, false);
     setElementVisible(btnCancelOperation, false);
@@ -3147,6 +3225,18 @@ function cancelActiveOperation() {
 async function runOperationStep(operation, stage, fileName, action) {
     const signal = operation.controller.signal;
     throwIfOperationCancelled(signal);
+    operation.currentStage = stage;
+    operation.currentFile = fileName || null;
+    const startedAtMs = Date.now();
+    const stageTiming = operation.stageTimings[stage] || {
+        status: 'running',
+        count: 0,
+        durationMs: 0,
+        lastFile: null
+    };
+    operation.stageTimings[stage] = stageTiming;
+    stageTiming.status = 'running';
+    stageTiming.lastFile = fileName || null;
     setOperationProgress(stage, fileName, operation.completed, operation.total);
     let abortHandler = null;
     const abortPromise = new Promise((resolve, reject) => {
@@ -3156,7 +3246,15 @@ async function runOperationStep(operation, stage, fileName, action) {
     let result;
     try {
         result = await Promise.race([Promise.resolve().then(action), abortPromise]);
+        stageTiming.status = 'completed';
+    } catch (error) {
+        stageTiming.status = error.name === 'AbortError' ? 'cancelled' : 'failed';
+        operation.status = stageTiming.status;
+        operation.error = structuredDiagnosticError(error, stage);
+        throw error;
     } finally {
+        stageTiming.count++;
+        stageTiming.durationMs += Math.max(0, Date.now() - startedAtMs);
         if (abortHandler) signal.removeEventListener('abort', abortHandler);
     }
     throwIfOperationCancelled(signal);
@@ -3252,6 +3350,9 @@ async function generateIcons() {
         await runOperationStep(operation, 'Building metadata', 'snippets and manifests', () => generateSnippets(sizes, formats));
         setElementVisible(outputSection, true, 'block');
         const validationResult = await runOperationStep(operation, 'Validating', 'generated artifact contracts', () => renderExportValidation());
+        operation.status = 'completed';
+        operation.currentStage = null;
+        operation.currentFile = null;
         renderGenerationDiagnostics({ selectedFormats: formats, validationResult });
         const totalSize = generatedFiles.reduce((s, f) => s + f.blob.size, 0);
         const budgetBytes = getSizeBudgetBytes();
@@ -3262,6 +3363,8 @@ async function generateIcons() {
             budgetImpact
         }), 'success');
     } catch (error) {
+        operation.status = error.name === 'AbortError' ? 'cancelled' : 'failed';
+        operation.error ||= structuredDiagnosticError(error, operation.currentStage || 'generation');
         if (error.name === 'AbortError') {
             disposeResizeWorker('Generation cancelled.');
             revokeOutputUrls();
@@ -4748,10 +4851,98 @@ async function exportManifestRecord(file) {
     };
 }
 
+const EXPORT_MANIFEST_SCHEMA = 'iconforge-export-v1';
+const EXPORT_MANIFEST_SCHEMA_VERSION = 2;
+const EXPORT_MANIFEST_MIGRATIONS = Object.freeze([
+    {
+        schemaVersion: 2,
+        compatibility: 'additive',
+        description: 'Adds schemaVersion, appVersion, and reader compatibility metadata while retaining the legacy version alias.'
+    }
+]);
+
+function inspectExportManifest(input) {
+    let manifest;
+    try {
+        manifest = typeof input === 'string' ? JSON.parse(input) : input;
+    } catch {
+        return {
+            valid: false,
+            code: 'EXPORT_MANIFEST_INVALID_JSON',
+            message: 'Export manifest must be valid JSON.',
+            manifest: null,
+            migrated: false
+        };
+    }
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+        return {
+            valid: false,
+            code: 'EXPORT_MANIFEST_INVALID',
+            message: 'Export manifest must be a JSON object.',
+            manifest: null,
+            migrated: false
+        };
+    }
+    if (manifest.schema === EXPORT_MANIFEST_SCHEMA && manifest.schemaVersion === undefined) {
+        return {
+            valid: true,
+            code: 'EXPORT_MANIFEST_MIGRATED_V1',
+            message: 'Legacy export manifest v1 was migrated in memory.',
+            manifest: {
+                ...manifest,
+                schema: EXPORT_MANIFEST_SCHEMA,
+                schemaVersion: 1,
+                appVersion: manifest.version || null
+            },
+            migrated: true
+        };
+    }
+    if (manifest.schema !== EXPORT_MANIFEST_SCHEMA || !Number.isInteger(manifest.schemaVersion)) {
+        return {
+            valid: false,
+            code: 'EXPORT_SCHEMA_UNKNOWN',
+            message: `Expected ${EXPORT_MANIFEST_SCHEMA} with an integer schemaVersion.`,
+            manifest: null,
+            migrated: false
+        };
+    }
+    if (manifest.schemaVersion > EXPORT_MANIFEST_SCHEMA_VERSION) {
+        return {
+            valid: false,
+            code: 'EXPORT_SCHEMA_UNSUPPORTED',
+            message: `Export manifest schema version ${manifest.schemaVersion} is newer than supported version ${EXPORT_MANIFEST_SCHEMA_VERSION}.`,
+            manifest: null,
+            migrated: false
+        };
+    }
+    if (manifest.schemaVersion < 1) {
+        return {
+            valid: false,
+            code: 'EXPORT_SCHEMA_UNSUPPORTED',
+            message: `Export manifest schema version ${manifest.schemaVersion} is not supported.`,
+            manifest: null,
+            migrated: false
+        };
+    }
+    return {
+        valid: true,
+        code: 'EXPORT_MANIFEST_VALID',
+        message: '',
+        manifest,
+        migrated: false
+    };
+}
+
 async function buildExportManifest(exportFiles) {
     return {
-        schema: 'iconforge-export-v1',
+        schema: EXPORT_MANIFEST_SCHEMA,
+        schemaVersion: EXPORT_MANIFEST_SCHEMA_VERSION,
+        appVersion: APP_VERSION,
         version: APP_VERSION,
+        compatibility: {
+            minimumReaderSchemaVersion: 1,
+            migrations: EXPORT_MANIFEST_MIGRATIONS
+        },
         createdAt: new Date().toISOString(),
         preset: activePresetKey || 'custom',
         source: {
@@ -5494,6 +5685,10 @@ async function saveToFolder() {
         }), 'success');
         clearDraftAfterExportIfRequested();
     } catch (err) {
+        if (operation && operation.status === 'running') {
+            operation.status = err.name === 'AbortError' ? 'cancelled' : 'failed';
+            operation.error = structuredDiagnosticError(err, operation.currentStage || 'folder-export');
+        }
         if (err.name !== 'AbortError') {
             showStatus(uiText('status.folderSaveFailed', { message: err.message }), 'error');
         } else if (operation) {
@@ -5536,6 +5731,20 @@ async function chooseUniqueBundleDirectory(rootHandle, requestedName) {
     throw new Error(`Could not find an unused export folder after checking 1000 names based on "${base}".`);
 }
 
+function recordExportWriteResult(result) {
+    latestExportWriteResult = {
+        recordedAt: new Date().toISOString(),
+        status: result.status,
+        directoryName: result.directoryName,
+        conflicts: [...(result.conflicts || [])],
+        written: [...(result.written || [])],
+        rolledBack: Boolean(result.rolledBack),
+        error: result.error || null
+    };
+    if (latestDiagnosticsSupportReport) latestDiagnosticsSupportReport.folderExport = latestExportWriteResult;
+    return latestExportWriteResult;
+}
+
 async function saveExportBundleToDirectory(rootHandle, exportFiles, requestedName, operation = null) {
     const { directoryName, conflicts } = await chooseUniqueBundleDirectory(rootHandle, requestedName);
     throwIfOperationCancelled(operation?.controller.signal);
@@ -5552,7 +5761,9 @@ async function saveExportBundleToDirectory(rootHandle, exportFiles, requestedNam
             }
             written.push(file.name);
         }
-        return { directoryName, conflicts, written, rolledBack: false };
+        const result = { directoryName, conflicts, written, rolledBack: false };
+        recordExportWriteResult({ ...result, status: 'completed' });
+        return result;
     } catch (error) {
         let rollbackError = null;
         try {
@@ -5567,6 +5778,11 @@ async function saveExportBundleToDirectory(rootHandle, exportFiles, requestedNam
             );
             if (!cancelled) result.name = 'Error';
             result.exportResult = { directoryName, conflicts, written, rolledBack: true };
+            recordExportWriteResult({
+                ...result.exportResult,
+                status: cancelled ? 'cancelled-rolled-back' : 'failed-rolled-back',
+                error: structuredDiagnosticError(error, 'folder-export')
+            });
             throw result;
         }
         const partialFiles = written.length ? written.join(', ') : 'none';
@@ -5575,6 +5791,11 @@ async function saveExportBundleToDirectory(rootHandle, exportFiles, requestedNam
         );
         if (!cancelled) result.name = 'Error';
         result.exportResult = { directoryName, conflicts, written, rolledBack: false };
+        recordExportWriteResult({
+            ...result.exportResult,
+            status: cancelled ? 'cancelled-partial' : 'failed-partial',
+            error: structuredDiagnosticError(error, 'folder-export')
+        });
         throw result;
     }
 }
@@ -5807,10 +6028,17 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         buildFrameworkHandoffSnippets,
         generateSnippets,
         getSupportFiles,
+        EXPORT_MANIFEST_SCHEMA,
+        EXPORT_MANIFEST_SCHEMA_VERSION,
+        EXPORT_MANIFEST_MIGRATIONS,
+        inspectExportManifest,
         buildExportManifest,
         getExportFilesWithManifest,
         buildGenerationDiagnostics,
         buildDiagnosticsSupportReport,
+        diagnosticsErrorCode,
+        serviceWorkerDiagnostics,
+        operationDiagnosticsSnapshot,
         diagnosticsSupportJson,
         DRAFT_SCHEMA,
         DRAFT_STORAGE_KEY,
@@ -5894,6 +6122,12 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                     fallbackReasons: Array.from(nextStats.fallbackReasons || [])
                 };
             }
+            if (Object.prototype.hasOwnProperty.call(next, 'latestOperationSnapshot')) {
+                latestOperationSnapshot = next.latestOperationSnapshot;
+            }
+            if (Object.prototype.hasOwnProperty.call(next, 'latestExportWriteResult')) {
+                latestExportWriteResult = next.latestExportWriteResult;
+            }
             if (Object.prototype.hasOwnProperty.call(next, 'replacementTargetNames')) {
                 replacementTargetNames = new Set(next.replacementTargetNames.map(normalizeTemplateName));
             }
@@ -5961,6 +6195,8 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                     ...generationStats,
                     fallbackReasons: [...generationStats.fallbackReasons]
                 },
+                latestOperationSnapshot,
+                latestExportWriteResult,
                 latestDiagnosticsSupportReport
             };
         }
@@ -5989,6 +6225,9 @@ if ('serviceWorker' in navigator) {
         }
     });
     navigator.serviceWorker.register('./sw.js')
-        .then(registration => watchServiceWorker(registration, hadController))
+        .then(registration => {
+            serviceWorkerRegistration = registration;
+            watchServiceWorker(registration, hadController);
+        })
         .catch(() => {});
 }

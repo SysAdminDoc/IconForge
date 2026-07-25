@@ -224,12 +224,14 @@ async (preset) => {
   const zipBytes = new Uint8Array(await zipBlob.arrayBuffer());
   const validation = await api.validateGeneratedExport();
   const diagnostics = api.buildGenerationDiagnostics({ selectedFormats: [], validationResult: validation });
+  const supportReport = api.buildDiagnosticsSupportReport({ selectedFormats: [], validationResult: validation, diagnostics });
 
   return {
     preset,
     statusText: document.querySelector("#status")?.textContent || "",
     validation,
     diagnostics,
+    supportReport,
     files: Object.keys(decoded),
     decoded,
     zipNames: zipNames(zipBytes),
@@ -443,6 +445,16 @@ def validate_result(result: dict) -> list[str]:
 
     if result["validation"]["status"] != "pass":
         failures.append(f"{preset}: validation did not pass: {result['validation']}")
+    support_report = result["supportReport"]
+    if support_report.get("schema") != "iconforge-diagnostics" or support_report.get("schemaVersion") != 2:
+        failures.append(f"{preset}: diagnostics schema contract was incorrect")
+    operation = support_report.get("operation") or {}
+    if operation.get("status") != "completed" or not operation.get("stages"):
+        failures.append(f"{preset}: completed operation timings were missing: {operation}")
+    if support_report.get("serviceWorker", {}).get("supported") is not True:
+        failures.append(f"{preset}: service-worker diagnostics did not report browser support")
+    if "data:image" in json.dumps(support_report):
+        failures.append(f"{preset}: diagnostics leaked source image bytes")
     if "Generated" not in result["statusText"]:
         failures.append(f"{preset}: status did not report generated files")
     if result["desktopOverflow"]:

@@ -1306,7 +1306,11 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
+  assert.strictEqual(exportManifest.schemaVersion, 2);
+  assert.strictEqual(exportManifest.appVersion, declaredVersion);
   assert.strictEqual(exportManifest.version, declaredVersion);
+  assert.strictEqual(exportManifest.compatibility.minimumReaderSchemaVersion, 1);
+  assert(exportManifest.compatibility.migrations.some((migration) => migration.schemaVersion === 2 && migration.compatibility === 'additive'));
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');
@@ -1321,6 +1325,23 @@ async function main() {
   assert.deepStrictEqual(iconRecord.dimensions, { width: 192, height: 192 });
   assert.strictEqual(iconRecord.sha256, crypto.createHash('sha256').update(Buffer.from([7, 7, 7, 7])).digest('hex'));
   assert(exportManifest.files.some((file) => file.name === 'README.txt' && file.kind === 'support'));
+  assert.strictEqual(api.inspectExportManifest(exportManifest).code, 'EXPORT_MANIFEST_VALID');
+  const migratedLegacyManifest = api.inspectExportManifest({
+    schema: 'iconforge-export-v1',
+    version: 'v0.4.1',
+    files: []
+  });
+  assert.strictEqual(migratedLegacyManifest.valid, true);
+  assert.strictEqual(migratedLegacyManifest.migrated, true);
+  assert.strictEqual(migratedLegacyManifest.manifest.schemaVersion, 1);
+  assert.strictEqual(migratedLegacyManifest.manifest.appVersion, 'v0.4.1');
+  const futureManifest = api.inspectExportManifest({
+    schema: 'iconforge-export-v1',
+    schemaVersion: 99
+  });
+  assert.strictEqual(futureManifest.valid, false);
+  assert.strictEqual(futureManifest.code, 'EXPORT_SCHEMA_UNSUPPORTED');
+  assert.match(futureManifest.message, /newer than supported version 2/);
 
   api.setState({
     featureSupport: {
@@ -1337,6 +1358,22 @@ async function main() {
       workerJobs: 2,
       canvasFallbacks: 1,
       fallbackReasons: ['OffscreenCanvas unavailable']
+    },
+    latestOperationSnapshot: {
+      kind: 'generation',
+      status: 'completed',
+      startedAt: '2026-07-25T12:00:00.000Z',
+      endedAt: '2026-07-25T12:00:00.025Z',
+      durationMs: 25,
+      completedSteps: 2,
+      totalSteps: 2,
+      currentStage: null,
+      currentFile: null,
+      stages: [
+        { stage: 'Encoding', status: 'completed', count: 1, durationMs: 10, lastFile: 'icon.png' },
+        { stage: 'Validating', status: 'completed', count: 1, durationMs: 15, lastFile: 'artifact contracts' }
+      ],
+      error: null
     }
   });
   const diagnosticsValidation = await api.validateGeneratedExport({ artifactChecks: false });
@@ -1345,7 +1382,9 @@ async function main() {
     validationResult: diagnosticsValidation,
     error: new Error('PNG encoder failed: no image data')
   });
-  assert.strictEqual(diagnosticsReport.schema, 'iconforge-diagnostics-v1');
+  assert.strictEqual(diagnosticsReport.schema, 'iconforge-diagnostics');
+  assert.strictEqual(diagnosticsReport.schemaVersion, 2);
+  assert.strictEqual(diagnosticsReport.status, 'error');
   assert.strictEqual(diagnosticsReport.app.version, declaredVersion);
   assert.strictEqual(diagnosticsReport.preset.key, 'pwa');
   assert.deepStrictEqual([...diagnosticsReport.selectedFormats], ['png', 'webp']);
@@ -1354,7 +1393,15 @@ async function main() {
   assert(diagnosticsReport.browserSupport.checks.some((check) => check.label === 'AVIF encoder' && check.status === 'warn'));
   assert(diagnosticsReport.generation.workerFallbackState.includes('canvas fallback for 1'));
   assert.strictEqual(diagnosticsReport.generation.workerJobs, 2);
+  assert.strictEqual(diagnosticsReport.operation.durationMs, 25);
+  assert.strictEqual(diagnosticsReport.operation.stages[0].stage, 'Encoding');
+  assert.strictEqual(diagnosticsReport.serviceWorker.supported, true);
+  assert.strictEqual(diagnosticsReport.serviceWorker.controlled, false);
+  assert.strictEqual(diagnosticsReport.folderExport.status, 'failed-partial');
+  assert.deepStrictEqual([...diagnosticsReport.folderExport.written], ['icon.png']);
   assert(diagnosticsReport.validation.checks.length > 0, 'diagnostics JSON should include validation checks');
+  assert.strictEqual(diagnosticsReport.errors[0].code, 'ENCODER_FAILED');
+  assert.strictEqual(diagnosticsReport.errors[0].stage, 'generation');
   assert.strictEqual(diagnosticsReport.encoderErrors[0].message, 'PNG encoder failed: no image data');
   const diagnosticsIconRecord = diagnosticsReport.generatedFileMetadata.find((file) => file.name === 'pwa/icons/icon-192x192.png');
   assert(diagnosticsIconRecord, 'diagnostics JSON should include generated file metadata');

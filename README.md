@@ -23,12 +23,12 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Manifest metadata** - validate app identity, scoped URLs, BCP 47 language, W3C `*_localized` language maps, shortcuts, screenshots, and purpose-specific icons before any deployable manifest is emitted
 - **CSP-hardened shell** - local CSS and JavaScript files run under a strict self-only policy with blob/data allowances for previews, downloads, and workers
 - **Deployable ZIPs** - exports generated images plus README.txt and the platform support files needed by the selected bundle
-- **Export manifest** - ZIP and folder exports include `iconforge-export.json` with file inventory, dimensions, MIME types, byte sizes, and SHA-256 hashes
+- **Export manifest** - ZIP and folder exports include `iconforge-export.json` schema v2 with app-version compatibility metadata, file inventory, dimensions, MIME types, byte sizes, and SHA-256 hashes
 - **Export validation** - decodes generated PNG/JPG/WebP/AVIF/ICO/SVG bytes, verifies MIME types and dimensions, parses support files, and checks manifest-purpose semantics before deployment
 - **Observable, cancellable generation** - shows the current stage and filename for large bundles, cancels promptly, clears partial output, and supports immediate retry
 - **Conflict-safe folder exports** - writes each bundle into a new collision-free folder and removes the entire folder after a failed or cancelled write
 - **Keyboard-accessible source modes** - Upload, Text, and Emoji use APG tabs with Arrow/Home/End navigation, high-visibility focus rings, assertive error focus, and WCAG-compliant muted text
-- **Generation diagnostics** - reports browser feature support, selected preset/formats, skipped formats, worker fallback state, file count, byte total, and validation status
+- **Generation diagnostics** - reports browser and service-worker support, selected preset/formats, stable errors, per-stage timings, worker fallback state, folder-write recovery, file count, byte total, and validation status
 - **Draft recovery controls** - saves versioned settings with visible age/size and a 30-day TTL, optionally restores source bytes, supports disable/clear, and can clear automatically after ZIP or folder export
 - **Installed file handling** - installed Chrome/Edge PWAs can open supported image files from the operating system
 - **UI string catalog** - shell, status, diagnostic, validation, and snippet text now route through default English catalog keys for future localization
@@ -51,6 +51,10 @@ No build step, no package manager, no dependencies.
 ### Localization contract
 
 The **Localized Fields JSON** manifest input accepts `name_localized`, `short_name_localized`, and `description_localized` language maps. Each BCP 47 key maps to a non-empty string or a `{ "value", "lang", "dir" }` object; language tags are canonicalized and `dir` is limited to `auto`, `ltr`, or `rtl`. Unknown localized members and malformed values fail closed. The default English UI catalog is also regression-checked against every visible shell literal and every catalog hook.
+
+### Export compatibility
+
+`iconforge-export.json` uses integer `schemaVersion: 2` independently of `appVersion`. Version 2 is additive: it retains the legacy `version` alias and adds explicit reader compatibility/migration metadata. The reader accepts legacy manifests without `schemaVersion` as version 1 and reports a stable `EXPORT_SCHEMA_UNSUPPORTED` error for newer schemas. Diagnostics JSON similarly publishes `schemaVersion: 2`, stable error codes, operation status/timings, service-worker state, and any completed, rolled-back, or partial folder writes; it never embeds source bytes.
 
 ## Development Checks
 

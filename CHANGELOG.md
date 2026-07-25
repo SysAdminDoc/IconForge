@@ -36,6 +36,8 @@ All notable changes to IconForge will be documented in this file.
 - Browser resilience coverage verifies draft reload, clear-through-unload, expiration cleanup, and persistent disable behavior.
 - Static catalog coverage rejects uncataloged shell text and unresolved `data-i18n` keys.
 - Chromium, Firefox, and WebKit now run representative artifact, Unicode/unsafe source, large-input, encoder, worker-fallback, draft-resilience, and offline-capability checks with explicit unsupported states.
+- Export manifests now publish additive schema v2 compatibility metadata separately from the app version, migrate legacy v1 records in memory, and reject unsupported future schemas with stable errors.
+- Diagnostics schema v2 adds stable error codes, generation/folder stage timings, service-worker state, and completed, rolled-back, or partial folder-write results without source bytes.
 
 ## [v0.4.23] - 2026-06-30
 
