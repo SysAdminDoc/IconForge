@@ -52,6 +52,8 @@ No build step, no package manager, no dependencies.
 
 ```bash
 rtk node -c app.js
+rtk node -c version.js
+rtk node tests/release-consistency.test.js
 rtk node tests/export-regression.test.js
 rtk node tests/a11y-labels.test.js
 rtk node tests/csp-shell.test.js

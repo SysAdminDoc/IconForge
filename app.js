@@ -74,7 +74,10 @@ function crc32(data) {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
-const APP_VERSION = 'v0.4.23';
+const APP_VERSION = globalThis.ICONFORGE_VERSION;
+if (!/^v\d+\.\d+\.\d+$/.test(APP_VERSION || '')) {
+    throw new Error('IconForge version metadata is missing or invalid.');
+}
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
 const DRAFT_STORAGE_KEY = 'iconforge-draft-v1';
 
@@ -3017,6 +3020,15 @@ async function generatePlatformBundle(img, crop, sizes, formats, operation) {
 const PWA_ICON_SIZES = [72, 96, 128, 144, 152, 192, 384, 512];
 const PWA_SPLASH_MATRIX_SOURCE = 'https://github.com/elegantapp/pwa-asset-generator/blob/master/src/config/apple-fallback-data.json';
 const PWA_SPLASH_MATRIX_VERIFIED = '2026-07-25';
+const ANDROID_ICON_MATRIX_SOURCE = 'https://developer.android.com/reference/android/graphics/drawable/AdaptiveIconDrawable';
+const ANDROID_ICON_MATRIX_VERIFIED = '2026-07-25';
+const IOS_ICON_MATRIX_SOURCE = 'https://developer.apple.com/library/archive/documentation/Xcode/Reference/xcode_ref-Asset_Catalog_Format/AppIconType.html';
+const IOS_ICON_MATRIX_VERIFIED = '2026-07-25';
+const PLATFORM_MATRIX_METADATA = Object.freeze({
+    pwaSplash: Object.freeze({ source: PWA_SPLASH_MATRIX_SOURCE, lastVerified: PWA_SPLASH_MATRIX_VERIFIED }),
+    androidIcons: Object.freeze({ source: ANDROID_ICON_MATRIX_SOURCE, lastVerified: ANDROID_ICON_MATRIX_VERIFIED }),
+    iosIcons: Object.freeze({ source: IOS_ICON_MATRIX_SOURCE, lastVerified: IOS_ICON_MATRIX_VERIFIED })
+});
 const PWA_SPLASH_SPECS = [
     { width: 2048, height: 2732, cssWidth: 1024, cssHeight: 1366, scaleFactor: 2, name: 'ipad-pro-12-9' },
     { width: 1668, height: 2388, cssWidth: 834, cssHeight: 1194, scaleFactor: 2, name: 'ipad-pro-11' },
@@ -5118,6 +5130,8 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
     window.__ICONFORGE_TEST__ = {
         buildZip,
         crc32,
+        APP_VERSION,
+        PLATFORM_MATRIX_METADATA,
         UI_STRINGS,
         uiText,
         getUiString,

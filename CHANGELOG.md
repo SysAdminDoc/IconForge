@@ -21,12 +21,14 @@ All notable changes to IconForge will be documented in this file.
 - Large generations now show stage, filename, and completed-work progress with cancellation that clears partial output and permits immediate retry.
 - Folder export now preflights destination conflicts, creates a collision-free bundle directory, and rolls back the whole directory on failure or cancellation; failed rollback reports every partial file.
 - Upload, Text, and Emoji source modes now implement APG tabs with roving focus and Arrow/Home/End activation; errors receive assertive programmatic focus, focus rings remain visible, and muted text meets 4.5:1 on supported dark surfaces.
+- Runtime and service-worker versions now share `version.js`; the release gate rejects runtime, cache, README, changelog, or platform-source metadata drift.
 
 ### Tests
 - Browser smoke now verifies a freshly installed service worker can render both `/` and `/index.html` while the browser is offline.
 - Browser smoke now enables monochrome PWA output and requires full artifact-byte, maskable-pixel, and platform validation to pass.
 - Browser smoke now cancels a live PWA generation, verifies partial output is removed, and regenerates successfully.
 - Browser smoke now exercises source-tab keyboard navigation, rendered focus styling, and assertive error focus.
+- Release consistency coverage verifies the canonical version and absolute source/verification metadata for PWA splash, Android icon, and iOS AppIcon matrices.
 
 ## [v0.4.23] - 2026-06-30
 

@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 assert(html.includes('<link rel="stylesheet" href="styles.css">'), 'index.html should load external styles.css');
+assert(html.includes('<script src="version.js" defer></script>'), 'index.html should load version.js before app.js');
 assert(html.includes('<script src="app.js" defer></script>'), 'index.html should load external app.js with defer');
 assert(html.includes('id="diagnosticsSection"'), 'index.html should include diagnostics section');
 assert(html.includes('id="diagnosticsGrid"'), 'index.html should include diagnostics metrics grid');
@@ -16,6 +17,7 @@ assert(html.includes('id="handoffSnippet"'), 'index.html should include framewor
 assert(html.includes('data-preset="social"'), 'index.html should include social preview preset');
 assert(html.includes('id="socialSnippet"'), 'index.html should include social preview snippet output');
 assert(fs.statSync(path.join(root, 'styles.css')).size > 0, 'styles.css should exist and be non-empty');
+assert(fs.statSync(path.join(root, 'version.js')).size > 0, 'version.js should exist and be non-empty');
 assert(fs.statSync(path.join(root, 'app.js')).size > 0, 'app.js should exist and be non-empty');
 
 const cspMatch = html.match(/<meta\s+http-equiv=["']Content-Security-Policy["']\s+content="([^"]+)">/i);

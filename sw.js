@@ -1,8 +1,11 @@
-const CACHE_NAME = 'iconforge-v0.4.23';
+importScripts('./version.js');
+
+const CACHE_NAME = `iconforge-${globalThis.ICONFORGE_VERSION}`;
 const SHELL_URL = './index.html';
 const ASSETS = [
   './',
   SHELL_URL,
+  './version.js',
   './app.js',
   './styles.css',
   './icon.png',

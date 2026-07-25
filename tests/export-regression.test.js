@@ -6,6 +6,8 @@ const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
 const scriptSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+const versionSource = fs.readFileSync(path.join(root, 'version.js'), 'utf8');
+const declaredVersion = versionSource.match(/ICONFORGE_VERSION\s*=\s*'([^']+)'/)[1];
 
 class URLMock extends URL {
   static createObjectURL() {
@@ -401,6 +403,7 @@ function loadApp() {
     FileReader: class {},
     setTimeout,
     clearTimeout,
+    ICONFORGE_VERSION: declaredVersion,
     __ICONFORGE_ENABLE_TEST_API__: true
   };
   context.window = context;
@@ -571,6 +574,11 @@ function makeAndroidDensityFiles() {
 
 async function main() {
   const api = loadApp();
+  assert.strictEqual(api.APP_VERSION, declaredVersion);
+  for (const metadata of Object.values(api.PLATFORM_MATRIX_METADATA)) {
+    assert.match(metadata.source, /^https:\/\//);
+    assert.match(metadata.lastVerified, /^\d{4}-\d{2}-\d{2}$/);
+  }
   const workerState = api.getWorkerDebugState();
   assert.strictEqual(workerState.active, true, 'worker should initialize when the API is available');
   const successfulWorkerJob = api.resizeInWorker({ width: 1, height: 1 }, 32, 32, 'png', null, undefined, 50);
@@ -1167,7 +1175,7 @@ async function main() {
   assert(exportManifestFile, 'export manifest file should be appended to exports');
   const exportManifest = JSON.parse(await exportManifestFile.blob.text());
   assert.strictEqual(exportManifest.schema, 'iconforge-export-v1');
-  assert.strictEqual(exportManifest.version, 'v0.4.23');
+  assert.strictEqual(exportManifest.version, declaredVersion);
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');
@@ -1207,7 +1215,7 @@ async function main() {
     error: new Error('PNG encoder failed: no image data')
   });
   assert.strictEqual(diagnosticsReport.schema, 'iconforge-diagnostics-v1');
-  assert.strictEqual(diagnosticsReport.app.version, 'v0.4.23');
+  assert.strictEqual(diagnosticsReport.app.version, declaredVersion);
   assert.strictEqual(diagnosticsReport.preset.key, 'pwa');
   assert.deepStrictEqual([...diagnosticsReport.selectedFormats], ['png', 'webp']);
   assert.strictEqual(diagnosticsReport.browserSupport.flags.webpEncode, true);
