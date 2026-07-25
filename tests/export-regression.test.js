@@ -689,6 +689,13 @@ async function main() {
   assert.strictEqual(api.uiText('diagnostics.metrics.workerFallback'), 'Worker fallback state');
   assert.strictEqual(api.uiText('status.launchedFileOpened', { name: 'logo.png' }), 'Opened logo.png from the operating system.');
   assert.strictEqual(api.uiText('snippets.androidMissing'), 'Run the Android preset to generate adaptive icon PNGs and ic_launcher.xml handoff files.');
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(api.inspectSourceFile({ name: 'icon.png', type: 'image/png', size: 1024 }))),
+    { valid: true, code: 'SOURCE_ACCEPTED', message: '', warning: '' }
+  );
+  assert.strictEqual(api.inspectSourceFile({ name: 'notes.txt', type: 'text/plain', size: 10 }).code, 'SOURCE_TYPE_INVALID');
+  assert.strictEqual(api.inspectSourceFile({ name: 'huge.png', type: 'image/png', size: 201 * 1024 * 1024 }).code, 'SOURCE_TOO_LARGE');
+  assert.match(api.inspectSourceFile({ name: 'large.png', type: 'image/png', size: 51 * 1024 * 1024 }).warning, /processing may be slow/);
   assert.throws(() => api.uiText('missing.catalog.key'), /Missing UI string/);
   const catalogValues = new Set();
   const collectCatalogValues = (value) => {

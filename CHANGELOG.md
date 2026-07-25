@@ -35,6 +35,7 @@ All notable changes to IconForge will be documented in this file.
 - Release consistency coverage verifies the canonical version and absolute source/verification metadata for PWA splash, Android icon, and iOS AppIcon matrices.
 - Browser resilience coverage verifies draft reload, clear-through-unload, expiration cleanup, and persistent disable behavior.
 - Static catalog coverage rejects uncataloged shell text and unresolved `data-i18n` keys.
+- Chromium, Firefox, and WebKit now run representative artifact, Unicode/unsafe source, large-input, encoder, worker-fallback, draft-resilience, and offline-capability checks with explicit unsupported states.
 
 ## [v0.4.23] - 2026-06-30
 

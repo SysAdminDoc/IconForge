@@ -2253,6 +2253,27 @@ function isSvgFile(file) {
     return file?.type === 'image/svg+xml' || /\.svg$/i.test(file?.name || '');
 }
 
+function inspectSourceFile(file) {
+    if (!file || (!file.type?.startsWith('image/') && !isSvgFile(file))) {
+        return { valid: false, code: 'SOURCE_TYPE_INVALID', message: uiText('status.imageInvalid'), warning: '' };
+    }
+    const sizeMB = Number(file.size || 0) / (1024 * 1024);
+    if (sizeMB > 200) {
+        return {
+            valid: false,
+            code: 'SOURCE_TOO_LARGE',
+            message: uiText('status.fileTooLarge', { size: sizeMB.toFixed(0) }),
+            warning: ''
+        };
+    }
+    return {
+        valid: true,
+        code: 'SOURCE_ACCEPTED',
+        message: '',
+        warning: sizeMB > 50 ? uiText('status.largeFile', { size: sizeMB.toFixed(0) }) : ''
+    };
+}
+
 function readFile(file, method, errorMessage) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -2336,17 +2357,9 @@ function activateLoadedImage(file, img, previewSrc, detail = '') {
 
 async function loadImage(file) {
     try {
-        if (!file || (!file.type?.startsWith('image/') && !isSvgFile(file))) {
-            throw new Error(uiText('status.imageInvalid'));
-        }
-
-        const sizeMB = file.size / (1024 * 1024);
-        if (sizeMB > 200) {
-            throw new Error(uiText('status.fileTooLarge', { size: sizeMB.toFixed(0) }));
-        }
-        if (sizeMB > 50) {
-            showStatus(uiText('status.largeFile', { size: sizeMB.toFixed(0) }), 'warning');
-        }
+        const inspection = inspectSourceFile(file);
+        if (!inspection.valid) throw new Error(inspection.message);
+        if (inspection.warning) showStatus(inspection.warning, 'warning');
 
         if (isSvgFile(file)) {
             validateSvgSourceText(await readFileAsText(file), file.name || 'SVG file');
@@ -5850,6 +5863,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
             };
         },
         validateSvgSourceText,
+        inspectSourceFile,
         setState(next = {}) {
             if (Object.prototype.hasOwnProperty.call(next, 'sourceFileName')) sourceFileName = next.sourceFileName;
             if (Object.prototype.hasOwnProperty.call(next, 'sourceMode')) sourceMode = next.sourceMode;

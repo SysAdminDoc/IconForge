@@ -16,7 +16,7 @@ try:
 except ModuleNotFoundError as exc:
     raise SystemExit(
         "Python Playwright is required for browser smoke tests. "
-        "Install it with: python -m pip install playwright && python -m playwright install chromium"
+        "Install it with: python -m pip install playwright && python -m playwright install chromium firefox webkit"
     ) from exc
 
 
@@ -241,11 +241,13 @@ async (preset) => {
 """
 
 
-def run_preset(page, url: str, preset: str) -> dict:
+def run_preset(page, url: str, preset: str, source_text: str = "IF", worker_eligible: bool = False) -> dict:
     page.goto(url, wait_until="networkidle")
     page.locator('.mode-tab[data-mode="text"]').click()
-    page.locator("#textInput").fill("IF")
+    page.locator("#textInput").fill(source_text)
     page.locator("#btnUseTextIcon").click()
+    if worker_eligible:
+        page.locator("#safePaddingSlider").fill("0")
     page.locator(f'button[data-preset="{preset}"]').click()
     if preset == "pwa":
         page.locator("#manifestMonochrome").check()
@@ -476,20 +478,172 @@ def validate_result(result: dict) -> list[str]:
     return failures
 
 
+def check_source_and_capability_paths(page) -> tuple[dict, list[str]]:
+    page.wait_for_function(
+        "() => window.__ICONFORGE_TEST__.getState().featureSupport.webpChecked"
+        " && window.__ICONFORGE_TEST__.getState().featureSupport.avifChecked"
+    )
+    result = page.evaluate(
+        """() => {
+            const api = window.__ICONFORGE_TEST__;
+            const sourceChecks = {
+                valid: api.inspectSourceFile({ name: "icon.png", type: "image/png", size: 1024 }),
+                invalid: api.inspectSourceFile({ name: "notes.txt", type: "text/plain", size: 10 }),
+                large: api.inspectSourceFile({ name: "large.png", type: "image/png", size: 51 * 1024 * 1024 }),
+                tooLarge: api.inspectSourceFile({ name: "huge.png", type: "image/png", size: 201 * 1024 * 1024 })
+            };
+            let unicodeSvg = "";
+            let unsafeSvgError = "";
+            try {
+                unicodeSvg = api.validateSvgSourceText('<svg xmlns="http://www.w3.org/2000/svg"><text>界🚀</text></svg>', "unicode.svg");
+            } catch (error) {
+                unicodeSvg = `ERROR: ${error.message}`;
+            }
+            try {
+                api.validateSvgSourceText('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>', "unsafe.svg");
+            } catch (error) {
+                unsafeSvgError = error.message;
+            }
+            const support = api.getState().featureSupport;
+            return {
+                sourceChecks,
+                unicodeSvg,
+                unsafeSvgError,
+                formats: {
+                    webp: {
+                        checked: support.webpChecked,
+                        supported: support.webpEncode,
+                        visible: getComputedStyle(document.querySelector("#webpFormatOption")).display !== "none"
+                    },
+                    avif: {
+                        checked: support.avifChecked,
+                        supported: support.avifEncode,
+                        visible: getComputedStyle(document.querySelector("#avifFormatOption")).display !== "none"
+                    }
+                },
+                capabilities: {
+                    workerApi: support.workerApi,
+                    blobWorker: support.blobWorker,
+                    offscreenCanvas: support.offscreenCanvas,
+                    fileSystemAccess: support.fileSystemAccess,
+                    fileHandling: support.fileHandling
+                }
+            };
+        }"""
+    )
+    failures = []
+    checks = result["sourceChecks"]
+    if checks["valid"]["code"] != "SOURCE_ACCEPTED":
+        failures.append(f"valid image source was rejected: {checks['valid']}")
+    if checks["invalid"]["code"] != "SOURCE_TYPE_INVALID":
+        failures.append(f"invalid source type was not rejected: {checks['invalid']}")
+    if checks["tooLarge"]["code"] != "SOURCE_TOO_LARGE":
+        failures.append(f"oversize source was not rejected before allocation: {checks['tooLarge']}")
+    if not checks["large"]["warning"]:
+        failures.append(f"large source warning was not reported: {checks['large']}")
+    if "界🚀" not in result["unicodeSvg"]:
+        failures.append(f"Unicode SVG source did not survive validation: {result['unicodeSvg']}")
+    if "active SVG content" not in result["unsafeSvgError"]:
+        failures.append(f"unsafe SVG source was not rejected: {result['unsafeSvgError']!r}")
+    for name, state in result["formats"].items():
+        if not state["checked"]:
+            failures.append(f"{name}: encoder capability check did not complete")
+        if state["visible"] != state["supported"]:
+            failures.append(f"{name}: visibility {state['visible']} did not match support {state['supported']}")
+    return result, failures
+
+
+def check_supported_format_outputs(page, capability_report: dict) -> tuple[list[dict], list[str]]:
+    supported = [
+        name for name, state in capability_report["formats"].items()
+        if state["supported"]
+    ]
+    if not supported:
+        return [], []
+    page.locator("#formatOptions input").evaluate_all(
+        "elements => elements.forEach(element => { if (element.checked) element.click(); })"
+    )
+    page.locator("#sizeGrid input").evaluate_all(
+        "elements => elements.forEach(element => { if (element.checked) element.click(); })"
+    )
+    page.locator('#sizeGrid input[value="16"]').evaluate("element => element.click()")
+    for output_format in supported:
+        page.locator(f'#formatOptions input[value="{output_format}"]').evaluate("element => element.click()")
+    page.locator("#btnGenerate").click()
+    page.wait_for_function(
+        """() => {
+            const button = document.querySelector("#btnGenerate");
+            const status = document.querySelector("#status")?.textContent || "";
+            return button && !button.disabled && /Generated/.test(status);
+        }""",
+        timeout=15000,
+    )
+    outputs = page.evaluate(
+        """() => window.__ICONFORGE_TEST__.getState().generatedFiles.map(file => ({
+            name: file.name,
+            format: file.format,
+            mime: file.blob.type,
+            bytes: file.blob.size
+        }))"""
+    )
+    failures = []
+    for output_format in supported:
+        matches = [item for item in outputs if item["format"] == output_format]
+        if not matches:
+            failures.append(f"{output_format}: supported encoder produced no output")
+        elif any(item["bytes"] <= 0 or item["mime"] != f"image/{output_format}" for item in matches):
+            failures.append(f"{output_format}: output contract mismatch: {matches}")
+    return outputs, failures
+
+
+def check_offline_navigation(browser, url: str) -> tuple[dict, list[str]]:
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = context.new_page()
+    report = {"supported": False, "root": False, "index": False, "status": "unsupported"}
+    failures = []
+    try:
+        page.goto(url, wait_until="networkidle")
+        report["supported"] = page.evaluate("() => 'serviceWorker' in navigator")
+        if not report["supported"]:
+            return report, failures
+        page.wait_for_function("() => navigator.serviceWorker?.ready", timeout=10000)
+        page.wait_for_function("() => Boolean(navigator.serviceWorker?.controller)", timeout=10000)
+        context.set_offline(True)
+        offline_page = context.new_page()
+        try:
+            try:
+                offline_page.goto(url, wait_until="domcontentloaded")
+                report["root"] = offline_page.locator("h1").get_by_text("Icon Forge").is_visible()
+                offline_page.goto(f"{url}index.html", wait_until="domcontentloaded")
+                report["index"] = offline_page.locator("#btnGenerate").is_visible()
+            except Exception as error:
+                report["status"] = "unsupported-by-harness"
+                report["reason"] = str(error).splitlines()[0]
+                return report, failures
+        finally:
+            offline_page.close()
+            context.set_offline(False)
+        report["status"] = "pass" if report["root"] and report["index"] else "fail"
+        if report["status"] == "fail":
+            failures.append(f"offline shell did not render both navigation forms: {report}")
+    finally:
+        context.close()
+    return report, failures
+
+
 def main() -> int:
     server, url = start_server()
     console_messages: list[dict] = []
     page_errors: list[str] = []
     results = []
     failures = []
-    offline_shell = {"root": False, "index": False}
     accessibility = {}
-    draft_recovery = {}
+    engine_matrix = {}
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            accessibility_context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+            chromium = p.chromium.launch(headless=True)
+            accessibility_context = chromium.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
             accessibility_page = accessibility_context.new_page()
             accessibility_page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
             accessibility_page.on("console", lambda msg: console_messages.append({"type": msg.type, "text": msg.text}))
@@ -498,16 +652,7 @@ def main() -> int:
             failures.extend(accessibility_failures)
             accessibility_context.close()
 
-            draft_context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
-            draft_page = draft_context.new_page()
-            draft_page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
-            draft_page.on("console", lambda msg: console_messages.append({"type": msg.type, "text": msg.text}))
-            draft_page.on("pageerror", lambda exc: page_errors.append(str(exc)))
-            draft_recovery, draft_failures = check_draft_recovery(draft_page, url)
-            failures.extend(draft_failures)
-            draft_context.close()
-
-            context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+            context = chromium.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
             page = context.new_page()
             page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
             page.on("console", lambda msg: console_messages.append({"type": msg.type, "text": msg.text}))
@@ -528,23 +673,83 @@ def main() -> int:
                     raise RuntimeError(f"{preset} preset browser smoke failed with state {state}") from error
                 results.append(result)
                 failures.extend(validate_result(result))
+            context.close()
+            chromium.close()
 
-            page.goto(url, wait_until="networkidle")
-            page.wait_for_function("() => navigator.serviceWorker?.ready")
-            page.wait_for_function("() => Boolean(navigator.serviceWorker?.controller)", timeout=10000)
-            context.set_offline(True)
-            offline_page = context.new_page()
-            try:
-                offline_page.goto(url, wait_until="domcontentloaded")
-                offline_shell["root"] = offline_page.locator("h1").get_by_text("Icon Forge").is_visible()
-                offline_page.goto(f"{url}index.html", wait_until="domcontentloaded")
-                offline_shell["index"] = offline_page.locator("#btnGenerate").is_visible()
-            finally:
-                offline_page.close()
-                context.set_offline(False)
-            if not all(offline_shell.values()):
-                failures.append(f"offline shell did not render both navigation forms: {offline_shell}")
-            browser.close()
+            for engine_name in ("chromium", "firefox", "webkit"):
+                browser_type = getattr(p, engine_name)
+                browser = browser_type.launch(headless=True)
+                engine_failures = []
+
+                draft_context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+                draft_page = draft_context.new_page()
+                draft_page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
+                draft_page.on("console", lambda msg, engine=engine_name: console_messages.append({"engine": engine, "type": msg.type, "text": msg.text}))
+                draft_page.on("pageerror", lambda exc, engine=engine_name: page_errors.append(f"{engine}: {exc}"))
+                draft_recovery, draft_failures = check_draft_recovery(draft_page, url)
+                engine_failures.extend(draft_failures)
+                draft_context.close()
+
+                resilience_context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+                resilience_page = resilience_context.new_page()
+                resilience_page.add_init_script(
+                    """window.__ICONFORGE_ENABLE_TEST_API__ = true;
+                    window.Worker = class WorkerFailureProbe {
+                        constructor() { throw new Error("forced worker initialization failure"); }
+                    };"""
+                )
+                resilience_page.on("console", lambda msg, engine=engine_name: console_messages.append({"engine": engine, "type": msg.type, "text": msg.text}))
+                resilience_page.on("pageerror", lambda exc, engine=engine_name: page_errors.append(f"{engine}: {exc}"))
+                representative = run_preset(resilience_page, url, "web", source_text="界", worker_eligible=True)
+                engine_failures.extend(validate_result(representative))
+                capability_report, capability_failures = check_source_and_capability_paths(resilience_page)
+                engine_failures.extend(capability_failures)
+                worker_metric = next(
+                    (
+                        metric["value"] for metric in representative["diagnostics"]["metrics"]
+                        if metric["label"] == "Worker fallback state"
+                    ),
+                    "",
+                )
+                expected_fallback = (
+                    "blob worker unavailable"
+                    if capability_report["capabilities"]["offscreenCanvas"]
+                    else "OffscreenCanvas unavailable"
+                )
+                if expected_fallback.lower() not in worker_metric.lower():
+                    engine_failures.append(
+                        f"forced worker failure/unsupported path was not surfaced; "
+                        f"expected {expected_fallback!r}, received {worker_metric!r}"
+                    )
+                format_outputs, format_failures = check_supported_format_outputs(resilience_page, capability_report)
+                engine_failures.extend(format_failures)
+                resilience_context.close()
+
+                offline, offline_failures = check_offline_navigation(browser, url)
+                engine_failures.extend(offline_failures)
+                engine_matrix[engine_name] = {
+                    "representative": {
+                        "fileCount": len(representative["files"]),
+                        "zipEntries": len(representative["zipNames"]),
+                        "validation": representative["validation"]["status"],
+                    },
+                    "sourceChecks": capability_report["sourceChecks"],
+                    "formats": capability_report["formats"],
+                    "formatOutputs": format_outputs,
+                    "capabilities": {
+                        key: {
+                            "supported": value,
+                            "status": "supported" if value else "unsupported",
+                        }
+                        for key, value in capability_report["capabilities"].items()
+                    },
+                    "workerFallback": worker_metric,
+                    "draftRecovery": draft_recovery,
+                    "offlineShell": offline,
+                    "failures": engine_failures,
+                }
+                failures.extend(f"{engine_name}: {failure}" for failure in engine_failures)
+                browser.close()
     finally:
         server.shutdown()
         server.server_close()
@@ -568,8 +773,7 @@ def main() -> int:
             for item in results
         ],
         "accessibility": accessibility,
-        "draftRecovery": draft_recovery,
-        "offlineShell": offline_shell,
+        "engines": engine_matrix,
         "failures": failures,
     }
     print(json.dumps(summary, indent=2))

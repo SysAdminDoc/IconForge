@@ -101,6 +101,8 @@ Custom sizes up to 4096x4096 can be added.
 
 WebP and AVIF output are feature-detected and hidden on unsupported browsers.
 
+The browser smoke matrix runs exact representative Web/ICO/PNG/SVG/ZIP contracts, Unicode and unsafe-source checks, large-input guards, forced worker fallback, encoder output, draft recovery, and offline navigation in Chromium, Firefox, and WebKit. Capabilities such as AVIF encoding, File System Access, installed-app file handling, OffscreenCanvas, and automation-level offline navigation are reported as supported or unsupported per engine instead of being assumed.
+
 ## Privacy
 
 - Zero network requests during processing
