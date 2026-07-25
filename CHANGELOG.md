@@ -24,6 +24,8 @@ All notable changes to IconForge will be documented in this file.
 - Upload, Text, and Emoji source modes now implement APG tabs with roving focus and Arrow/Home/End activation; errors receive assertive programmatic focus, focus rings remain visible, and muted text meets 4.5:1 on supported dark surfaces.
 - Runtime and service-worker versions now share `version.js`; the release gate rejects runtime, cache, README, changelog, or platform-source metadata drift.
 - Draft recovery now uses a migratable v2 schema, reports saved age/bytes/privacy/TTL, expires after 30 days, drops corrupt or unknown records, enforces a 4 MB cap, and supports disable or clear-after-export policies.
+- Manifest metadata now round-trips W3C `name_localized`, `short_name_localized`, and `description_localized` language maps with canonical BCP 47 tags and validated localized text direction.
+- The default English UI catalog now covers every visible shell literal plus generation status and validation outcomes; missing catalog keys fail regression tests.
 
 ### Tests
 - Browser smoke now verifies a freshly installed service worker can render both `/` and `/index.html` while the browser is offline.
@@ -32,6 +34,7 @@ All notable changes to IconForge will be documented in this file.
 - Browser smoke now exercises source-tab keyboard navigation, rendered focus styling, and assertive error focus.
 - Release consistency coverage verifies the canonical version and absolute source/verification metadata for PWA splash, Android icon, and iOS AppIcon matrices.
 - Browser resilience coverage verifies draft reload, clear-through-unload, expiration cleanup, and persistent disable behavior.
+- Static catalog coverage rejects uncataloged shell text and unresolved `data-i18n` keys.
 
 ## [v0.4.23] - 2026-06-30
 

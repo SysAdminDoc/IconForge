@@ -6,6 +6,7 @@ const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
 const scriptSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+const htmlSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const versionSource = fs.readFileSync(path.join(root, 'version.js'), 'utf8');
 const declaredVersion = versionSource.match(/ICONFORGE_VERSION\s*=\s*'([^']+)'/)[1];
 
@@ -278,6 +279,7 @@ function createDocumentMock() {
     manifestMonochrome: '',
     manifestShortcuts: '',
     manifestScreenshots: '',
+    manifestLocalized: '',
     assetUrlMode: 'root',
     assetUrlBase: '/assets/',
     cacheBustToggle: '',
@@ -687,6 +689,35 @@ async function main() {
   assert.strictEqual(api.uiText('diagnostics.metrics.workerFallback'), 'Worker fallback state');
   assert.strictEqual(api.uiText('status.launchedFileOpened', { name: 'logo.png' }), 'Opened logo.png from the operating system.');
   assert.strictEqual(api.uiText('snippets.androidMissing'), 'Run the Android preset to generate adaptive icon PNGs and ic_launcher.xml handoff files.');
+  assert.throws(() => api.uiText('missing.catalog.key'), /Missing UI string/);
+  const catalogValues = new Set();
+  const collectCatalogValues = (value) => {
+    if (typeof value === 'string') catalogValues.add(value);
+    else if (Array.isArray(value)) value.forEach(collectCatalogValues);
+    else if (value && typeof value === 'object') Object.values(value).forEach(collectCatalogValues);
+  };
+  collectCatalogValues(api.UI_STRINGS);
+  const decodeHtml = (value) => value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&middot;/g, '·')
+    .replace(/&times;/g, '×')
+    .replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (_, hex, decimal) => String.fromCodePoint(parseInt(hex || decimal, hex ? 16 : 10)));
+  const shellWithoutComments = htmlSource.replace(/<!--[\s\S]*?-->/g, '');
+  const visibleLiterals = Array.from(shellWithoutComments.matchAll(/>([^<]+)</g), (match) => decodeHtml(match[1]).replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .filter((value) => !/^(?:\d+%?|\d+x\d+)$/.test(value));
+  const attributeLiterals = Array.from(
+    shellWithoutComments.matchAll(/\b(?:aria-label|placeholder|title|alt)=(["'])(.*?)\1/gi),
+    (match) => decodeHtml(match[2]).trim()
+  ).filter((value) => value && !/^(?:A|256)$/.test(value));
+  const uncatalogedLiterals = [...new Set([...visibleLiterals, ...attributeLiterals])]
+    .filter((value) => !catalogValues.has(value));
+  assert.deepStrictEqual(uncatalogedLiterals, [], `uncataloged UI literals: ${uncatalogedLiterals.join(' | ')}`);
+  const catalogHookKeys = Array.from(htmlSource.matchAll(/\bdata-i18n(?:-title|-aria-label)?=["']([^"']+)["']/gi), (match) => match[1]);
+  catalogHookKeys.forEach((key) => assert.strictEqual(typeof api.getUiString(key), 'string', `missing UI catalog key: ${key}`));
   assert.deepStrictEqual(
     JSON.parse(JSON.stringify(api.inspectAssetBase('https://cdn.example.com/assets'))),
     { valid: true, normalized: 'https://cdn.example.com/assets/', error: '' }
@@ -924,7 +955,16 @@ async function main() {
       dir: 'rtl',
       monochrome: true,
       shortcuts: [{ name: 'Reports', short_name: 'Reports', url: './reports/' }],
-      screenshots: [{ src: '/screenshots/home.png', sizes: '1280x720', type: 'image/png' }]
+      screenshots: [{ src: '/screenshots/home.png', sizes: '1280x720', type: 'image/png' }],
+      localized: {
+        name_localized: {
+          fr: 'Console des opérations Acme',
+          'pt-br': { value: 'Console de operações Acme', lang: 'pt-br', dir: 'LTR' }
+        },
+        short_name_localized: {
+          ar: { value: 'عمليات أكمي', dir: 'rtl' }
+        }
+      }
     }
   });
   const editedManifest = JSON.parse(api.buildManifestSnippet());
@@ -942,11 +982,18 @@ async function main() {
   assert(editedManifest.icons.some((icon) => icon.src === '/pwa/icons/icon-monochrome-512x512.png' && icon.purpose === 'monochrome' && icon.type === 'image/png'));
   assert.strictEqual(editedManifest.shortcuts[0].url, './reports/');
   assert.strictEqual(editedManifest.screenshots[0].sizes, '1280x720');
+  assert.strictEqual(editedManifest.name_localized.fr, 'Console des opérations Acme');
+  assert.deepStrictEqual(
+    editedManifest.name_localized['pt-BR'],
+    { value: 'Console de operações Acme', lang: 'pt-BR', dir: 'ltr' }
+  );
+  assert.deepStrictEqual(editedManifest.short_name_localized.ar, { value: 'عمليات أكمي', dir: 'rtl' });
 
-  api.setState({ manifestMetadata: { lang: '', dir: '', shortcuts: '{broken', screenshots: 'not-an-array' } });
+  api.setState({ manifestMetadata: { lang: '', dir: '', shortcuts: '{broken', screenshots: 'not-an-array', localized: '{broken' } });
   const invalidMetadata = api.validateManifestMetadata();
   assert(invalidMetadata.errors.includes('Shortcuts must be valid JSON.'));
   assert(invalidMetadata.errors.includes('Screenshots must be valid JSON.'));
+  assert(invalidMetadata.errors.includes('Localized fields must be valid JSON.'));
   assert.strictEqual(api.buildManifestSnippet(), '', 'invalid metadata should fail closed instead of emitting a partial manifest');
   api.setState({
     manifestMetadata: {
@@ -955,7 +1002,14 @@ async function main() {
       scope: './app/',
       id: 'https://other.example/app',
       shortcuts: [{ name: 'Admin', url: '../admin/' }],
-      screenshots: [{ src: 'data:text/html,unsafe', sizes: 'wide', type: 'text/html' }]
+      screenshots: [{ src: 'data:text/html,unsafe', sizes: 'wide', type: 'text/html' }],
+      localized: {
+        name_localized: {
+          bad_tag: 'Unsafe',
+          fr: { value: 'Nom', dir: 'sideways' }
+        },
+        icons_localized: { en: 'Not supported' }
+      }
     }
   });
   const unsafeMetadata = api.validateManifestMetadata();
@@ -966,6 +1020,9 @@ async function main() {
   assert(unsafeMetadata.errors.some((error) => error.includes('Screenshot 1 src must use')));
   assert(unsafeMetadata.errors.some((error) => error.includes('Screenshot 1 sizes')));
   assert(unsafeMetadata.errors.some((error) => error.includes('Screenshot 1 type')));
+  assert(unsafeMetadata.errors.some((error) => error.includes('name_localized language')));
+  assert(unsafeMetadata.errors.some((error) => error.includes('name_localized.fr.dir')));
+  assert(unsafeMetadata.errors.some((error) => error.includes('icons_localized is not a supported')));
   assert.strictEqual(api.buildManifestSnippet(), '');
   api.setState({
     manifestMetadata: {
@@ -983,7 +1040,8 @@ async function main() {
       dir: 'auto',
       monochrome: false,
       shortcuts: '',
-      screenshots: ''
+      screenshots: '',
+      localized: ''
     }
   });
 

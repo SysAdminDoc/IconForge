@@ -20,7 +20,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Framework handoffs** - tabbed snippets for plain HTML, Vite, Next.js app router, Astro, Chrome/Firefox MV3, Android, and iOS
 - **Deployment URL controls** - generate root-relative, relative, or custom-base asset URLs with optional SHA-256 cache-busting queries
 - **Input and encoder guardrails** - rejects malformed/external SVG input, bounds replacement ZIP bytes/entries/names/offsets, and prevents empty canvas blobs from entering exports
-- **Manifest metadata** - validate app identity, scoped URLs, BCP 47 language, shortcuts, screenshots, and purpose-specific icons before any deployable manifest is emitted
+- **Manifest metadata** - validate app identity, scoped URLs, BCP 47 language, W3C `*_localized` language maps, shortcuts, screenshots, and purpose-specific icons before any deployable manifest is emitted
 - **CSP-hardened shell** - local CSS and JavaScript files run under a strict self-only policy with blob/data allowances for previews, downloads, and workers
 - **Deployable ZIPs** - exports generated images plus README.txt and the platform support files needed by the selected bundle
 - **Export manifest** - ZIP and folder exports include `iconforge-export.json` with file inventory, dimensions, MIME types, byte sizes, and SHA-256 hashes
@@ -47,6 +47,10 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 5. Download individually, download a deployable ZIP, save to a collision-safe new folder, or copy the generated snippets.
 
 No build step, no package manager, no dependencies.
+
+### Localization contract
+
+The **Localized Fields JSON** manifest input accepts `name_localized`, `short_name_localized`, and `description_localized` language maps. Each BCP 47 key maps to a non-empty string or a `{ "value", "lang", "dir" }` object; language tags are canonicalized and `dir` is limited to `auto`, `ltr`, or `rtl`. Unknown localized members and malformed values fail closed. The default English UI catalog is also regression-checked against every visible shell literal and every catalog hook.
 
 ## Development Checks
 

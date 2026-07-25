@@ -145,6 +145,195 @@ const UI_STRINGS = Object.freeze({
         clearDraftOnExport: 'Clear saved draft after ZIP or folder export',
         draftPrivacy: 'Settings save locally in this browser. Source images are stored only when this box is enabled.'
     },
+    shellText: {
+        pageTitle: 'Icon Forge — Favicon, PWA & Extension Icon Generator',
+        fireLogo: '🔥',
+        folderLogo: '📁',
+        dropPrompt: 'Drop an image, paste from clipboard, or click to browse',
+        inputFormats: 'PNG, JPG, GIF, WebP, SVG, BMP, TIFF',
+        chooseDifferentImage: 'Choose Different Image',
+        cropImage: 'Crop Image',
+        autoCrop: 'Auto-Crop',
+        manualCrop: 'Manual Crop',
+        reset: 'Reset',
+        applyCrop: 'Apply Crop',
+        cropRegion: 'Crop Region:',
+        fullImage: 'Full image',
+        tolerance: 'Tolerance:',
+        x: 'X:',
+        y: 'Y:',
+        widthAbbreviation: 'W:',
+        heightAbbreviation: 'H:',
+        apply: 'Apply',
+        supportedInputFormats: 'Supported Input Formats',
+        gif: 'GIF',
+        bmp: 'BMP',
+        tiff: 'TIFF',
+        limitedSupport: 'Limited support',
+        vectorConversion: 'EPS and Illustrator files need conversion to SVG first',
+        letterOrText: 'Letter or Text',
+        font: 'Font',
+        segoeUi: 'Segoe UI',
+        arial: 'Arial',
+        georgia: 'Georgia',
+        courierNew: 'Courier New',
+        impact: 'Impact',
+        systemUi: 'System UI',
+        serif: 'Serif',
+        textColor: 'Text Color',
+        background: 'Background',
+        shape: 'Shape',
+        rounded: 'Rounded',
+        circle: 'Circle',
+        square: 'Square',
+        useAsSource: 'Use This as Source',
+        pickEmoji: 'Pick an Emoji',
+        outputOptions: 'Output Options',
+        quickPresets: 'Quick Presets',
+        manifestMetadata: 'Manifest Metadata',
+        defaultsFromSource: 'Defaults from source',
+        name: 'Name',
+        shortName: 'Short Name',
+        id: 'ID',
+        description: 'Description',
+        startUrl: 'Start URL',
+        scope: 'Scope',
+        display: 'Display',
+        standalone: 'Standalone',
+        fullscreen: 'Fullscreen',
+        minimalUi: 'Minimal UI',
+        browser: 'Browser',
+        categories: 'Categories',
+        themeColor: 'Theme Color',
+        backgroundColor: 'Background Color',
+        language: 'Language',
+        direction: 'Direction',
+        auto: 'Auto',
+        leftToRight: 'Left to Right',
+        rightToLeft: 'Right to Left',
+        unspecified: 'Unspecified',
+        iconPurpose: 'Icon Purpose',
+        monochrome: 'Generate monochrome silhouette',
+        shortcutsJson: 'Shortcuts JSON',
+        screenshotsJson: 'Screenshots JSON',
+        localizedFieldsJson: 'Localized Fields JSON',
+        deploymentUrls: 'Deployment URLs',
+        rootRelativeUrls: 'Root-relative URLs',
+        assetUrlMode: 'Asset URL Mode',
+        rootRelativeExample: 'Root-relative (/icons/icon.png)',
+        relativeExample: 'Relative (icons/icon.png)',
+        customBaseUrlMode: 'Custom base URL',
+        customBaseUrl: 'Custom Base URL',
+        cacheBusting: 'Cache Busting',
+        shaQuery: 'Add SHA-256 query',
+        standardSizes: 'Standard Icon Sizes',
+        favicon: 'favicon',
+        extension: 'extension',
+        apple: 'apple',
+        customSize: 'Custom Size',
+        customWidth: 'Custom icon width',
+        multiplicationSign: 'x',
+        customHeight: 'Custom icon height',
+        add: 'Add',
+        outputFormats: 'Output Formats',
+        svgDarkMode: 'SVG Dark Mode Colors',
+        light: 'Light:',
+        dark: 'Dark:',
+        svgDarkModeHelp: 'Generates SVG with dark-mode media query. Supported in Chrome and Firefox.',
+        processing: 'Processing',
+        safePadding: 'Safe Padding',
+        resampling: 'Resampling',
+        pixelHinted: 'Pixel hinted',
+        nearest: 'Nearest',
+        lossyQuality: 'Lossy Quality',
+        sizeBudget: 'Size Budget KB',
+        transparent: 'Transparent',
+        solid: 'Solid',
+        gradient: 'Gradient',
+        colors: 'Colors',
+        effect: 'Effect',
+        none: 'None',
+        brandTint: 'Brand tint',
+        desaturate: 'Desaturate',
+        glass: 'Glass',
+        dropShadow: 'Drop shadow',
+        maskPreview: 'Mask Preview',
+        squircle: 'Squircle',
+        roundedSquare: 'Rounded square',
+        replacementTemplate: 'Replacement Template',
+        generateIcons: 'Generate Icons',
+        cancel: 'Cancel',
+        preparingExport: 'Preparing export…',
+        generatedIcons: 'Generated Icons',
+        downloadZip: 'Download All as ZIP',
+        saveFolder: 'Save to New Folder',
+        runDiagnostics: 'Run generation to inspect this export.',
+        copyJson: 'Copy JSON',
+        downloadJson: 'Download JSON',
+        browserFeatureSupport: 'Browser feature support',
+        exportValidation: 'Export validation',
+        runValidation: 'Run generation to validate the current platform bundle.',
+        codeSnippets: 'Code Snippets',
+        nextJs: 'Next.js',
+        copy: 'Copy',
+        htmlHeadTags: 'HTML <head> Tags',
+        manifestIcons: 'manifest.webmanifest icons',
+        socialMeta: 'Social Preview Meta Tags',
+        extensionManifest: 'Extension Manifest Icons',
+        androidXml: 'Android Adaptive Icon XML',
+        iosContents: 'iOS Contents.json',
+        windowsXml: 'Windows browserconfig.xml',
+        footer: 'Icon Forge · Open source · No tracking · Works offline',
+        updateReady: 'Update ready',
+        updateMessage: 'Reload to use the latest Icon Forge.',
+        reload: 'Reload',
+        close: '×',
+        sourceType: 'Source type',
+        dropZoneLabel: 'Drop, paste, or press Enter to browse for an image. Supported formats: PNG, JPG, GIF, WebP, SVG, BMP, TIFF',
+        chooseImage: 'Choose image file',
+        preview: 'Preview',
+        cropPreview: 'Crop preview canvas. Use Manual Crop button then drag to select region, or use numeric inputs below.',
+        autoCropTolerance: 'Auto-crop tolerance',
+        cropX: 'Crop X position',
+        cropY: 'Crop Y position',
+        cropWidth: 'Crop width',
+        cropHeight: 'Crop height',
+        safePaddingPercent: 'Safe padding percent',
+        qualityPercent: 'JPG, WebP, and AVIF quality percent',
+        webPresetTitle: 'favicon.ico (32) + apple-touch (180) + SVG',
+        pwaPresetTitle: 'PWA icons, maskable icons, manifest, and splash images',
+        extensionPresetTitle: '16 + 32 + 48 + 128 PNG',
+        androidPresetTitle: 'Adaptive icon foreground, background, and XML',
+        iosPresetTitle: 'AppIcon.appiconset PNGs and Contents.json',
+        windowsPresetTitle: 'Windows tile PNGs and browserconfig.xml',
+        socialPresetTitle: 'Open Graph and social preview PNGs',
+        allPresetTitle: 'All standard sizes',
+        derivedFromSource: 'Derived from source',
+        autoShortened: 'Auto shortened',
+        rootPathPlaceholder: './',
+        generatedDescription: 'Generated icon set for this app',
+        categoriesPlaceholder: 'utilities, productivity',
+        shortcutsPlaceholder: '[{"name":"New","url":"./new"}]',
+        screenshotsPlaceholder: '[{"src":"/screenshots/home.png","sizes":"1280x720","type":"image/png"}]',
+        localizedPlaceholder: '{"name_localized":{"fr":"Mon application","ar":{"value":"تطبيقي","dir":"rtl"}}}',
+        optional: 'Optional',
+        backgroundColorLabel: 'Background color',
+        gradientColorLabel: 'Gradient color',
+        maskPreviewLabel: 'Mask preview',
+        diagnosticsActions: 'Diagnostics support actions',
+        copyDiagnosticsJson: 'Copy diagnostics support JSON',
+        downloadDiagnosticsJson: 'Download diagnostics support JSON',
+        frameworkSnippets: 'Framework handoff snippets',
+        copyHandoff: 'Copy handoff snippet',
+        copyHtml: 'Copy HTML tags',
+        copyManifest: 'Copy manifest JSON',
+        copySocial: 'Copy social preview meta tags',
+        copyExtension: 'Copy extension icon block',
+        copyAndroid: 'Copy Android XML',
+        copyIos: 'Copy Contents.json',
+        copyWindows: 'Copy browserconfig XML',
+        dismissUpdate: 'Dismiss update notice'
+    },
     formats: {
         png: 'PNG',
         jpg: 'JPG',
@@ -210,7 +399,26 @@ const UI_STRINGS = Object.freeze({
         imageInvalid: 'Please select a valid image file.',
         fileTooLarge: 'File too large ({size} MB). Maximum is 200 MB.',
         largeFile: 'Large file ({size} MB) - processing may be slow.',
-        imageDownscaled: 'Image was downscaled from {fromWidth}x{fromHeight} to {toWidth}x{toHeight} (browser canvas limit)'
+        imageDownscaled: 'Image was downscaled from {fromWidth}x{fromHeight} to {toWidth}x{toHeight} (browser canvas limit)',
+        replacementTemplateError: 'Replacement template error: {message}',
+        invalidDimensions: 'Please enter valid dimensions (1-4096)',
+        duplicateSize: 'Size {width}x{height} already exists and has been selected',
+        customSizeAdded: 'Added custom size {width}x{height}',
+        cancelling: 'Cancelling {operation}…',
+        manifestMetadataError: 'Manifest metadata: {message}',
+        selectSize: 'Please select at least one size',
+        selectFormat: 'Please select at least one format',
+        preparingGeneration: 'Preparing icon generation…',
+        generationComplete: 'Generated {count} files ({total} total{budgetImpact})',
+        generationCancelled: 'Generation cancelled. No partial output was retained; Generate Icons is ready to retry.',
+        genericError: 'Error: {message}',
+        clipboardHttps: 'Failed to copy — clipboard requires HTTPS',
+        copyFailed: 'Failed to copy',
+        manifestUpdateFailed: 'Manifest update failed: {message}',
+        deploymentUpdateFailed: 'Deployment URL update failed: {message}',
+        zipFailed: 'Error creating ZIP: {message}',
+        folderSaved: 'Saved {count} files to new folder "{directory}"{conflictNote}.',
+        folderSaveFailed: 'Error saving: {message}'
     },
     draft: {
         tooLarge: 'Draft settings saved locally. Source image was too large for browser storage.',
@@ -238,7 +446,35 @@ const UI_STRINGS = Object.freeze({
             maskableSafeZone: 'Maskable safe zone',
             sizeBudget: 'Size budget',
             generatedFiles: 'Generated files',
-            platformRules: 'Platform file rules'
+            platformRules: 'Platform file rules',
+            artifactBytes: 'Artifact byte contracts',
+            webFiles: 'Modern Web files',
+            pwaIcons: 'PWA icon files',
+            pwaSplash: 'PWA splash files',
+            extensionFiles: 'Extension icon files',
+            androidFiles: 'Android adaptive icon files',
+            iosFiles: 'iOS AppIcon files',
+            windowsFiles: 'Windows tile files',
+            socialFiles: 'Social preview files'
+        },
+        messages: {
+            artifactPassed: '{count} image {fileWord} decoded with matching signatures, MIME types, dimensions, and purpose rules.',
+            expectedFilesPassed: '{count} expected {fileWord} present with expected dimensions.{dimensions}',
+            supportPassed: '{count} support {fileWord} will be included in ZIP/folder export.',
+            noManifestIcons: 'No manifest-sized PNG icons were generated for this export.',
+            manifestMissing: 'Generated icons need a manifest snippet but none was produced.',
+            manifestPassed: '{count} generated {iconWord} match manifest src, sizes, type, and purpose.',
+            manifestInvalid: 'Manifest JSON is invalid: {message}',
+            noMaskableIcons: 'No maskable PWA icons were generated.',
+            maskableContractMissing: 'Missing 40% safe-zone contract: {files}',
+            maskableContractPassed: '{count} maskable {iconWord} use an inscribed-square 40% safe-zone contract.',
+            maskablePixelsPassed: '{count} decoded maskable {iconWord} keep foreground pixels inside the 40% radius and an opaque background outside it.',
+            budgetExceeded: '{total} total exceeds {budget} budget by {overage}.',
+            budgetPassed: '{total} total is within the {budget} budget.',
+            noGeneratedFiles: 'No generated files are available to validate.',
+            generatedFiles: '{count} image {fileWord} generated.',
+            noStrictValidator: 'No strict validator is defined for preset "{preset}".',
+            customRules: 'Custom exports validate generated files and support files only.'
         }
     },
     snippets: {
@@ -257,7 +493,8 @@ function getUiString(path) {
 
 function uiText(path, replacements = {}, fallback = '') {
     const template = getUiString(path);
-    const value = typeof template === 'string' ? template : fallback || path;
+    if (typeof template !== 'string' && !fallback) throw new Error(`Missing UI string: ${path}`);
+    const value = typeof template === 'string' ? template : fallback;
     return value.replace(/\{(\w+)\}/g, (_, key) => {
         return Object.prototype.hasOwnProperty.call(replacements, key) ? String(replacements[key]) : `{${key}}`;
     });
@@ -370,6 +607,7 @@ const manifestDir = document.getElementById('manifestDir');
 const manifestMonochrome = document.getElementById('manifestMonochrome');
 const manifestShortcuts = document.getElementById('manifestShortcuts');
 const manifestScreenshots = document.getElementById('manifestScreenshots');
+const manifestLocalized = document.getElementById('manifestLocalized');
 const deploymentUrlGrid = document.getElementById('deploymentUrlGrid');
 const deploymentUrlStatus = document.getElementById('deploymentUrlStatus');
 const assetUrlMode = document.getElementById('assetUrlMode');
@@ -460,7 +698,8 @@ function manifestDraftValues() {
         dir: manifestDir.value,
         monochrome: Boolean(manifestMonochrome.checked),
         shortcuts: manifestShortcuts.value,
-        screenshots: manifestScreenshots.value
+        screenshots: manifestScreenshots.value,
+        localized: manifestLocalized.value
     };
 }
 
@@ -479,7 +718,8 @@ function applyManifestDraftValues(values = {}) {
         lang: manifestLang,
         dir: manifestDir,
         shortcuts: manifestShortcuts,
-        screenshots: manifestScreenshots
+        screenshots: manifestScreenshots,
+        localized: manifestLocalized
     };
     Object.entries(fieldMap).forEach(([key, field]) => {
         if (Object.prototype.hasOwnProperty.call(values, key)) field.value = String(values[key] ?? '');
@@ -1913,7 +2153,7 @@ async function handleReplacementTemplate(e) {
     } catch (error) {
         replacementTargetNames = new Set();
         replaceStatus.textContent = 'Template scan failed';
-        showStatus(`Replacement template error: ${error.message}`, 'error');
+        showStatus(uiText('status.replacementTemplateError', { message: error.message }), 'error');
     }
 }
 
@@ -2760,7 +3000,7 @@ function addCustomSize() {
     const h = parseInt(customHeight.value) || parseInt(customWidth.value);
     
     if (!w || !h || w < 1 || h < 1 || w > 4096 || h > 4096) {
-        showStatus('Please enter valid dimensions (1-4096)', 'warning');
+        showStatus(uiText('status.invalidDimensions'), 'warning');
         return;
     }
 
@@ -2768,7 +3008,7 @@ function addCustomSize() {
     if (existing) {
         existing.checked = true;
         existing.closest('.size-option').classList.add('selected');
-        showStatus(`Size ${w}x${h} already exists and has been selected`, 'info');
+        showStatus(uiText('status.duplicateSize', { width: w, height: h }), 'info');
         saveDraftState({ silent: true });
         return;
     }
@@ -2788,7 +3028,7 @@ function addCustomSize() {
     
     customWidth.value = '';
     customHeight.value = '';
-    showStatus(`Added custom size ${w}x${h}`, 'success');
+    showStatus(uiText('status.customSizeAdded', { width: w, height: h }), 'success');
     saveDraftState({ silent: true });
 }
 
@@ -2888,7 +3128,7 @@ function cancelActiveOperation() {
     if (activeOperation.kind === 'generation') {
         disposeResizeWorker('Generation cancelled.');
     }
-    showStatus(`Cancelling ${activeOperation.kind}…`, 'warning');
+    showStatus(uiText('status.cancelling', { operation: activeOperation.kind }), 'warning');
 }
 
 async function runOperationStep(operation, stage, fileName, action) {
@@ -2935,17 +3175,17 @@ async function generateIcons() {
         return;
     }
     if (manifestValidation.errors.length) {
-        showStatus(`Manifest metadata: ${manifestValidation.errors[0]}`, 'error');
+        showStatus(uiText('status.manifestMetadataError', { message: manifestValidation.errors[0] }), 'error');
         return;
     }
 
     if (sizes.length === 0) {
-        showStatus('Please select at least one size', 'warning');
+        showStatus(uiText('status.selectSize'), 'warning');
         return;
     }
 
     if (formats.length === 0) {
-        showStatus('Please select at least one format', 'warning');
+        showStatus(uiText('status.selectFormat'), 'warning');
         return;
     }
 
@@ -2955,7 +3195,7 @@ async function generateIcons() {
     btnDownloadAll.disabled = true;
     if (btnSaveToFolder) btnSaveToFolder.disabled = true;
     btnGenerate.innerHTML = '<span class="spinner"></span> Generating...';
-    showStatus('Preparing icon generation…', 'info');
+    showStatus(uiText('status.preparingGeneration'), 'info');
 
     if (featureSupport.workerApi && featureSupport.offscreenCanvas && !resizeWorker) initWorker();
     revokeOutputUrls();
@@ -3003,7 +3243,11 @@ async function generateIcons() {
         const totalSize = generatedFiles.reduce((s, f) => s + f.blob.size, 0);
         const budgetBytes = getSizeBudgetBytes();
         const budgetImpact = budgetBytes ? `; ${getSizeBudgetStatus(totalSize)}` : '';
-        showStatus(`Generated ${generatedFiles.length} files (${formatFileSize(totalSize)} total${budgetImpact})`, 'success');
+        showStatus(uiText('status.generationComplete', {
+            count: generatedFiles.length,
+            total: formatFileSize(totalSize),
+            budgetImpact
+        }), 'success');
     } catch (error) {
         if (error.name === 'AbortError') {
             disposeResizeWorker('Generation cancelled.');
@@ -3012,11 +3256,11 @@ async function generateIcons() {
             generatedFiles = [];
             generatedSnippets = {};
             setElementVisible(outputSection, false);
-            showStatus('Generation cancelled. No partial output was retained; Generate Icons is ready to retry.', 'warning');
+            showStatus(uiText('status.generationCancelled'), 'warning');
         } else {
             setElementVisible(outputSection, true, 'block');
             renderGenerationDiagnostics({ selectedFormats: formats, error });
-            showStatus(`Error: ${error.message}`, 'error');
+            showStatus(uiText('status.genericError', { message: error.message }), 'error');
             console.error(error);
         }
     } finally {
@@ -3518,7 +3762,7 @@ function addOutputItem(fileName, blob, size, format, icoSizes = null, fileSize =
             await navigator.clipboard.writeText(dataUrl);
             showCopyFeedback(btn);
         } catch {
-            showStatus('Failed to copy — clipboard requires HTTPS', 'error');
+            showStatus(uiText('status.clipboardHttps'), 'error');
         }
     });
 
@@ -3678,6 +3922,7 @@ function setSnippetBlock(blockId, snippetId, value) {
 
 const MANIFEST_DISPLAY_MODES = new Set(['fullscreen', 'standalone', 'minimal-ui', 'browser']);
 const MANIFEST_DIRECTIONS = new Set(['auto', 'ltr', 'rtl']);
+const MANIFEST_LOCALIZED_MEMBERS = new Set(['name_localized', 'short_name_localized', 'description_localized']);
 const MANIFEST_TEST_BASE = 'https://iconforge.invalid/app/manifest.webmanifest';
 
 function metadataValue(field) {
@@ -3712,6 +3957,91 @@ function isValidLanguageTag(value) {
     } catch {
         return false;
     }
+}
+
+function canonicalLanguageTag(value) {
+    if (!isValidLanguageTag(value)) return '';
+    return Intl.getCanonicalLocales(value)[0];
+}
+
+function parseLocalizedManifestFields(field, errors) {
+    const raw = metadataValue(field);
+    if (!raw) return undefined;
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        errors.push('Localized fields must be valid JSON.');
+        return undefined;
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        errors.push('Localized fields must be a JSON object.');
+        return undefined;
+    }
+
+    const normalized = {};
+    for (const [member, languageMap] of Object.entries(parsed)) {
+        if (!MANIFEST_LOCALIZED_MEMBERS.has(member)) {
+            errors.push(`${member} is not a supported localized manifest member.`);
+            continue;
+        }
+        if (!languageMap || typeof languageMap !== 'object' || Array.isArray(languageMap)) {
+            errors.push(`${member} must be a language map object.`);
+            continue;
+        }
+        const normalizedMap = {};
+        for (const [language, localizedValue] of Object.entries(languageMap)) {
+            const canonicalLanguage = canonicalLanguageTag(language);
+            if (!canonicalLanguage) {
+                errors.push(`${member} language "${language}" must be a valid BCP 47 tag.`);
+                continue;
+            }
+            if (Object.prototype.hasOwnProperty.call(normalizedMap, canonicalLanguage)) {
+                errors.push(`${member} contains duplicate language "${canonicalLanguage}".`);
+                continue;
+            }
+            if (typeof localizedValue === 'string') {
+                const value = localizedValue.trim();
+                if (!value) errors.push(`${member}.${language} must not be empty.`);
+                else normalizedMap[canonicalLanguage] = value;
+                continue;
+            }
+            if (!localizedValue || typeof localizedValue !== 'object' || Array.isArray(localizedValue)) {
+                errors.push(`${member}.${language} must be a string or localized text object.`);
+                continue;
+            }
+            const extraKeys = Object.keys(localizedValue).filter(key => !['value', 'lang', 'dir'].includes(key));
+            if (extraKeys.length) {
+                errors.push(`${member}.${language} contains unsupported member "${extraKeys[0]}".`);
+                continue;
+            }
+            const value = typeof localizedValue.value === 'string' ? localizedValue.value.trim() : '';
+            if (!value) {
+                errors.push(`${member}.${language}.value must be a non-empty string.`);
+                continue;
+            }
+            const localizedText = { value };
+            if (localizedValue.lang !== undefined) {
+                const canonicalLang = canonicalLanguageTag(String(localizedValue.lang).trim());
+                if (!canonicalLang) {
+                    errors.push(`${member}.${language}.lang must be a valid BCP 47 tag.`);
+                    continue;
+                }
+                localizedText.lang = canonicalLang;
+            }
+            if (localizedValue.dir !== undefined) {
+                const localizedDir = String(localizedValue.dir).trim().toLowerCase();
+                if (!MANIFEST_DIRECTIONS.has(localizedDir)) {
+                    errors.push(`${member}.${language}.dir must be auto, ltr, or rtl.`);
+                    continue;
+                }
+                localizedText.dir = localizedDir;
+            }
+            normalizedMap[canonicalLanguage] = localizedText;
+        }
+        if (Object.keys(normalizedMap).length) normalized[member] = normalizedMap;
+    }
+    return Object.keys(normalized).length ? normalized : undefined;
 }
 
 function parseManifestPath(value, label, errors, options = {}) {
@@ -3823,6 +4153,7 @@ function getManifestMetadata() {
         .filter(Boolean);
     const shortcuts = parseJsonArrayField(manifestShortcuts, 'Shortcuts', errors);
     const screenshots = parseJsonArrayField(manifestScreenshots, 'Screenshots', errors);
+    const localizedFields = parseLocalizedManifestFields(manifestLocalized, errors);
 
     if (!name) errors.push('Name is required.');
     if (!shortName) errors.push('Short name is required.');
@@ -3860,6 +4191,7 @@ function getManifestMetadata() {
     if (dir) metadata.dir = dir;
     if (shortcuts) metadata.shortcuts = shortcuts;
     if (screenshots) metadata.screenshots = screenshots;
+    if (localizedFields) Object.assign(metadata, localizedFields);
 
     return { metadata, errors };
 }
@@ -3886,7 +4218,7 @@ if (manifestMetadataGrid) {
             renderGenerationDiagnostics({ validationResult });
         } catch (error) {
             renderGenerationDiagnostics({ error });
-            showStatus(`Manifest update failed: ${error.message}`, 'error');
+            showStatus(uiText('status.manifestUpdateFailed', { message: error.message }), 'error');
         }
     };
     manifestMetadataGrid.addEventListener('input', handleManifestMetadataChange);
@@ -3905,7 +4237,7 @@ async function handleDeploymentUrlChange() {
         renderGenerationDiagnostics({ validationResult });
     } catch (error) {
         renderGenerationDiagnostics({ error });
-        showStatus(`Deployment URL update failed: ${error.message}`, 'error');
+        showStatus(uiText('status.deploymentUpdateFailed', { message: error.message }), 'error');
     }
 }
 
@@ -4302,14 +4634,14 @@ document.getElementById('btnCopyHtml').addEventListener('click', async function(
     try {
         await navigator.clipboard.writeText(document.getElementById('htmlSnippet').textContent);
         showCopyFeedback(this);
-    } catch { showStatus('Failed to copy', 'error'); }
+    } catch { showStatus(uiText('status.copyFailed'), 'error'); }
 });
 
 document.getElementById('btnCopyManifest').addEventListener('click', async function() {
     try {
         await navigator.clipboard.writeText(document.getElementById('manifestSnippet').textContent);
         showCopyFeedback(this);
-    } catch { showStatus('Failed to copy', 'error'); }
+    } catch { showStatus(uiText('status.copyFailed'), 'error'); }
 });
 
 document.getElementById('snippetSection').addEventListener('click', async (e) => {
@@ -4319,7 +4651,7 @@ document.getElementById('snippetSection').addEventListener('click', async (e) =>
         await navigator.clipboard.writeText(document.getElementById(btn.dataset.copyTarget).textContent);
         showCopyFeedback(btn);
     } catch {
-        showStatus('Failed to copy', 'error');
+        showStatus(uiText('status.copyFailed'), 'error');
     }
 });
 
@@ -4662,11 +4994,14 @@ async function validateGeneratedArtifacts(checks) {
         }
     }
     if (errors.length) {
-        addValidationCheck(checks, 'fail', 'Artifact byte contracts', fileSpecSummary(errors));
+        addValidationCheck(checks, 'fail', uiText('validation.labels.artifactBytes'), fileSpecSummary(errors));
     } else if (warnings.length) {
-        addValidationCheck(checks, 'warn', 'Artifact byte contracts', fileSpecSummary(warnings));
+        addValidationCheck(checks, 'warn', uiText('validation.labels.artifactBytes'), fileSpecSummary(warnings));
     } else if (generatedFiles.length) {
-        addValidationCheck(checks, 'pass', 'Artifact byte contracts', `${generatedFiles.length} image artifact${generatedFiles.length === 1 ? '' : 's'} decoded with matching signatures, MIME types, dimensions, and purpose rules.`);
+        addValidationCheck(checks, 'pass', uiText('validation.labels.artifactBytes'), uiText('validation.messages.artifactPassed', {
+            count: generatedFiles.length,
+            fileWord: generatedFiles.length === 1 ? 'artifact' : 'artifacts'
+        }));
     }
 }
 
@@ -4698,7 +5033,11 @@ function checkFileSet(checks, label, specs) {
         const dimensions = label === 'PWA splash files'
             ? ` Dimensions: ${specs.map(spec => `${spec.width}x${spec.height}`).join(', ')}.`
             : '';
-        addValidationCheck(checks, 'pass', label, `${specs.length} expected file${specs.length === 1 ? '' : 's'} present with expected dimensions.${dimensions}`);
+        addValidationCheck(checks, 'pass', label, uiText('validation.messages.expectedFilesPassed', {
+            count: specs.length,
+            fileWord: specs.length === 1 ? 'file' : 'files',
+            dimensions
+        }));
     }
 }
 
@@ -4706,7 +5045,7 @@ function expectedPresetFileGroups() {
     if (activePresetKey === 'web') {
         return [
             {
-                label: 'Modern web files',
+                label: uiText('validation.labels.webFiles'),
                 specs: [
                     { name: 'favicon.ico' },
                     { name: 'icon.svg' },
@@ -4727,16 +5066,16 @@ function expectedPresetFileGroups() {
         }
         return [
             {
-                label: 'PWA icon files',
+                label: uiText('validation.labels.pwaIcons'),
                 specs: iconSpecs
             },
-            { label: 'PWA splash files', specs: pwaSplashFileSpecs() }
+            { label: uiText('validation.labels.pwaSplash'), specs: pwaSplashFileSpecs() }
         ];
     }
     if (activePresetKey === 'extension') {
         return [
             {
-                label: 'Extension icon files',
+                label: uiText('validation.labels.extensionFiles'),
                 specs: [16, 32, 48, 128].map(px => ({ name: `extension/icons/icon${px}.png`, width: px, height: px }))
             }
         ];
@@ -4744,7 +5083,7 @@ function expectedPresetFileGroups() {
     if (activePresetKey === 'android') {
         return [
             {
-                label: 'Android adaptive icon files',
+                label: uiText('validation.labels.androidFiles'),
                 specs: ANDROID_DENSITY_SPECS.flatMap(spec => [
                     { name: `android/mipmap-${spec.density}/ic_launcher_foreground.png`, width: spec.adaptive, height: spec.adaptive },
                     { name: `android/mipmap-${spec.density}/ic_launcher_background.png`, width: spec.adaptive, height: spec.adaptive },
@@ -4756,7 +5095,7 @@ function expectedPresetFileGroups() {
     if (activePresetKey === 'ios') {
         return [
             {
-                label: 'iOS AppIcon files',
+                label: uiText('validation.labels.iosFiles'),
                 specs: IOS_ICON_SPECS.map(([, pointSize, scale, pixels]) => ({
                     name: `ios/AppIcon.appiconset/${iosIconFileName(pointSize, scale)}`,
                     width: pixels,
@@ -4768,7 +5107,7 @@ function expectedPresetFileGroups() {
     if (activePresetKey === 'windows') {
         return [
             {
-                label: 'Windows tile files',
+                label: uiText('validation.labels.windowsFiles'),
                 specs: [
                     { name: 'windows/favicon.ico' },
                     ...WINDOWS_TILE_SPECS.map(tile => ({
@@ -4783,7 +5122,7 @@ function expectedPresetFileGroups() {
     if (activePresetKey === 'social') {
         return [
             {
-                label: 'Social preview files',
+                label: uiText('validation.labels.socialFiles'),
                 specs: [
                     { name: 'social/og-image.png', width: 1200, height: 630 },
                     { name: 'social/twitter-card.png', width: 1200, height: 675 },
@@ -4831,9 +5170,12 @@ async function validateSupportFiles(checks) {
         const details = [];
         if (missing.length) details.push(`Missing: ${fileSpecSummary(missing)}`);
         if (malformed.length) details.push(`Malformed: ${fileSpecSummary(malformed)}`);
-        addValidationCheck(checks, 'fail', 'Deployable support files', details.join(' | '));
+        addValidationCheck(checks, 'fail', uiText('validation.labels.supportFiles'), details.join(' | '));
     } else {
-        addValidationCheck(checks, 'pass', 'Deployable support files', `${expected.length} support file${expected.length === 1 ? '' : 's'} will be included in ZIP/folder export.`);
+        addValidationCheck(checks, 'pass', uiText('validation.labels.supportFiles'), uiText('validation.messages.supportPassed', {
+            count: expected.length,
+            fileWord: expected.length === 1 ? 'file' : 'files'
+        }));
     }
 }
 
@@ -4843,11 +5185,11 @@ function validateManifestIcons(checks) {
     const colorIcons = relevantIcons.filter(file => file.purpose !== 'monochrome');
 
     if (relevantIcons.length === 0) {
-        addValidationCheck(checks, 'warn', 'Manifest icon metadata', 'No manifest-sized PNG icons were generated for this export.');
+        addValidationCheck(checks, 'warn', uiText('validation.labels.manifestMetadata'), uiText('validation.messages.noManifestIcons'));
         return;
     }
     if (!generatedSnippets.manifest) {
-        addValidationCheck(checks, 'fail', 'Manifest icon metadata', 'Generated icons need a manifest snippet but none was produced.');
+        addValidationCheck(checks, 'fail', uiText('validation.labels.manifestMetadata'), uiText('validation.messages.manifestMissing'));
         return;
     }
 
@@ -4881,13 +5223,16 @@ function validateManifestIcons(checks) {
             }
         }
         if (mismatches.length) {
-            addValidationCheck(checks, 'fail', 'Manifest icon metadata', fileSpecSummary(mismatches));
+            addValidationCheck(checks, 'fail', uiText('validation.labels.manifestMetadata'), fileSpecSummary(mismatches));
         } else {
             const iconCount = colorIcons.length + (manifestMonochromeEnabled() && monochromeManifestIconFile(relevantIcons) ? 1 : 0);
-            addValidationCheck(checks, 'pass', 'Manifest icon metadata', `${iconCount} generated icon${iconCount === 1 ? '' : 's'} match manifest src, sizes, type, and purpose.`);
+            addValidationCheck(checks, 'pass', uiText('validation.labels.manifestMetadata'), uiText('validation.messages.manifestPassed', {
+                count: iconCount,
+                iconWord: iconCount === 1 ? 'icon' : 'icons'
+            }));
         }
     } catch (error) {
-        addValidationCheck(checks, 'fail', 'Manifest icon metadata', `Manifest JSON is invalid: ${error.message}`);
+        addValidationCheck(checks, 'fail', uiText('validation.labels.manifestMetadata'), uiText('validation.messages.manifestInvalid', { message: error.message }));
     }
 }
 
@@ -4904,7 +5249,7 @@ async function validateMaskableSafeZone(checks, inspectPixels = true) {
     const maskableFiles = generatedFiles.filter(file => file.purpose === 'maskable' || file.name.includes('maskable'));
     if (activePresetKey !== 'pwa' && maskableFiles.length === 0) return;
     if (maskableFiles.length === 0) {
-        addValidationCheck(checks, 'fail', 'Maskable safe zone', 'No maskable PWA icons were generated.');
+        addValidationCheck(checks, 'fail', uiText('validation.labels.maskableSafeZone'), uiText('validation.messages.noMaskableIcons'));
         return;
     }
     const metadataFailures = maskableFiles.filter(file =>
@@ -4913,11 +5258,16 @@ async function validateMaskableSafeZone(checks, inspectPixels = true) {
         file.safeZonePaddingPercent < 22
     );
     if (metadataFailures.length) {
-        addValidationCheck(checks, 'fail', 'Maskable safe zone', `Missing 40% safe-zone contract: ${fileSpecSummary(metadataFailures.map(file => file.name))}`);
+        addValidationCheck(checks, 'fail', uiText('validation.labels.maskableSafeZone'), uiText('validation.messages.maskableContractMissing', {
+            files: fileSpecSummary(metadataFailures.map(file => file.name))
+        }));
         return;
     }
     if (!inspectPixels) {
-        addValidationCheck(checks, 'pass', 'Maskable safe zone', `${maskableFiles.length} maskable icon${maskableFiles.length === 1 ? '' : 's'} use an inscribed-square 40% safe-zone contract.`);
+        addValidationCheck(checks, 'pass', uiText('validation.labels.maskableSafeZone'), uiText('validation.messages.maskableContractPassed', {
+            count: maskableFiles.length,
+            iconWord: maskableFiles.length === 1 ? 'icon' : 'icons'
+        }));
         return;
     }
 
@@ -4950,11 +5300,14 @@ async function validateMaskableSafeZone(checks, inspectPixels = true) {
         if (mismatch) pixelFailures.push(`${file.name}: foreground or transparency extends outside the 40% safe zone`);
     }
     if (pixelFailures.length) {
-        addValidationCheck(checks, 'fail', 'Maskable safe zone', fileSpecSummary(pixelFailures));
+        addValidationCheck(checks, 'fail', uiText('validation.labels.maskableSafeZone'), fileSpecSummary(pixelFailures));
     } else if (pixelWarnings.length) {
-        addValidationCheck(checks, 'warn', 'Maskable safe zone', fileSpecSummary(pixelWarnings));
+        addValidationCheck(checks, 'warn', uiText('validation.labels.maskableSafeZone'), fileSpecSummary(pixelWarnings));
     } else {
-        addValidationCheck(checks, 'pass', 'Maskable safe zone', `${maskableFiles.length} decoded maskable icon${maskableFiles.length === 1 ? '' : 's'} keep foreground pixels inside the 40% radius and an opaque background outside it.`);
+        addValidationCheck(checks, 'pass', uiText('validation.labels.maskableSafeZone'), uiText('validation.messages.maskablePixelsPassed', {
+            count: maskableFiles.length,
+            iconWord: maskableFiles.length === 1 ? 'icon' : 'icons'
+        }));
     }
 }
 
@@ -4963,18 +5316,28 @@ function validateSizeBudget(checks) {
     if (!budgetBytes) return;
     const totalBytes = generatedFiles.reduce((sum, file) => sum + (file.blob?.size || 0), 0);
     if (totalBytes > budgetBytes) {
-        addValidationCheck(checks, 'warn', 'Size budget', `${formatFileSize(totalBytes)} total exceeds ${formatFileSize(budgetBytes)} budget by ${formatFileSize(totalBytes - budgetBytes)}.`);
+        addValidationCheck(checks, 'warn', uiText('validation.labels.sizeBudget'), uiText('validation.messages.budgetExceeded', {
+            total: formatFileSize(totalBytes),
+            budget: formatFileSize(budgetBytes),
+            overage: formatFileSize(totalBytes - budgetBytes)
+        }));
     } else {
-        addValidationCheck(checks, 'pass', 'Size budget', `${formatFileSize(totalBytes)} total is within the ${formatFileSize(budgetBytes)} budget.`);
+        addValidationCheck(checks, 'pass', uiText('validation.labels.sizeBudget'), uiText('validation.messages.budgetPassed', {
+            total: formatFileSize(totalBytes),
+            budget: formatFileSize(budgetBytes)
+        }));
     }
 }
 
 async function validateGeneratedExport(options = {}) {
     const checks = [];
     if (generatedFiles.length === 0) {
-        addValidationCheck(checks, 'fail', 'Generated files', 'No generated files are available to validate.');
+        addValidationCheck(checks, 'fail', uiText('validation.labels.generatedFiles'), uiText('validation.messages.noGeneratedFiles'));
     } else {
-        addValidationCheck(checks, 'pass', 'Generated files', `${generatedFiles.length} image file${generatedFiles.length === 1 ? '' : 's'} generated.`);
+        addValidationCheck(checks, 'pass', uiText('validation.labels.generatedFiles'), uiText('validation.messages.generatedFiles', {
+            count: generatedFiles.length,
+            fileWord: generatedFiles.length === 1 ? 'file' : 'files'
+        }));
     }
 
     if (options.artifactChecks !== false) await validateGeneratedArtifacts(checks);
@@ -4982,9 +5345,9 @@ async function validateGeneratedExport(options = {}) {
     const groups = expectedPresetFileGroups();
     for (const group of groups) checkFileSet(checks, group.label, group.specs);
     if (groups.length === 0 && activePresetKey) {
-        addValidationCheck(checks, 'warn', 'Platform file rules', `No strict validator is defined for preset "${activePresetKey}".`);
+        addValidationCheck(checks, 'warn', uiText('validation.labels.platformRules'), uiText('validation.messages.noStrictValidator', { preset: activePresetKey }));
     } else if (groups.length === 0) {
-        addValidationCheck(checks, 'warn', 'Platform file rules', 'Custom exports validate generated files and support files only.');
+        addValidationCheck(checks, 'warn', uiText('validation.labels.platformRules'), uiText('validation.messages.customRules'));
     }
 
     validateManifestIcons(checks);
@@ -5078,7 +5441,7 @@ async function downloadAll() {
         URL.revokeObjectURL(url);
         clearDraftAfterExportIfRequested();
     } catch (error) {
-        showStatus(`Error creating ZIP: ${error.message}`, 'error');
+        showStatus(uiText('status.zipFailed', { message: error.message }), 'error');
     }
 
     btnDownloadAll.disabled = false;
@@ -5111,11 +5474,15 @@ async function saveToFolder() {
         const conflictNote = result.conflicts.length
             ? ` (${result.conflicts.length} existing destination${result.conflicts.length === 1 ? '' : 's'} skipped)`
             : '';
-        showStatus(`Saved ${result.written.length} files to new folder "${result.directoryName}"${conflictNote}.`, 'success');
+        showStatus(uiText('status.folderSaved', {
+            count: result.written.length,
+            directory: result.directoryName,
+            conflictNote
+        }), 'success');
         clearDraftAfterExportIfRequested();
     } catch (err) {
         if (err.name !== 'AbortError') {
-            showStatus(`Error saving: ${err.message}`, 'error');
+            showStatus(uiText('status.folderSaveFailed', { message: err.message }), 'error');
         } else if (operation) {
             showStatus(err.message, 'warning');
         }
@@ -5542,14 +5909,15 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                     dir: manifestDir,
                     monochrome: manifestMonochrome,
                     shortcuts: manifestShortcuts,
-                    screenshots: manifestScreenshots
+                    screenshots: manifestScreenshots,
+                    localized: manifestLocalized
                 };
                 for (const [key, value] of Object.entries(next.manifestMetadata || {})) {
                     if (fieldMap[key]) {
                         if (fieldMap[key] === manifestMonochrome || fieldMap[key].type === 'checkbox') {
                             fieldMap[key].checked = Boolean(value);
                         } else {
-                            fieldMap[key].value = Array.isArray(value) ? JSON.stringify(value) : String(value ?? '');
+                            fieldMap[key].value = value && typeof value === 'object' ? JSON.stringify(value) : String(value ?? '');
                         }
                     }
                 }
