@@ -11,6 +11,7 @@ All notable changes to IconForge will be documented in this file.
 - Apple startup tags now use CSS point dimensions, device scale factors, and explicit orientation instead of raster pixels as CSS device dimensions.
 - Maskable PWA icons now reserve an inscribed-square safe area within the 40% manifest radius and use a deterministic opaque background outside it.
 - Manifest generation now fails closed on malformed JSON, invalid BCP 47 language tags, unsafe or out-of-scope URLs, invalid shortcut objects, and malformed screenshot metadata.
+- Resize-worker crashes, unreadable messages, transfer failures, and timeouts now terminate the worker and reject every pending job immediately; canvas encoders also have a bounded callback timeout.
 
 ### Added
 - Export validation now decodes every image artifact to verify signatures, MIME types, dimensions, ICO directories, support-file syntax, maskable pixels, and monochrome RGB semantics.

@@ -15,6 +15,26 @@ class URLMock extends URL {
   static revokeObjectURL() {}
 }
 
+class WorkerMock {
+  constructor(url) {
+    this.url = url;
+    this.terminated = false;
+    this.throwOnPost = false;
+    this.lastMessage = null;
+    WorkerMock.instances.push(this);
+  }
+
+  postMessage(message) {
+    if (this.throwOnPost) throw new Error('transfer failed');
+    this.lastMessage = message;
+  }
+
+  terminate() {
+    this.terminated = true;
+  }
+}
+WorkerMock.instances = [];
+
 class ClassListMock {
   constructor() {
     this.classes = new Set();
@@ -275,6 +295,7 @@ function loadApp() {
     },
     location: { reload() {} },
     URL: URLMock,
+    Worker: WorkerMock,
     Image: class {
       constructor() {
         this.naturalWidth = 256;
@@ -474,6 +495,58 @@ function makeAndroidDensityFiles() {
 
 async function main() {
   const api = loadApp();
+  const workerState = api.getWorkerDebugState();
+  assert.strictEqual(workerState.active, true, 'worker should initialize when the API is available');
+  const successfulWorkerJob = api.resizeInWorker({ width: 1, height: 1 }, 32, 32, 'png', null, undefined, 50);
+  const successfulWorker = api.getWorkerDebugState().worker;
+  const workerBlob = makeBlob();
+  successfulWorker.onmessage({ data: { id: successfulWorker.lastMessage.id, blob: workerBlob } });
+  assert.strictEqual(await successfulWorkerJob, workerBlob);
+  assert.strictEqual(api.getWorkerDebugState().pendingJobs, 0);
+
+  const crashedWorkerJob = api.resizeInWorker({ width: 1, height: 1 }, 32, 32, 'png', null, undefined, 50);
+  const crashedWorker = api.getWorkerDebugState().worker;
+  crashedWorker.onerror({ message: 'synthetic crash', preventDefault() {} });
+  await assert.rejects(crashedWorkerJob, /Resize worker crashed: synthetic crash/);
+  assert.strictEqual(crashedWorker.terminated, true);
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(api.getWorkerDebugState(), (key, value) => key === 'worker' ? undefined : value)),
+    { active: false, pendingJobs: 0 }
+  );
+
+  api.initWorker();
+  const unreadableWorkerJob = api.resizeInWorker({ width: 1, height: 1 }, 32, 32, 'png', null, undefined, 50);
+  const unreadableWorker = api.getWorkerDebugState().worker;
+  unreadableWorker.onmessageerror();
+  await assert.rejects(unreadableWorkerJob, /unreadable response/);
+  assert.strictEqual(unreadableWorker.terminated, true);
+
+  api.initWorker();
+  await assert.rejects(
+    api.resizeInWorker({ width: 1, height: 1 }, 32, 32, 'png', null, undefined, 5),
+    /timed out after 5ms/
+  );
+  assert.strictEqual(api.getWorkerDebugState().active, false);
+  assert.strictEqual(api.getWorkerDebugState().pendingJobs, 0);
+
+  api.initWorker();
+  const transferWorker = api.getWorkerDebugState().worker;
+  transferWorker.throwOnPost = true;
+  await assert.rejects(
+    api.resizeInWorker({ width: 1, height: 1 }, 32, 32, 'png', null, undefined, 50),
+    /Could not send resize job to worker: transfer failed/
+  );
+  assert.strictEqual(transferWorker.terminated, true);
+  assert.strictEqual(api.getWorkerDebugState().pendingJobs, 0);
+
+  await assert.rejects(
+    api.canvasToOutputBlob({ toBlob() {} }, 'image/png', undefined, 'PNG 32x32', 5),
+    /PNG 32x32 encoder failed: Canvas encoder timed out after 5ms/
+  );
+  await assert.rejects(
+    api.canvasToOutputBlob({ toBlob(callback) { callback(null); } }, 'image/png', undefined, 'PNG 32x32', 50),
+    /PNG 32x32 encoder did not produce a file blob/
+  );
   assert.strictEqual(api.uiText('shell.draftRecovery'), 'Draft Recovery');
   assert.strictEqual(api.uiText('diagnostics.metrics.workerFallback'), 'Worker fallback state');
   assert.strictEqual(api.uiText('status.launchedFileOpened', { name: 'logo.png' }), 'Opened logo.png from the operating system.');

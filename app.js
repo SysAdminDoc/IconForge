@@ -2306,67 +2306,127 @@ self.postMessage({ id, error: err.message });
 let resizeWorker = null;
 let workerJobId = 0;
 const workerCallbacks = new Map();
+const WORKER_RESIZE_TIMEOUT_MS = 30000;
+const CANVAS_ENCODER_TIMEOUT_MS = 15000;
+
+function settleWorkerJob(id, blob = null, error = null) {
+    const job = workerCallbacks.get(id);
+    if (!job) return false;
+    workerCallbacks.delete(id);
+    clearTimeout(job.timer);
+    if (error) job.reject(error instanceof Error ? error : new Error(String(error)));
+    else job.resolve(blob);
+    return true;
+}
+
+function rejectPendingWorkerJobs(reason) {
+    const error = reason instanceof Error ? reason : new Error(String(reason));
+    for (const id of Array.from(workerCallbacks.keys())) {
+        settleWorkerJob(id, null, error);
+    }
+}
+
+function disposeResizeWorker(reason = 'Resize worker stopped.', rejectPending = true) {
+    const worker = resizeWorker;
+    resizeWorker = null;
+    featureSupport.blobWorker = false;
+    if (worker) {
+        worker.onmessage = null;
+        worker.onerror = null;
+        worker.onmessageerror = null;
+        try {
+            worker.terminate();
+        } catch {
+            // The worker may already have terminated itself.
+        }
+    }
+    if (rejectPending) rejectPendingWorkerJobs(reason);
+}
 
 function initWorker() {
+    let url = '';
     try {
+        if (resizeWorker) disposeResizeWorker('Resize worker replaced.');
         const blob = new Blob([workerCode], { type: 'application/javascript' });
-        const url = URL.createObjectURL(blob);
-        resizeWorker = new Worker(url);
+        url = URL.createObjectURL(blob);
+        const worker = new Worker(url);
+        resizeWorker = worker;
         featureSupport.blobWorker = true;
-        resizeWorker.onmessage = (e) => {
-            const cb = workerCallbacks.get(e.data.id);
-            if (cb) {
-                workerCallbacks.delete(e.data.id);
-                if (e.data.error) cb(null, e.data.error);
-                else cb(e.data.blob);
-            }
+        worker.onmessage = (event) => {
+            if (worker !== resizeWorker) return;
+            const message = event && event.data ? event.data : {};
+            if (!Number.isInteger(message.id)) return;
+            if (message.error) settleWorkerJob(message.id, null, new Error(message.error));
+            else settleWorkerJob(message.id, message.blob);
         };
-        resizeWorker.onerror = () => {
-            resizeWorker = null;
-            featureSupport.blobWorker = false;
+        worker.onerror = (event) => {
+            event?.preventDefault?.();
+            if (worker !== resizeWorker) return;
+            const detail = event?.message ? `: ${event.message}` : '';
+            disposeResizeWorker(`Resize worker crashed${detail}`);
         };
-        URL.revokeObjectURL(url);
-    } catch {
-        resizeWorker = null;
-        featureSupport.blobWorker = false;
+        worker.onmessageerror = () => {
+            if (worker !== resizeWorker) return;
+            disposeResizeWorker('Resize worker returned an unreadable response.');
+        };
+    } catch (error) {
+        disposeResizeWorker(`Resize worker initialization failed: ${error.message}`);
+    } finally {
+        if (url) URL.revokeObjectURL(url);
     }
+    return resizeWorker;
 }
 initWorker();
 
 // Feature-detect WebP and AVIF encoding support
-(function detectFormats() {
+(async function detectFormats() {
     const c = document.createElement('canvas');
     c.width = 1; c.height = 1;
-    c.toBlob((blob) => {
+    try {
+        const blob = await canvasToBlobWithTimeout(c, 'image/webp', undefined, 5000);
         featureSupport.webpChecked = true;
         featureSupport.webpEncode = Boolean(blob && blob.type === 'image/webp');
         if (blob && blob.type === 'image/webp') {
             setElementVisible(document.getElementById('webpFormatOption'), true);
         }
-        c.toBlob((blob2) => {
+        const blob2 = await canvasToBlobWithTimeout(c, 'image/avif', undefined, 5000);
+        featureSupport.avifChecked = true;
+        featureSupport.avifEncode = Boolean(blob2 && blob2.type === 'image/avif');
+        if (blob2 && blob2.type === 'image/avif') {
+            setElementVisible(document.getElementById('avifFormatOption'), true);
+        }
+    } catch {
+        if (!featureSupport.webpChecked) {
+            featureSupport.webpChecked = true;
+            featureSupport.webpEncode = false;
+        }
+        if (!featureSupport.avifChecked) {
             featureSupport.avifChecked = true;
-            featureSupport.avifEncode = Boolean(blob2 && blob2.type === 'image/avif');
-            if (blob2 && blob2.type === 'image/avif') {
-                setElementVisible(document.getElementById('avifFormatOption'), true);
-            }
-            c.width = 0; c.height = 0;
-        }, 'image/avif');
-    }, 'image/webp');
+            featureSupport.avifEncode = false;
+        }
+    } finally {
+        c.width = 0;
+        c.height = 0;
+    }
 })();
 
-function resizeInWorker(bitmap, width, height, format, crop, quality) {
+function resizeInWorker(bitmap, width, height, format, crop, quality, timeoutMs = WORKER_RESIZE_TIMEOUT_MS) {
+    const worker = resizeWorker;
+    if (!worker) return Promise.reject(new Error('Resize worker is unavailable.'));
     return new Promise((resolve, reject) => {
         const id = ++workerJobId;
         const timer = setTimeout(() => {
-            workerCallbacks.delete(id);
-            reject(new Error('Worker resize timed out after 30s'));
-        }, 30000);
-        workerCallbacks.set(id, (blobOrNull, errorMsg) => {
-            clearTimeout(timer);
-            if (errorMsg) reject(new Error(errorMsg));
-            else resolve(blobOrNull);
-        });
-        resizeWorker.postMessage({ id, bitmap, width, height, format, crop, quality }, [bitmap]);
+            disposeResizeWorker(`Worker resize timed out after ${timeoutMs}ms.`);
+        }, timeoutMs);
+        workerCallbacks.set(id, { resolve, reject, timer });
+        try {
+            worker.postMessage({ id, bitmap, width, height, format, crop, quality }, [bitmap]);
+        } catch (error) {
+            settleWorkerJob(id, null, new Error(`Could not send resize job to worker: ${error.message}`));
+            if (worker === resizeWorker) {
+                disposeResizeWorker('Resize worker transfer failed.');
+            }
+        }
     });
 }
 
@@ -2587,16 +2647,38 @@ function assertValidOutputBlob(blob, context = 'Generated image') {
     return blob;
 }
 
-async function canvasToOutputBlob(canvas, mimeType, quality, context) {
+function canvasToBlobWithTimeout(canvas, mimeType, quality, timeoutMs = CANVAS_ENCODER_TIMEOUT_MS) {
+    return new Promise((resolve, reject) => {
+        if (!canvas || typeof canvas.toBlob !== 'function') {
+            reject(new Error('Canvas encoding is unavailable in this browser.'));
+            return;
+        }
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            reject(new Error(`Canvas encoder timed out after ${timeoutMs}ms.`));
+        }, timeoutMs);
+        try {
+            canvas.toBlob((blob) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                resolve(blob);
+            }, mimeType, quality);
+        } catch (error) {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            reject(error);
+        }
+    });
+}
+
+async function canvasToOutputBlob(canvas, mimeType, quality, context, timeoutMs = CANVAS_ENCODER_TIMEOUT_MS) {
     let blob = null;
     try {
-        blob = await new Promise((resolve, reject) => {
-            if (!canvas || typeof canvas.toBlob !== 'function') {
-                reject(new Error('Canvas encoding is unavailable in this browser.'));
-                return;
-            }
-            canvas.toBlob(resolve, mimeType, quality);
-        });
+        blob = await canvasToBlobWithTimeout(canvas, mimeType, quality, timeoutMs);
     } catch (error) {
         throw new Error(`${context} encoder failed: ${error.message}`);
     }
@@ -2619,8 +2701,7 @@ async function generateImage(img, size, format, crop = null, bitmap = null) {
             await new Promise(r => setTimeout(r, 0));
             return { blob };
         } catch (error) {
-            resizeWorker = null;
-            featureSupport.blobWorker = false;
+            disposeResizeWorker(`Resize worker export failed: ${error.message}`);
             noteCanvasFallback(`worker failed: ${error.message}`);
         }
     } else if (customProcessing) {
@@ -4814,6 +4895,18 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         getExportFiles,
         addGeneratedFile,
         assertValidOutputBlob,
+        canvasToBlobWithTimeout,
+        canvasToOutputBlob,
+        initWorker,
+        resizeInWorker,
+        disposeResizeWorker,
+        getWorkerDebugState() {
+            return {
+                active: Boolean(resizeWorker),
+                pendingJobs: workerCallbacks.size,
+                worker: resizeWorker
+            };
+        },
         validateSvgSourceText,
         setState(next = {}) {
             if (Object.prototype.hasOwnProperty.call(next, 'sourceFileName')) sourceFileName = next.sourceFileName;
