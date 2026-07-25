@@ -1715,10 +1715,25 @@ async function handleReplacementTemplate(e) {
     }
 }
 
+const REPLACEMENT_ZIP_LIMITS = Object.freeze({
+    maxBytes: 64 * 1024 * 1024,
+    maxEntries: 10000,
+    maxCentralDirectoryBytes: 16 * 1024 * 1024,
+    maxNameBytes: 1024,
+    maxTotalNameBytes: 2 * 1024 * 1024
+});
+
 async function readZipFileNames(file) {
+    if (typeof file?.size === 'number' && file.size > REPLACEMENT_ZIP_LIMITS.maxBytes) {
+        throw new Error(`Replacement ZIP exceeds the ${REPLACEMENT_ZIP_LIMITS.maxBytes / 1024 / 1024} MB limit.`);
+    }
     const buffer = await file.arrayBuffer();
+    if (buffer.byteLength > REPLACEMENT_ZIP_LIMITS.maxBytes) {
+        throw new Error(`Replacement ZIP exceeds the ${REPLACEMENT_ZIP_LIMITS.maxBytes / 1024 / 1024} MB limit.`);
+    }
     const bytes = new Uint8Array(buffer);
     const view = new DataView(buffer);
+    if (bytes.length < 22) throw new Error('ZIP is too short to contain an end-of-directory record.');
     const min = Math.max(0, bytes.length - 65557);
     let eocd = -1;
     for (let i = bytes.length - 22; i >= min; i--) {
@@ -1727,21 +1742,68 @@ async function readZipFileNames(file) {
             break;
         }
     }
-    if (eocd < 0) throw new Error('ZIP directory not found');
+    if (eocd < 0) throw new Error('ZIP directory not found.');
+    if (eocd + 22 > bytes.length) throw new Error('ZIP end-of-directory record is truncated.');
+    const commentLength = view.getUint16(eocd + 20, true);
+    if (eocd + 22 + commentLength !== bytes.length) {
+        throw new Error('ZIP end-of-directory length is inconsistent.');
+    }
+    const diskNumber = view.getUint16(eocd + 4, true);
+    const centralDisk = view.getUint16(eocd + 6, true);
+    const entriesOnDisk = view.getUint16(eocd + 8, true);
     const totalEntries = view.getUint16(eocd + 10, true);
-    let offset = view.getUint32(eocd + 16, true);
-    const decoder = new TextDecoder();
+    if (diskNumber !== 0 || centralDisk !== 0 || entriesOnDisk !== totalEntries) {
+        throw new Error('Multi-disk replacement ZIPs are not supported.');
+    }
+    if (totalEntries === 0xffff) throw new Error('ZIP64 replacement templates are not supported.');
+    if (totalEntries > REPLACEMENT_ZIP_LIMITS.maxEntries) {
+        throw new Error(`Replacement ZIP exceeds the ${REPLACEMENT_ZIP_LIMITS.maxEntries}-entry limit.`);
+    }
+    const centralSize = view.getUint32(eocd + 12, true);
+    const centralOffset = view.getUint32(eocd + 16, true);
+    if (centralSize > REPLACEMENT_ZIP_LIMITS.maxCentralDirectoryBytes) {
+        throw new Error(`Replacement ZIP central directory exceeds the ${REPLACEMENT_ZIP_LIMITS.maxCentralDirectoryBytes / 1024 / 1024} MB limit.`);
+    }
+    const centralEnd = centralOffset + centralSize;
+    if (centralOffset > eocd || centralEnd > eocd || centralEnd > bytes.length) {
+        throw new Error('ZIP central-directory offset or length is out of bounds.');
+    }
+    let offset = centralOffset;
+    let totalNameBytes = 0;
+    const decoder = new TextDecoder('utf-8', { fatal: true });
     const names = [];
 
     for (let i = 0; i < totalEntries; i++) {
-        if (view.getUint32(offset, true) !== 0x02014b50) break;
+        if (offset + 46 > centralEnd) throw new Error(`ZIP central-directory entry ${i + 1} is truncated.`);
+        if (view.getUint32(offset, true) !== 0x02014b50) {
+            throw new Error(`ZIP central-directory entry ${i + 1} has an invalid signature.`);
+        }
         const nameLen = view.getUint16(offset + 28, true);
         const extraLen = view.getUint16(offset + 30, true);
         const commentLen = view.getUint16(offset + 32, true);
+        if (nameLen > REPLACEMENT_ZIP_LIMITS.maxNameBytes) {
+            throw new Error(`ZIP entry ${i + 1} filename exceeds the ${REPLACEMENT_ZIP_LIMITS.maxNameBytes}-byte limit.`);
+        }
+        totalNameBytes += nameLen;
+        if (totalNameBytes > REPLACEMENT_ZIP_LIMITS.maxTotalNameBytes) {
+            throw new Error(`Replacement ZIP filenames exceed the ${REPLACEMENT_ZIP_LIMITS.maxTotalNameBytes / 1024 / 1024} MB total-work limit.`);
+        }
         const nameStart = offset + 46;
-        names.push(decoder.decode(bytes.slice(nameStart, nameStart + nameLen)));
-        offset = nameStart + nameLen + extraLen + commentLen;
+        const entryEnd = nameStart + nameLen + extraLen + commentLen;
+        if (entryEnd > centralEnd) throw new Error(`ZIP central-directory entry ${i + 1} extends out of bounds.`);
+        let name;
+        try {
+            name = decoder.decode(bytes.subarray(nameStart, nameStart + nameLen));
+        } catch {
+            throw new Error(`ZIP entry ${i + 1} filename is not valid UTF-8.`);
+        }
+        if (/[\u0000-\u001f\u007f]/.test(name)) {
+            throw new Error(`ZIP entry ${i + 1} filename contains control characters.`);
+        }
+        names.push(name);
+        offset = entryEnd;
     }
+    if (offset !== centralEnd) throw new Error('ZIP central-directory size does not match its entries.');
     return names.filter(name => name && !name.endsWith('/'));
 }
 
@@ -5190,6 +5252,8 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         chooseUniqueBundleDirectory,
         saveExportBundleToDirectory,
         writeFileToDirectory,
+        REPLACEMENT_ZIP_LIMITS,
+        readZipFileNames,
         getWorkerDebugState() {
             return {
                 active: Boolean(resizeWorker),

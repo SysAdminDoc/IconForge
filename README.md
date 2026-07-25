@@ -19,7 +19,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Code snippets** - generates HTML `<link>` tags, `manifest.webmanifest` JSON, extension manifest icon blocks, Android XML, iOS Contents.json, and Windows browserconfig.xml
 - **Framework handoffs** - tabbed snippets for plain HTML, Vite, Next.js app router, Astro, Chrome/Firefox MV3, Android, and iOS
 - **Deployment URL controls** - generate root-relative, relative, or custom-base asset URLs with optional SHA-256 cache-busting queries
-- **Input and encoder guardrails** - rejects malformed/external SVG input and prevents empty canvas blobs from entering exports
+- **Input and encoder guardrails** - rejects malformed/external SVG input, bounds replacement ZIP bytes/entries/names/offsets, and prevents empty canvas blobs from entering exports
 - **Manifest metadata** - validate app identity, scoped URLs, BCP 47 language, shortcuts, screenshots, and purpose-specific icons before any deployable manifest is emitted
 - **CSP-hardened shell** - local CSS and JavaScript files run under a strict self-only policy with blob/data allowances for previews, downloads, and workers
 - **Deployable ZIPs** - exports generated images plus README.txt and the platform support files needed by the selected bundle

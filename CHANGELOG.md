@@ -13,6 +13,7 @@ All notable changes to IconForge will be documented in this file.
 - Manifest generation now fails closed on malformed JSON, invalid BCP 47 language tags, unsafe or out-of-scope URLs, invalid shortcut objects, and malformed screenshot metadata.
 - Resize-worker crashes, unreadable messages, transfer failures, and timeouts now terminate the worker and reject every pending job immediately; canvas encoders also have a bounded callback timeout.
 - Clear Draft now cancels pending autosaves so a queued settings write cannot recreate the deleted draft.
+- Replacement ZIP scanning now enforces byte, entry, central-directory, filename, and total-name limits with strict bounds and UTF-8 validation.
 
 ### Added
 - Export validation now decodes every image artifact to verify signatures, MIME types, dimensions, ICO directories, support-file syntax, maskable pixels, and monochrome RGB semantics.

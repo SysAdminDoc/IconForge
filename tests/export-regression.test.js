@@ -736,6 +736,72 @@ async function main() {
     'pwa/icons/icon-192x192.png',
     'snippets/head.html'
   ]);
+  assert.deepStrictEqual(
+    [...await api.readZipFileNames(zipBlob)],
+    ['pwa/icons/icon-192x192.png', 'snippets/head.html']
+  );
+
+  let oversizedZipRead = false;
+  await assert.rejects(
+    api.readZipFileNames({
+      size: api.REPLACEMENT_ZIP_LIMITS.maxBytes + 1,
+      async arrayBuffer() {
+        oversizedZipRead = true;
+        return new ArrayBuffer(0);
+      }
+    }),
+    /64 MB limit/
+  );
+  assert.strictEqual(oversizedZipRead, false, 'oversized ZIP should be rejected before reading bytes');
+
+  const excessiveEntries = new Uint8Array(22);
+  const excessiveEntriesView = new DataView(excessiveEntries.buffer);
+  excessiveEntriesView.setUint32(0, 0x06054b50, true);
+  excessiveEntriesView.setUint16(8, api.REPLACEMENT_ZIP_LIMITS.maxEntries + 1, true);
+  excessiveEntriesView.setUint16(10, api.REPLACEMENT_ZIP_LIMITS.maxEntries + 1, true);
+  await assert.rejects(
+    api.readZipFileNames(new Blob([excessiveEntries])),
+    /10000-entry limit/
+  );
+
+  const oversizedDirectory = excessiveEntries.slice();
+  const oversizedDirectoryView = new DataView(oversizedDirectory.buffer);
+  oversizedDirectoryView.setUint16(8, 0, true);
+  oversizedDirectoryView.setUint16(10, 0, true);
+  oversizedDirectoryView.setUint32(12, api.REPLACEMENT_ZIP_LIMITS.maxCentralDirectoryBytes + 1, true);
+  await assert.rejects(
+    api.readZipFileNames(new Blob([oversizedDirectory])),
+    /central directory exceeds the 16 MB limit/
+  );
+
+  const malformedZipBytes = await blobBytes(api.buildZip([
+    { name: 'safe.png', data: new Uint8Array([1, 2, 3]) }
+  ]));
+  const malformedZipView = new DataView(
+    malformedZipBytes.buffer,
+    malformedZipBytes.byteOffset,
+    malformedZipBytes.byteLength
+  );
+  let centralOffset = -1;
+  for (let index = 0; index <= malformedZipBytes.length - 4; index++) {
+    if (malformedZipView.getUint32(index, true) === 0x02014b50) {
+      centralOffset = index;
+      break;
+    }
+  }
+  assert(centralOffset >= 0, 'test ZIP should contain a central directory');
+
+  const longNameZip = malformedZipBytes.slice();
+  new DataView(longNameZip.buffer).setUint16(centralOffset + 28, api.REPLACEMENT_ZIP_LIMITS.maxNameBytes + 1, true);
+  await assert.rejects(api.readZipFileNames(new Blob([longNameZip])), /1024-byte limit/);
+
+  const badSignatureZip = malformedZipBytes.slice();
+  badSignatureZip[centralOffset] = 0;
+  await assert.rejects(api.readZipFileNames(new Blob([badSignatureZip])), /invalid signature/);
+
+  const invalidUtf8Zip = malformedZipBytes.slice();
+  invalidUtf8Zip[centralOffset + 46] = 0xff;
+  await assert.rejects(api.readZipFileNames(new Blob([invalidUtf8Zip])), /not valid UTF-8/);
 
   const icoBytes = await blobBytes(api.createICO([
     { width: 16, height: 16, data: new Uint8Array([137, 80, 78, 71]) },
