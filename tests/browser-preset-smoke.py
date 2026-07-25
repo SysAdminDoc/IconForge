@@ -371,6 +371,61 @@ def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
     }, failures
 
 
+def check_draft_recovery(page, url: str) -> tuple[dict, list[str]]:
+    page.goto(url, wait_until="networkidle")
+    failures = []
+    page.locator("#manifestName").fill("Reload Recovery")
+    page.wait_for_timeout(350)
+    saved_status = page.locator("#draftStatus").inner_text()
+    if "Saved just now" not in saved_status or "settings only" not in saved_status:
+        failures.append(f"draft status did not expose age/size/privacy state: {saved_status}")
+
+    page.reload(wait_until="networkidle")
+    restored_name = page.locator("#manifestName").input_value()
+    restored_status = page.locator("#draftStatus").inner_text()
+    if restored_name != "Reload Recovery" or "Draft settings restored locally" not in restored_status:
+        failures.append(f"draft did not restore after reload: name={restored_name!r}, status={restored_status!r}")
+
+    page.locator("#btnClearDraft").click()
+    page.reload(wait_until="networkidle")
+    cleared_name = page.locator("#manifestName").input_value()
+    if cleared_name:
+        failures.append(f"Clear Draft was undone by unload autosave: {cleared_name!r}")
+
+    page.evaluate(
+        """() => {
+            const api = window.__ICONFORGE_TEST__;
+            const draft = api.buildDraftSnapshot();
+            draft.savedAt = new Date(Date.now() - api.DRAFT_TTL_MS - 1000).toISOString();
+            api.setStoredDraftForTest(JSON.stringify(draft));
+        }"""
+    )
+    expired_page = page.context.new_page()
+    expired_page.goto(url, wait_until="networkidle")
+    expired_status = expired_page.locator("#draftStatus").inner_text()
+    if "expired after 30 days and was cleared" not in expired_status:
+        failures.append(f"expired draft was not reported and cleared: {expired_status!r}")
+
+    page = expired_page
+    page.locator("#manifestName").fill("Disabled Recovery")
+    page.wait_for_timeout(350)
+    page.locator("#draftEnabledToggle").uncheck()
+    page.reload(wait_until="networkidle")
+    disabled_name = page.locator("#manifestName").input_value()
+    disabled_status = page.locator("#draftStatus").inner_text()
+    if disabled_name or "Draft recovery is disabled" not in disabled_status:
+        failures.append(f"disabled draft recovery persisted state: name={disabled_name!r}, status={disabled_status!r}")
+
+    return {
+        "savedStatus": saved_status,
+        "restoredName": restored_name,
+        "clearedName": cleared_name,
+        "expiredStatus": expired_status,
+        "disabledName": disabled_name,
+        "disabledStatus": disabled_status,
+    }, failures
+
+
 def validate_result(result: dict) -> list[str]:
     preset = result["preset"]
     expected = EXPECTED[preset]
@@ -429,6 +484,7 @@ def main() -> int:
     failures = []
     offline_shell = {"root": False, "index": False}
     accessibility = {}
+    draft_recovery = {}
 
     try:
         with sync_playwright() as p:
@@ -441,6 +497,15 @@ def main() -> int:
             accessibility, accessibility_failures = check_accessibility_interactions(accessibility_page, url)
             failures.extend(accessibility_failures)
             accessibility_context.close()
+
+            draft_context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+            draft_page = draft_context.new_page()
+            draft_page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
+            draft_page.on("console", lambda msg: console_messages.append({"type": msg.type, "text": msg.text}))
+            draft_page.on("pageerror", lambda exc: page_errors.append(str(exc)))
+            draft_recovery, draft_failures = check_draft_recovery(draft_page, url)
+            failures.extend(draft_failures)
+            draft_context.close()
 
             context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
             page = context.new_page()
@@ -503,6 +568,7 @@ def main() -> int:
             for item in results
         ],
         "accessibility": accessibility,
+        "draftRecovery": draft_recovery,
         "offlineShell": offline_shell,
         "failures": failures,
     }

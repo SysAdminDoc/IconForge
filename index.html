@@ -208,8 +208,16 @@
                         <button class="btn-crop" id="btnClearDraft" type="button" data-i18n="shell.clearDraft">Clear Draft</button>
                     </div>
                     <label class="inline-check draft-source-check">
+                        <input type="checkbox" id="draftEnabledToggle" checked>
+                        <span data-i18n="shell.saveDraft">Save settings for recovery</span>
+                    </label>
+                    <label class="inline-check draft-source-check">
                         <input type="checkbox" id="draftSourceToggle">
                         <span data-i18n="shell.restoreSourceImage">Restore source image after reload</span>
+                    </label>
+                    <label class="inline-check draft-source-check">
+                        <input type="checkbox" id="draftClearOnExportToggle">
+                        <span data-i18n="shell.clearDraftOnExport">Clear saved draft after ZIP or folder export</span>
                     </label>
                     <p class="helper-note compact" id="draftStatus" role="status" aria-live="polite">
                         <span data-i18n="shell.draftPrivacy">Settings save locally in this browser. Source images are stored only when this box is enabled.</span>

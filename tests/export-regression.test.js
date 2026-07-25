@@ -1323,7 +1323,7 @@ async function main() {
     }
   });
   let draft = JSON.parse(JSON.stringify(api.buildDraftSnapshot()));
-  assert.strictEqual(draft.schema, 'iconforge-draft-v1');
+  assert.strictEqual(draft.schema, 'iconforge-draft-v2');
   assert.strictEqual(draft.restoreSourceImage, false);
   assert.strictEqual(draft.sourceImage, null, 'source image data should be omitted until restore is enabled');
   assert.strictEqual(draft.cropRegion.width, 64);
@@ -1340,9 +1340,59 @@ async function main() {
   const savedDraft = JSON.parse(JSON.stringify(api.readDraftSnapshot()));
   assert.strictEqual(savedDraft.sourceImage.width, 128);
   assert.strictEqual(savedDraft.cropRegion.height, 63);
+  assert.match(api.getState().draftStatus, /Saved just now.*source image included.*expires in 30 days/);
+  assert.match(api.draftStorageSummary(savedDraft), /Saved just now.*B.*expires in 30 days/);
+
+  const legacyDraft = {
+    ...savedDraft,
+    schema: 'iconforge-draft-v1',
+    restoreSourceImage: false,
+    sourceImage: {
+      dataUrl: 'data:image/png;base64,SHOULD_NOT_MIGRATE',
+      width: 1,
+      height: 1
+    }
+  };
+  const migratedRecord = JSON.parse(JSON.stringify(api.inspectDraftRecord(JSON.stringify(legacyDraft))));
+  assert.strictEqual(migratedRecord.valid, true);
+  assert.strictEqual(migratedRecord.status, 'migrated');
+  assert.strictEqual(migratedRecord.draft.schema, api.DRAFT_SCHEMA);
+  assert.strictEqual(migratedRecord.draft.sourceImage, null, 'migration must strip image bytes without active opt-in');
+
+  const expiredRecord = api.inspectDraftRecord(JSON.stringify({
+    ...savedDraft,
+    savedAt: new Date(Date.now() - api.DRAFT_TTL_MS - 1000).toISOString()
+  }));
+  assert.strictEqual(expiredRecord.valid, false);
+  assert.strictEqual(expiredRecord.status, 'expired');
+  assert.strictEqual(api.inspectDraftRecord('{').status, 'corrupt');
+  assert.strictEqual(api.inspectDraftRecord(JSON.stringify({ ...savedDraft, schema: 'unknown-draft-v9' })).status, 'unsupported');
+
   api.clearDraftState();
   assert.strictEqual(api.readDraftSnapshot(), null);
   assert.strictEqual(api.getState().draftSourceEnabled, false);
+  assert.strictEqual(api.saveDraftState({ silent: true }), null, 'clear should suppress beforeunload-style resaves until another change');
+
+  api.setStoredDraftForTest(JSON.stringify(legacyDraft), api.LEGACY_DRAFT_STORAGE_KEYS[0]);
+  const migratedStoredDraft = api.readDraftSnapshot({ reportStatus: false });
+  assert.strictEqual(migratedStoredDraft.schema, api.DRAFT_SCHEMA);
+  assert.strictEqual(api.getStoredDraftForTest(api.LEGACY_DRAFT_STORAGE_KEYS[0]), null);
+  assert(api.getStoredDraftForTest(), 'legacy migration should write the current storage key');
+
+  api.setStoredDraftForTest(JSON.stringify({ ...savedDraft, schema: 'unknown-draft-v9' }));
+  assert.strictEqual(api.readDraftSnapshot({ reportStatus: false }), null);
+  assert.strictEqual(api.getStoredDraftForTest(), null, 'unknown schemas should be removed');
+
+  api.setState({ draftEnabled: false });
+  api.setStoredDraftForTest(JSON.stringify(savedDraft));
+  assert.strictEqual(api.saveDraftState({ silent: true }), null);
+  api.clearDraftState();
+  assert.strictEqual(api.getStoredDraftForTest(), null);
+
+  api.setState({ draftEnabled: true, draftClearOnExport: true });
+  api.setStoredDraftForTest(JSON.stringify(savedDraft));
+  assert.strictEqual(api.clearDraftAfterExportIfRequested(), true);
+  assert.strictEqual(api.getStoredDraftForTest(), null);
 
   console.log('export regression tests ok');
 }

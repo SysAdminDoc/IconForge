@@ -79,7 +79,12 @@ if (!/^v\d+\.\d+\.\d+$/.test(APP_VERSION || '')) {
     throw new Error('IconForge version metadata is missing or invalid.');
 }
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
-const DRAFT_STORAGE_KEY = 'iconforge-draft-v1';
+const DRAFT_STORAGE_KEY = 'iconforge-draft-v2';
+const LEGACY_DRAFT_STORAGE_KEYS = Object.freeze(['iconforge-draft-v1']);
+const DRAFT_PREFERENCES_KEY = 'iconforge-draft-preferences-v1';
+const DRAFT_SCHEMA = 'iconforge-draft-v2';
+const DRAFT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_DRAFT_BYTES = 4 * 1024 * 1024;
 
 function limitImageSize(width, height) {
     const pixels = width * height;
@@ -135,7 +140,9 @@ const UI_STRINGS = Object.freeze({
         emoji: 'Emoji',
         draftRecovery: 'Draft Recovery',
         clearDraft: 'Clear Draft',
+        saveDraft: 'Save settings for recovery',
         restoreSourceImage: 'Restore source image after reload',
+        clearDraftOnExport: 'Clear saved draft after ZIP or folder export',
         draftPrivacy: 'Settings save locally in this browser. Source images are stored only when this box is enabled.'
     },
     formats: {
@@ -376,6 +383,8 @@ const maskShapeSelect = document.getElementById('maskShapeSelect');
 const replaceInput = document.getElementById('replaceInput');
 const replaceStatus = document.getElementById('replaceStatus');
 const draftSourceToggle = document.getElementById('draftSourceToggle');
+const draftEnabledToggle = document.getElementById('draftEnabledToggle');
+const draftClearOnExportToggle = document.getElementById('draftClearOnExportToggle');
 const btnClearDraft = document.getElementById('btnClearDraft');
 const draftStatus = document.getElementById('draftStatus');
 
@@ -409,6 +418,7 @@ function setElementVisible(element, visible, display = '') {
 
 let draftSaveTimer = null;
 let isRestoringDraft = false;
+let draftClearedUntilChange = false;
 
 function draftStorage() {
     try {
@@ -524,8 +534,118 @@ function setSelectedFormatsFromDraft(formats = []) {
     setElementVisible(svgDarkmodeSection, selected.has('svg'), 'block');
 }
 
+function draftByteLength(value) {
+    return new TextEncoder().encode(String(value || '')).byteLength;
+}
+
+function formatDraftAge(savedAt, nowMs = Date.now()) {
+    const ageMs = Math.max(0, nowMs - Date.parse(savedAt));
+    if (ageMs < 60000) return 'just now';
+    if (ageMs < 60 * 60000) return `${Math.floor(ageMs / 60000)} min ago`;
+    if (ageMs < 24 * 60 * 60000) return `${Math.floor(ageMs / (60 * 60000))} hr ago`;
+    return `${Math.floor(ageMs / (24 * 60 * 60000))} day${ageMs < 2 * 24 * 60 * 60000 ? '' : 's'} ago`;
+}
+
+function draftStorageSummary(draft, raw = JSON.stringify(draft), nowMs = Date.now()) {
+    const bytes = draftByteLength(raw);
+    const expiresInDays = Math.max(0, Math.ceil((DRAFT_TTL_MS - Math.max(0, nowMs - Date.parse(draft.savedAt))) / (24 * 60 * 60 * 1000)));
+    const sourceState = draft.sourceImage ? 'source image included' : 'settings only';
+    return `Saved ${formatDraftAge(draft.savedAt, nowMs)} • ${formatFileSize(bytes)} • ${sourceState} • expires in ${expiresInDays} day${expiresInDays === 1 ? '' : 's'}.`;
+}
+
+function readDraftPreferences() {
+    const storage = draftStorage();
+    try {
+        const parsed = JSON.parse(storage?.getItem(DRAFT_PREFERENCES_KEY) || 'null');
+        return {
+            enabled: parsed?.enabled !== false,
+            clearOnExport: Boolean(parsed?.clearOnExport)
+        };
+    } catch {
+        return { enabled: true, clearOnExport: false };
+    }
+}
+
+function saveDraftPreferences() {
+    const storage = draftStorage();
+    if (!storage) return;
+    try {
+        storage.setItem(DRAFT_PREFERENCES_KEY, JSON.stringify({
+            enabled: Boolean(draftEnabledToggle?.checked),
+            clearOnExport: Boolean(draftClearOnExportToggle?.checked)
+        }));
+    } catch {
+        // Preferences are best-effort when storage is unavailable or full.
+    }
+}
+
+function applyDraftPreferenceControls(preferences = readDraftPreferences()) {
+    if (draftEnabledToggle) draftEnabledToggle.checked = preferences.enabled !== false;
+    if (draftClearOnExportToggle) draftClearOnExportToggle.checked = Boolean(preferences.clearOnExport);
+    const enabled = Boolean(draftEnabledToggle?.checked);
+    if (draftSourceToggle) draftSourceToggle.disabled = !enabled;
+    if (draftClearOnExportToggle) draftClearOnExportToggle.disabled = !enabled;
+    return preferences;
+}
+
+function migrateDraftSnapshot(draft) {
+    if (!draft || typeof draft !== 'object' || Array.isArray(draft)) {
+        return { valid: false, reason: 'Draft data is not an object.' };
+    }
+    let migrated = false;
+    let next = draft;
+    if (draft.schema === 'iconforge-draft-v1') {
+        next = { ...draft, schema: DRAFT_SCHEMA, migratedFrom: 'iconforge-draft-v1' };
+        migrated = true;
+    } else if (draft.schema !== DRAFT_SCHEMA) {
+        return { valid: false, reason: `Unsupported draft schema "${draft.schema || 'missing'}".` };
+    }
+    const savedAtMs = Date.parse(next.savedAt);
+    if (!Number.isFinite(savedAtMs)) {
+        return { valid: false, reason: 'Draft savedAt timestamp is invalid.' };
+    }
+    if (!next.restoreSourceImage || !next.sourceImage?.dataUrl?.startsWith('data:image/')) {
+        next = { ...next, restoreSourceImage: false, sourceImage: null };
+    }
+    return { valid: true, draft: next, migrated };
+}
+
+function inspectDraftRecord(raw, nowMs = Date.now()) {
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        return { valid: false, status: 'corrupt', reason: 'Draft JSON is corrupt.' };
+    }
+    const migration = migrateDraftSnapshot(parsed);
+    if (!migration.valid) return { ...migration, status: 'unsupported' };
+    const ageMs = nowMs - Date.parse(migration.draft.savedAt);
+    if (ageMs > DRAFT_TTL_MS) {
+        return { valid: false, status: 'expired', reason: 'Draft is older than 30 days.' };
+    }
+    let draft = migration.draft;
+    let serialized = JSON.stringify(draft);
+    let sourceDropped = false;
+    if (draftByteLength(serialized) > MAX_DRAFT_BYTES && draft.sourceImage) {
+        draft = { ...draft, restoreSourceImage: false, sourceImage: null };
+        serialized = JSON.stringify(draft);
+        sourceDropped = true;
+    }
+    if (draftByteLength(serialized) > MAX_DRAFT_BYTES) {
+        return { valid: false, status: 'oversized', reason: 'Draft settings exceed the 4 MB storage limit.' };
+    }
+    return {
+        valid: true,
+        status: migration.migrated ? 'migrated' : 'ready',
+        draft,
+        serialized,
+        migrated: migration.migrated,
+        sourceDropped
+    };
+}
+
 function buildDraftSnapshot() {
-    const sourceImageDraftEnabled = Boolean(draftSourceToggle?.checked);
+    const sourceImageDraftEnabled = Boolean(draftEnabledToggle?.checked && draftSourceToggle?.checked);
     const sourceImageDraft = sourceImageDraftEnabled && originalImageData && sourceImage ? {
         dataUrl: originalImageData,
         mode: sourceMode,
@@ -535,7 +655,7 @@ function buildDraftSnapshot() {
     } : null;
 
     return {
-        schema: 'iconforge-draft-v1',
+        schema: DRAFT_SCHEMA,
         version: APP_VERSION,
         savedAt: new Date().toISOString(),
         inputMode: getActiveInputMode(),
@@ -584,32 +704,86 @@ function buildDraftSnapshot() {
     };
 }
 
-function readDraftSnapshot() {
+function removeStoredDrafts() {
+    const storage = draftStorage();
+    if (!storage) return;
+    storage.removeItem(DRAFT_STORAGE_KEY);
+    for (const key of LEGACY_DRAFT_STORAGE_KEYS) storage.removeItem(key);
+}
+
+function readDraftSnapshot({ nowMs = Date.now(), reportStatus = true } = {}) {
+    if (!draftEnabledToggle?.checked) return null;
     const storage = draftStorage();
     if (!storage) return null;
+    let sourceKey = DRAFT_STORAGE_KEY;
+    let raw = null;
     try {
-        const raw = storage.getItem(DRAFT_STORAGE_KEY);
-        if (!raw) return null;
-        const draft = JSON.parse(raw);
-        return draft?.schema === 'iconforge-draft-v1' ? draft : null;
+        raw = storage.getItem(DRAFT_STORAGE_KEY);
+        if (!raw) {
+            for (const legacyKey of LEGACY_DRAFT_STORAGE_KEYS) {
+                raw = storage.getItem(legacyKey);
+                if (raw) {
+                    sourceKey = legacyKey;
+                    break;
+                }
+            }
+        }
     } catch {
         return null;
     }
+    if (!raw) return null;
+    const result = inspectDraftRecord(raw, nowMs);
+    if (!result.valid) {
+        try {
+            removeStoredDrafts();
+        } catch {
+            // The invalid draft remains inaccessible if storage removal fails.
+        }
+        if (reportStatus) {
+            const message = result.status === 'expired'
+                ? 'Saved draft expired after 30 days and was cleared.'
+                : `Saved draft was not restored and was cleared: ${result.reason}`;
+            setDraftStatus(message, 'warning');
+        }
+        return null;
+    }
+    if (result.migrated || result.sourceDropped || sourceKey !== DRAFT_STORAGE_KEY) {
+        try {
+            storage.setItem(DRAFT_STORAGE_KEY, result.serialized);
+            for (const key of LEGACY_DRAFT_STORAGE_KEYS) storage.removeItem(key);
+        } catch {
+            if (reportStatus) setDraftStatus('Draft migration could not be saved.', 'warning');
+        }
+    }
+    return result.draft;
 }
 
 function saveDraftState({ silent = false } = {}) {
-    if (isRestoringDraft) return null;
+    if (isRestoringDraft || draftClearedUntilChange || !draftEnabledToggle?.checked) return null;
     const storage = draftStorage();
     if (!storage) return null;
     let snapshot = buildDraftSnapshot();
+    let raw = JSON.stringify(snapshot);
+    if (draftByteLength(raw) > MAX_DRAFT_BYTES && snapshot.sourceImage) {
+        snapshot = { ...snapshot, restoreSourceImage: false, sourceImage: null };
+        raw = JSON.stringify(snapshot);
+        if (!silent) setDraftStatus('Source image exceeded the 4 MB draft limit; settings were saved without image bytes.', 'warning');
+    }
+    if (draftByteLength(raw) > MAX_DRAFT_BYTES) {
+        if (!silent) setDraftStatus('Draft settings exceed the 4 MB local storage limit.', 'warning');
+        return null;
+    }
     try {
-        storage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(snapshot));
+        storage.setItem(DRAFT_STORAGE_KEY, raw);
+        for (const key of LEGACY_DRAFT_STORAGE_KEYS) storage.removeItem(key);
+        setDraftStatus(draftStorageSummary(snapshot, raw), 'success');
         return snapshot;
     } catch {
         if (snapshot.sourceImage) {
-            snapshot = { ...snapshot, sourceImage: null };
+            snapshot = { ...snapshot, restoreSourceImage: false, sourceImage: null };
+            raw = JSON.stringify(snapshot);
             try {
-                storage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(snapshot));
+                storage.setItem(DRAFT_STORAGE_KEY, raw);
                 if (!silent) setDraftStatus(uiText('draft.tooLarge'), 'warning');
                 return snapshot;
             } catch {
@@ -622,23 +796,25 @@ function saveDraftState({ silent = false } = {}) {
 }
 
 function queueDraftSave() {
-    if (isRestoringDraft) return;
+    if (isRestoringDraft || !draftEnabledToggle?.checked) return;
+    draftClearedUntilChange = false;
     clearTimeout(draftSaveTimer);
     draftSaveTimer = setTimeout(() => saveDraftState({ silent: true }), 250);
 }
 
-function clearDraftState() {
+function clearDraftState({ suppressAutoSave = true, message = uiText('draft.cleared') } = {}) {
     clearTimeout(draftSaveTimer);
     draftSaveTimer = null;
     const storage = draftStorage();
     try {
-        storage?.removeItem(DRAFT_STORAGE_KEY);
+        removeStoredDrafts();
     } catch {
         setDraftStatus(uiText('draft.clearFailed'), 'warning');
         return;
     }
+    draftClearedUntilChange = suppressAutoSave;
     if (draftSourceToggle) draftSourceToggle.checked = false;
-    setDraftStatus(uiText('draft.cleared'), 'success');
+    setDraftStatus(message, 'success');
 }
 
 function applyDraftControls(draft) {
@@ -729,23 +905,34 @@ async function restoreDraftSourceImage(draft) {
 
 async function restoreDraftState() {
     const draft = readDraftSnapshot();
-    if (!draft) return;
+    if (!draft) {
+        if (!draftEnabledToggle?.checked) setDraftStatus('Draft recovery is disabled. Nothing will be saved locally.', '');
+        return;
+    }
     isRestoringDraft = true;
-    let restoredCleanly = false;
     try {
         applyDraftControls(draft);
         const sourceRestored = await restoreDraftSourceImage(draft);
-        setDraftStatus(sourceRestored
+        const restoredMessage = sourceRestored
             ? uiText('draft.restoredWithSource')
-            : uiText('draft.restoredSettings'),
-            sourceRestored ? 'success' : '');
-        restoredCleanly = true;
+            : uiText('draft.restoredSettings');
+        setDraftStatus(`${restoredMessage} ${draftStorageSummary(draft)}`, sourceRestored ? 'success' : '');
     } catch {
+        try {
+            removeStoredDrafts();
+        } catch {
+            // Keep the recovery warning even if storage cleanup fails.
+        }
         setDraftStatus(uiText('draft.broken'), 'warning');
     } finally {
         isRestoringDraft = false;
-        if (restoredCleanly) saveDraftState({ silent: true });
     }
+}
+
+function clearDraftAfterExportIfRequested() {
+    if (!draftEnabledToggle?.checked || !draftClearOnExportToggle?.checked) return false;
+    clearDraftState({ suppressAutoSave: true, message: 'Saved draft cleared after export.' });
+    return true;
 }
 
 function createGenerationStats() {
@@ -1483,9 +1670,24 @@ btnAddSize.addEventListener('click', addCustomSize);
 btnGenerate.addEventListener('click', generateIcons);
 btnCancelOperation?.addEventListener('click', cancelActiveOperation);
 btnDownloadAll.addEventListener('click', downloadAll);
-draftSourceToggle?.addEventListener('change', () => {
+draftEnabledToggle?.addEventListener('change', () => {
+    applyDraftPreferenceControls({
+        enabled: draftEnabledToggle.checked,
+        clearOnExport: Boolean(draftClearOnExportToggle?.checked)
+    });
+    saveDraftPreferences();
+    if (!draftEnabledToggle.checked) {
+        clearDraftState({ suppressAutoSave: true, message: 'Draft recovery disabled and saved draft cleared.' });
+        return;
+    }
+    draftClearedUntilChange = false;
     saveDraftState({ silent: false });
 });
+draftSourceToggle?.addEventListener('change', () => {
+    draftClearedUntilChange = false;
+    saveDraftState({ silent: false });
+});
+draftClearOnExportToggle?.addEventListener('change', saveDraftPreferences);
 btnClearDraft?.addEventListener('click', clearDraftState);
 btnCopyDiagnostics?.addEventListener('click', async function() {
     try {
@@ -4874,6 +5076,7 @@ async function downloadAll() {
         link.click();
 
         URL.revokeObjectURL(url);
+        clearDraftAfterExportIfRequested();
     } catch (error) {
         showStatus(`Error creating ZIP: ${error.message}`, 'error');
     }
@@ -4909,6 +5112,7 @@ async function saveToFolder() {
             ? ` (${result.conflicts.length} existing destination${result.conflicts.length === 1 ? '' : 's'} skipped)`
             : '';
         showStatus(`Saved ${result.written.length} files to new folder "${result.directoryName}"${conflictNote}.`, 'success');
+        clearDraftAfterExportIfRequested();
     } catch (err) {
         if (err.name !== 'AbortError') {
             showStatus(`Error saving: ${err.message}`, 'error');
@@ -5228,11 +5432,28 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         buildGenerationDiagnostics,
         buildDiagnosticsSupportReport,
         diagnosticsSupportJson,
+        DRAFT_SCHEMA,
+        DRAFT_STORAGE_KEY,
+        LEGACY_DRAFT_STORAGE_KEYS,
+        DRAFT_TTL_MS,
+        MAX_DRAFT_BYTES,
         buildDraftSnapshot,
+        inspectDraftRecord,
+        migrateDraftSnapshot,
+        draftStorageSummary,
         readDraftSnapshot,
         saveDraftState,
         clearDraftState,
+        clearDraftAfterExportIfRequested,
         applyDraftControls,
+        setStoredDraftForTest(raw, key = DRAFT_STORAGE_KEY) {
+            const storage = draftStorage();
+            if (raw === null) storage?.removeItem(key);
+            else storage?.setItem(key, raw);
+        },
+        getStoredDraftForTest(key = DRAFT_STORAGE_KEY) {
+            return draftStorage()?.getItem(key) || null;
+        },
         handleLaunchFiles,
         getFeatureDiagnostics,
         getSkippedFormatDiagnostics,
@@ -5271,7 +5492,16 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                 sourceImage = size ? { naturalWidth: size.width, naturalHeight: size.height } : null;
             }
             if (Object.prototype.hasOwnProperty.call(next, 'cropRegion')) cropRegion = next.cropRegion;
+            if (Object.prototype.hasOwnProperty.call(next, 'draftEnabled')) {
+                draftEnabledToggle.checked = Boolean(next.draftEnabled);
+                if (draftEnabledToggle.checked) draftClearedUntilChange = false;
+                applyDraftPreferenceControls({
+                    enabled: draftEnabledToggle.checked,
+                    clearOnExport: Boolean(draftClearOnExportToggle.checked)
+                });
+            }
             if (Object.prototype.hasOwnProperty.call(next, 'draftSourceEnabled')) draftSourceToggle.checked = Boolean(next.draftSourceEnabled);
+            if (Object.prototype.hasOwnProperty.call(next, 'draftClearOnExport')) draftClearOnExportToggle.checked = Boolean(next.draftClearOnExport);
             if (Object.prototype.hasOwnProperty.call(next, 'generatedFiles')) generatedFiles = next.generatedFiles;
             if (Object.prototype.hasOwnProperty.call(next, 'activePresetKey')) activePresetKey = next.activePresetKey;
             if (Object.prototype.hasOwnProperty.call(next, 'featureSupport')) Object.assign(featureSupport, next.featureSupport);
@@ -5332,7 +5562,10 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                 sourceMode,
                 originalImageData,
                 cropRegion,
+                draftEnabled: Boolean(draftEnabledToggle?.checked),
                 draftSourceEnabled: Boolean(draftSourceToggle?.checked),
+                draftClearOnExport: Boolean(draftClearOnExportToggle?.checked),
+                draftStatus: draftStatus?.textContent || '',
                 generatedFiles,
                 activePresetKey,
                 replacementTargetNames: Array.from(replacementTargetNames),
@@ -5352,6 +5585,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
     };
 }
 
+applyDraftPreferenceControls();
 restoreDraftState();
 window.addEventListener?.('beforeunload', () => saveDraftState({ silent: true }));
 
