@@ -20,7 +20,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Framework handoffs** - tabbed snippets for plain HTML, Vite, Next.js app router, Astro, Chrome/Firefox MV3, Android, and iOS
 - **Deployment URL controls** - generate root-relative, relative, or custom-base asset URLs with optional SHA-256 cache-busting queries
 - **Input and encoder guardrails** - rejects malformed/external SVG input and prevents empty canvas blobs from entering exports
-- **Manifest metadata** - set app name, ID, description, start URL, display mode, categories, theme colors, shortcuts, screenshots, language, direction, and generate an optional monochrome alpha silhouette
+- **Manifest metadata** - validate app identity, scoped URLs, BCP 47 language, shortcuts, screenshots, and purpose-specific icons before any deployable manifest is emitted
 - **CSP-hardened shell** - local CSS and JavaScript files run under a strict self-only policy with blob/data allowances for previews, downloads, and workers
 - **Deployable ZIPs** - exports generated images plus README.txt and the platform support files needed by the selected bundle
 - **Export manifest** - ZIP and folder exports include `iconforge-export.json` with file inventory, dimensions, MIME types, byte sizes, and SHA-256 hashes

@@ -10,6 +10,7 @@ All notable changes to IconForge will be documented in this file.
 - The service worker now pre-caches both root and `index.html` shell navigations, falls back to the cached shell offline, and returns deterministic failures for uncached static assets.
 - Apple startup tags now use CSS point dimensions, device scale factors, and explicit orientation instead of raster pixels as CSS device dimensions.
 - Maskable PWA icons now reserve an inscribed-square safe area within the 40% manifest radius and use a deterministic opaque background outside it.
+- Manifest generation now fails closed on malformed JSON, invalid BCP 47 language tags, unsafe or out-of-scope URLs, invalid shortcut objects, and malformed screenshot metadata.
 
 ### Added
 - Export validation now decodes every image artifact to verify signatures, MIME types, dimensions, ICO directories, support-file syntax, maskable pixels, and monochrome RGB semantics.

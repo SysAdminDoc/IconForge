@@ -2486,9 +2486,14 @@ async function generateIcons() {
     const sizes = getSelectedSizes();
     const formats = getSelectedFormats();
     const deploymentValidation = validateDeploymentUrlOptions();
+    const manifestValidation = validateManifestMetadata();
 
     if (!deploymentValidation.valid) {
         showStatus(deploymentValidation.error, 'error');
+        return;
+    }
+    if (manifestValidation.errors.length) {
+        showStatus(`Manifest metadata: ${manifestValidation.errors[0]}`, 'error');
         return;
     }
 
@@ -3165,6 +3170,7 @@ function setSnippetBlock(blockId, snippetId, value) {
 
 const MANIFEST_DISPLAY_MODES = new Set(['fullscreen', 'standalone', 'minimal-ui', 'browser']);
 const MANIFEST_DIRECTIONS = new Set(['auto', 'ltr', 'rtl']);
+const MANIFEST_TEST_BASE = 'https://iconforge.invalid/app/manifest.webmanifest';
 
 function metadataValue(field) {
     return (field?.value || '').trim();
@@ -3188,6 +3194,104 @@ function parseJsonArrayField(field, label, errors) {
     } catch {
         errors.push(`${label} must be valid JSON.`);
         return undefined;
+    }
+}
+
+function isValidLanguageTag(value) {
+    if (!value) return true;
+    try {
+        return Intl.getCanonicalLocales(value).length === 1;
+    } catch {
+        return false;
+    }
+}
+
+function parseManifestPath(value, label, errors, options = {}) {
+    if (!value) return null;
+    if (UNSAFE_ASSET_BASE_CHARS.test(value) || /\s/.test(value) || value.startsWith('//') || ASSET_BASE_SCHEME.test(value)) {
+        errors.push(`${label} must be a safe relative or root-relative URL.`);
+        return null;
+    }
+    let parsed;
+    try {
+        parsed = new URL(value, MANIFEST_TEST_BASE);
+    } catch {
+        errors.push(`${label} must be a valid relative or root-relative URL.`);
+        return null;
+    }
+    if (parsed.origin !== new URL(MANIFEST_TEST_BASE).origin) {
+        errors.push(`${label} must remain on the manifest origin.`);
+        return null;
+    }
+    if (options.allowQuery === false && parsed.search) errors.push(`${label} cannot contain a query string.`);
+    if (parsed.hash) errors.push(`${label} cannot contain a fragment.`);
+    return parsed;
+}
+
+function parseManifestResourceUrl(value, label, errors) {
+    if (!value || UNSAFE_ASSET_BASE_CHARS.test(value) || /\s/.test(value) || value.startsWith('//')) {
+        errors.push(`${label} must be a safe relative, root-relative, or HTTP(S) URL.`);
+        return null;
+    }
+    if (ASSET_BASE_SCHEME.test(value) && !/^https?:/i.test(value)) {
+        errors.push(`${label} must use http://, https://, or a relative URL.`);
+        return null;
+    }
+    try {
+        const parsed = new URL(value, MANIFEST_TEST_BASE);
+        if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error();
+        return parsed;
+    } catch {
+        errors.push(`${label} must be a valid URL without credentials.`);
+        return null;
+    }
+}
+
+function validateManifestCollections(shortcuts, screenshots, scopeUrl, errors) {
+    if (shortcuts) {
+        shortcuts.forEach((shortcut, index) => {
+            const label = `Shortcut ${index + 1}`;
+            if (!shortcut || typeof shortcut !== 'object' || Array.isArray(shortcut)) {
+                errors.push(`${label} must be an object.`);
+                return;
+            }
+            if (typeof shortcut.name !== 'string' || !shortcut.name.trim()) errors.push(`${label} needs a name.`);
+            if (typeof shortcut.url !== 'string' || !shortcut.url.trim()) {
+                errors.push(`${label} needs a URL.`);
+                return;
+            }
+            const shortcutUrl = parseManifestPath(shortcut.url.trim(), `${label} URL`, errors);
+            if (shortcutUrl && scopeUrl) {
+                const scopePath = scopeUrl.pathname.endsWith('/') ? scopeUrl.pathname : `${scopeUrl.pathname}/`;
+                if (shortcutUrl.pathname !== scopeUrl.pathname && !shortcutUrl.pathname.startsWith(scopePath)) {
+                    errors.push(`${label} URL must stay within manifest scope.`);
+                }
+            }
+        });
+    }
+
+    if (screenshots) {
+        screenshots.forEach((screenshot, index) => {
+            const label = `Screenshot ${index + 1}`;
+            if (!screenshot || typeof screenshot !== 'object' || Array.isArray(screenshot)) {
+                errors.push(`${label} must be an object.`);
+                return;
+            }
+            if (typeof screenshot.src !== 'string' || !screenshot.src.trim()) {
+                errors.push(`${label} needs a src URL.`);
+            } else {
+                parseManifestResourceUrl(screenshot.src.trim(), `${label} src`, errors);
+            }
+            if (screenshot.sizes !== undefined && (typeof screenshot.sizes !== 'string' || !/^(?:any|\d+x\d+)(?:\s+(?:any|\d+x\d+))*$/i.test(screenshot.sizes.trim()))) {
+                errors.push(`${label} sizes must contain dimensions such as 1280x720.`);
+            }
+            if (screenshot.type !== undefined && (typeof screenshot.type !== 'string' || !/^image\/[a-z0-9.+-]+$/i.test(screenshot.type))) {
+                errors.push(`${label} type must be an image MIME type.`);
+            }
+            if (screenshot.form_factor !== undefined && !['wide', 'narrow'].includes(screenshot.form_factor)) {
+                errors.push(`${label} form_factor must be wide or narrow.`);
+            }
+        });
     }
 }
 
@@ -3216,9 +3320,20 @@ function getManifestMetadata() {
     if (!shortName) errors.push('Short name is required.');
     if (!startUrl) errors.push('Start URL is required.');
     if (!scope) errors.push('Scope is required.');
-    if (id && /\s/.test(id)) errors.push('ID cannot contain whitespace. Use an encoded URL-style ID.');
     if (!MANIFEST_DISPLAY_MODES.has(display)) errors.push('Display must be fullscreen, standalone, minimal-ui, or browser.');
     if (dir && !MANIFEST_DIRECTIONS.has(dir)) errors.push('Direction must be auto, ltr, or rtl.');
+    if (lang && !isValidLanguageTag(lang)) errors.push('Language must be a valid BCP 47 tag, such as en or pt-BR.');
+
+    const startUrlParsed = parseManifestPath(startUrl, 'Start URL', errors);
+    const scopeParsed = parseManifestPath(scope, 'Scope', errors, { allowQuery: false });
+    if (id) parseManifestPath(id, 'ID', errors);
+    if (startUrlParsed && scopeParsed) {
+        const scopePath = scopeParsed.pathname.endsWith('/') ? scopeParsed.pathname : `${scopeParsed.pathname}/`;
+        if (startUrlParsed.pathname !== scopeParsed.pathname && !startUrlParsed.pathname.startsWith(scopePath)) {
+            errors.push('Start URL must stay within manifest scope.');
+        }
+    }
+    validateManifestCollections(shortcuts, screenshots, scopeParsed, errors);
 
     const metadata = {
         name,
@@ -3253,14 +3368,21 @@ function validateManifestMetadata() {
 }
 
 if (manifestMetadataGrid) {
-    manifestMetadataGrid.addEventListener('input', () => {
-        validateManifestMetadata();
+    const handleManifestMetadataChange = async () => {
+        const result = validateManifestMetadata();
         queueDraftSave();
-    });
-    manifestMetadataGrid.addEventListener('change', () => {
-        validateManifestMetadata();
-        queueDraftSave();
-    });
+        if (generatedFiles.length === 0) return;
+        try {
+            await generateSnippets(getSelectedSizes(), getSelectedFormats());
+            const validationResult = await renderExportValidation();
+            renderGenerationDiagnostics({ validationResult });
+        } catch (error) {
+            renderGenerationDiagnostics({ error });
+            showStatus(`Manifest update failed: ${error.message}`, 'error');
+        }
+    };
+    manifestMetadataGrid.addEventListener('input', handleManifestMetadataChange);
+    manifestMetadataGrid.addEventListener('change', handleManifestMetadataChange);
     validateManifestMetadata();
 }
 
@@ -3321,8 +3443,9 @@ function buildManifestSnippet() {
     }
 
     if (icons.length === 0) return '';
-    validateManifestMetadata();
-    const { metadata } = getManifestMetadata();
+    const result = validateManifestMetadata();
+    if (result.errors.length) return '';
+    const { metadata } = result;
     return JSON.stringify({
         ...metadata,
         icons

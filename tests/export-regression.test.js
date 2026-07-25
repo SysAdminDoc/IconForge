@@ -672,13 +672,31 @@ async function main() {
   const invalidMetadata = api.validateManifestMetadata();
   assert(invalidMetadata.errors.includes('Shortcuts must be valid JSON.'));
   assert(invalidMetadata.errors.includes('Screenshots must be valid JSON.'));
-  const optionalManifest = JSON.parse(api.buildManifestSnippet());
-  assert(!Object.prototype.hasOwnProperty.call(optionalManifest, 'lang'), 'empty language should be omitted');
-  assert(!Object.prototype.hasOwnProperty.call(optionalManifest, 'dir'), 'empty direction should be omitted');
+  assert.strictEqual(api.buildManifestSnippet(), '', 'invalid metadata should fail closed instead of emitting a partial manifest');
+  api.setState({
+    manifestMetadata: {
+      lang: 'not_a_language',
+      startUrl: 'javascript:alert(1)',
+      scope: './app/',
+      id: 'https://other.example/app',
+      shortcuts: [{ name: 'Admin', url: '../admin/' }],
+      screenshots: [{ src: 'data:text/html,unsafe', sizes: 'wide', type: 'text/html' }]
+    }
+  });
+  const unsafeMetadata = api.validateManifestMetadata();
+  assert(unsafeMetadata.errors.some((error) => error.includes('BCP 47')));
+  assert(unsafeMetadata.errors.some((error) => error.includes('Start URL must be a safe')));
+  assert(unsafeMetadata.errors.some((error) => error.includes('ID must be a safe')));
+  assert(unsafeMetadata.errors.some((error) => error.includes('Shortcut 1 URL must stay within')));
+  assert(unsafeMetadata.errors.some((error) => error.includes('Screenshot 1 src must use')));
+  assert(unsafeMetadata.errors.some((error) => error.includes('Screenshot 1 sizes')));
+  assert(unsafeMetadata.errors.some((error) => error.includes('Screenshot 1 type')));
+  assert.strictEqual(api.buildManifestSnippet(), '');
   api.setState({
     manifestMetadata: {
       name: '',
       shortName: '',
+      id: '',
       description: '',
       startUrl: './index.html',
       scope: './',
