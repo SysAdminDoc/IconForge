@@ -2554,7 +2554,7 @@ async function generateIcons() {
         const budgetImpact = budgetBytes ? `; ${getSizeBudgetStatus(totalSize)}` : '';
         showStatus(`Generated ${generatedFiles.length} files (${formatFileSize(totalSize)} total${budgetImpact})`, 'success');
         await generateSnippets(sizes, formats);
-        const validationResult = renderExportValidation();
+        const validationResult = await renderExportValidation();
         renderGenerationDiagnostics({ selectedFormats: formats, validationResult });
     } catch (error) {
         setElementVisible(outputSection, true, 'block');
@@ -2750,6 +2750,30 @@ async function renderBackgroundBlob(width, height) {
     }
 }
 
+async function renderMonochromeBlob(img, width, height, crop) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    drawIconToContext(ctx, img, width, height, crop, getProcessingOptions({
+        paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 10),
+        backgroundMode: 'transparent',
+        effect: 'none',
+        dropShadow: false
+    }));
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+    try {
+        return await canvasToOutputBlob(canvas, 'image/png', undefined, `Monochrome PNG ${width}x${height}`);
+    } finally {
+        canvas.width = 0;
+        canvas.height = 0;
+    }
+}
+
 async function generatePlatformBundle(img, crop, sizes, formats) {
     if (activePresetKey === 'pwa') {
         await generatePwaBundle(img, crop);
@@ -2760,30 +2784,48 @@ async function generatePlatformBundle(img, crop, sizes, formats) {
     } else if (activePresetKey === 'windows') {
         await generateWindowsBundle(img, crop);
     }
+
+    if (manifestMonochromeEnabled() && ['web', 'pwa', 'all'].includes(activePresetKey)) {
+        const monochromeName = activePresetKey === 'pwa'
+            ? 'pwa/icons/icon-monochrome-512x512.png'
+            : 'icon-monochrome-512.png';
+        const monochrome = await renderMonochromeBlob(img, 512, 512, crop);
+        addGeneratedFile(monochromeName, monochrome, { width: 512, height: 512 }, 'png', {
+            purpose: 'monochrome',
+            monochromeMethod: 'alpha-silhouette'
+        });
+    }
 }
 
 const PWA_ICON_SIZES = [72, 96, 128, 144, 152, 192, 384, 512];
+const PWA_SPLASH_MATRIX_SOURCE = 'https://github.com/elegantapp/pwa-asset-generator/blob/master/src/config/apple-fallback-data.json';
+const PWA_SPLASH_MATRIX_VERIFIED = '2026-07-25';
 const PWA_SPLASH_SPECS = [
-    { width: 2048, height: 2732, name: 'ipad-pro-12-9' },
-    { width: 1668, height: 2388, name: 'ipad-pro-11' },
-    { width: 1536, height: 2048, name: 'ipad-9-7' },
-    { width: 1640, height: 2360, name: 'ipad-air-11' },
-    { width: 1668, height: 2224, name: 'ipad-air-10-5' },
-    { width: 1620, height: 2160, name: 'ipad-10-2' },
-    { width: 1488, height: 2266, name: 'ipad-mini-8-3' },
-    { width: 1320, height: 2868, name: 'iphone-16-pro-max' },
-    { width: 1206, height: 2622, name: 'iphone-16-pro' },
-    { width: 1290, height: 2796, name: 'iphone-16-plus' },
-    { width: 1179, height: 2556, name: 'iphone-16' },
-    { width: 1170, height: 2532, name: 'iphone-16e' },
-    { width: 1284, height: 2778, name: 'iphone-14-plus' },
-    { width: 1125, height: 2436, name: 'iphone-13-mini' },
-    { width: 1242, height: 2688, name: 'iphone-11-pro-max' },
-    { width: 828, height: 1792, name: 'iphone-11' },
-    { width: 1242, height: 2208, name: 'iphone-8-plus' },
-    { width: 750, height: 1334, name: 'iphone-8' },
-    { width: 640, height: 1136, name: 'iphone-se-4' }
-];
+    { width: 2048, height: 2732, cssWidth: 1024, cssHeight: 1366, scaleFactor: 2, name: 'ipad-pro-12-9' },
+    { width: 1668, height: 2388, cssWidth: 834, cssHeight: 1194, scaleFactor: 2, name: 'ipad-pro-11' },
+    { width: 1536, height: 2048, cssWidth: 768, cssHeight: 1024, scaleFactor: 2, name: 'ipad-9-7' },
+    { width: 1640, height: 2360, cssWidth: 820, cssHeight: 1180, scaleFactor: 2, name: 'ipad-air-11' },
+    { width: 1668, height: 2224, cssWidth: 834, cssHeight: 1112, scaleFactor: 2, name: 'ipad-air-10-5' },
+    { width: 1620, height: 2160, cssWidth: 810, cssHeight: 1080, scaleFactor: 2, name: 'ipad-10-2' },
+    { width: 1488, height: 2266, cssWidth: 744, cssHeight: 1133, scaleFactor: 2, name: 'ipad-mini-8-3' },
+    { width: 1320, height: 2868, cssWidth: 440, cssHeight: 956, scaleFactor: 3, name: 'iphone-16-pro-max' },
+    { width: 1206, height: 2622, cssWidth: 402, cssHeight: 874, scaleFactor: 3, name: 'iphone-16-pro' },
+    { width: 1260, height: 2736, cssWidth: 420, cssHeight: 912, scaleFactor: 3, name: 'iphone-air' },
+    { width: 1290, height: 2796, cssWidth: 430, cssHeight: 932, scaleFactor: 3, name: 'iphone-16-plus' },
+    { width: 1179, height: 2556, cssWidth: 393, cssHeight: 852, scaleFactor: 3, name: 'iphone-16' },
+    { width: 1170, height: 2532, cssWidth: 390, cssHeight: 844, scaleFactor: 3, name: 'iphone-16e' },
+    { width: 1284, height: 2778, cssWidth: 428, cssHeight: 926, scaleFactor: 3, name: 'iphone-14-plus' },
+    { width: 1125, height: 2436, cssWidth: 375, cssHeight: 812, scaleFactor: 3, name: 'iphone-13-mini' },
+    { width: 1242, height: 2688, cssWidth: 414, cssHeight: 896, scaleFactor: 3, name: 'iphone-11-pro-max' },
+    { width: 828, height: 1792, cssWidth: 414, cssHeight: 896, scaleFactor: 2, name: 'iphone-11' },
+    { width: 1242, height: 2208, cssWidth: 414, cssHeight: 736, scaleFactor: 3, name: 'iphone-8-plus' },
+    { width: 750, height: 1334, cssWidth: 375, cssHeight: 667, scaleFactor: 2, name: 'iphone-8' },
+    { width: 640, height: 1136, cssWidth: 320, cssHeight: 568, scaleFactor: 2, name: 'iphone-se-4' }
+].map(spec => ({
+    ...spec,
+    source: PWA_SPLASH_MATRIX_SOURCE,
+    lastVerified: PWA_SPLASH_MATRIX_VERIFIED
+}));
 
 const WINDOWS_TILE_SPECS = [
     { width: 70, height: 70 },
@@ -2801,6 +2843,7 @@ const ANDROID_DENSITY_SPECS = [
 ];
 
 async function generatePwaBundle(img, crop) {
+    const maskablePadding = Math.max(parseInt(safePaddingSlider.value, 10) || 0, 22);
     for (const px of PWA_ICON_SIZES) {
         const anyName = `pwa/icons/icon-${px}x${px}.png`;
         if (!hasGeneratedFile(anyName)) {
@@ -2810,20 +2853,37 @@ async function generatePwaBundle(img, crop) {
 
         const maskName = `pwa/icons/icon-maskable-${px}x${px}.png`;
         const blob = await renderIconBlob(img, px, px, crop, getProcessingOptions({
-            paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 12),
-            backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
+            paddingPercent: maskablePadding,
+            backgroundMode: 'solid',
+            dropShadow: false
         }), 'png');
-        addGeneratedFile(maskName, blob, { width: px, height: px }, 'png', { purpose: 'maskable' });
+        addGeneratedFile(maskName, blob, { width: px, height: px }, 'png', {
+            purpose: 'maskable',
+            safeZoneRadiusRatio: 0.4,
+            safeZonePaddingPercent: maskablePadding,
+            safeZoneBackgroundColor: normalizeSvgColor(backgroundColor.value, '#09090b')
+        });
     }
 
     for (const splash of PWA_SPLASH_SPECS) {
         const portraitName = `pwa/splash/apple-splash-${splash.name}-${splash.width}x${splash.height}.png`;
         const portrait = await renderSplashBlob(img, splash.width, splash.height, crop);
-        addGeneratedFile(portraitName, portrait, splash, 'png', { role: 'splash' });
+        addGeneratedFile(portraitName, portrait, { width: splash.width, height: splash.height }, 'png', {
+            role: 'splash',
+            splashSpec: { ...splash, orientation: 'portrait' }
+        });
 
         const landscapeName = `pwa/splash/apple-splash-${splash.name}-${splash.height}x${splash.width}.png`;
         const landscape = await renderSplashBlob(img, splash.height, splash.width, crop);
-        addGeneratedFile(landscapeName, landscape, { width: splash.height, height: splash.width }, 'png', { role: 'splash' });
+        addGeneratedFile(landscapeName, landscape, { width: splash.height, height: splash.width }, 'png', {
+            role: 'splash',
+            splashSpec: {
+                ...splash,
+                cssWidth: splash.cssHeight,
+                cssHeight: splash.cssWidth,
+                orientation: 'landscape'
+            }
+        });
     }
 }
 
@@ -3211,7 +3271,7 @@ async function handleDeploymentUrlChange() {
     if (generatedFiles.length === 0) return;
     try {
         await generateSnippets(getSelectedSizes(), getSelectedFormats());
-        const validationResult = renderExportValidation();
+        const validationResult = await renderExportValidation();
         renderGenerationDiagnostics({ validationResult });
     } catch (error) {
         renderGenerationDiagnostics({ error });
@@ -3246,13 +3306,15 @@ function manifestMonochromeEnabled() {
 
 function monochromeManifestIconFile(files = manifestIconFiles()) {
     return files
-        .filter(file => file.purpose !== 'maskable' && !file.name.includes('maskable'))
+        .filter(file => file.purpose === 'monochrome')
         .sort((a, b) => b.size.width - a.size.width)[0] || null;
 }
 
 function buildManifestSnippet() {
     const iconFiles = manifestIconFiles();
-    const icons = iconFiles.map(file => manifestIconEntry(file));
+    const icons = iconFiles
+        .filter(file => file.purpose !== 'monochrome')
+        .map(file => manifestIconEntry(file));
     if (manifestMonochromeEnabled()) {
         const monochromeFile = monochromeManifestIconFile(iconFiles);
         if (monochromeFile) icons.push(manifestIconEntry(monochromeFile, 'monochrome'));
@@ -3367,6 +3429,19 @@ function generatedFileCopyList(prefix = '') {
 function webManifestHref(manifest) {
     if (!manifest) return '';
     return deploymentUrlFor(activePresetKey === 'pwa' ? 'pwa/manifest.webmanifest' : 'manifest.webmanifest', { cacheBust: false });
+}
+
+function startupImageMediaFor(file) {
+    const spec = file.splashSpec;
+    if (!spec) {
+        return `(device-width: ${file.size.width}px) and (device-height: ${file.size.height}px)`;
+    }
+    return [
+        `(device-width: ${spec.cssWidth}px)`,
+        `(device-height: ${spec.cssHeight}px)`,
+        `(-webkit-device-pixel-ratio: ${spec.scaleFactor})`,
+        `(orientation: ${spec.orientation})`
+    ].join(' and ');
 }
 
 function squarePngFiles() {
@@ -3562,7 +3637,7 @@ async function generateSnippets(sizes, formats) {
     if (appleFile) lines.push(`<link rel="apple-touch-icon" href="${escapeAttribute(hrefFor(appleFile.name))}">`);
     if (manifest) lines.push(`<link rel="manifest" href="${escapeAttribute(webManifestHref(manifest))}">`);
     for (const splash of splashFiles) {
-        lines.push(`<link rel="apple-touch-startup-image" href="${escapeAttribute(hrefFor(splash.name))}" media="(device-width: ${splash.size.width}px) and (device-height: ${splash.size.height}px)">`);
+        lines.push(`<link rel="apple-touch-startup-image" href="${escapeAttribute(hrefFor(splash.name))}" media="${startupImageMediaFor(splash)}">`);
     }
     if (activePresetKey === 'windows') {
         lines.push(`<meta name="msapplication-config" content="${escapeAttribute(deploymentUrlFor('windows/browserconfig.xml', { cacheBust: false }))}">`);
@@ -3754,6 +3829,216 @@ function addValidationCheck(checks, status, label, detail) {
     checks.push({ status, label: catalogValidationLabel(label), detail });
 }
 
+function artifactMimeType(format) {
+    return {
+        png: 'image/png',
+        ico: 'image/x-icon',
+        svg: 'image/svg+xml',
+        jpg: 'image/jpeg',
+        webp: 'image/webp',
+        avif: 'image/avif'
+    }[format] || '';
+}
+
+function asciiAt(bytes, offset, value) {
+    if (offset < 0 || offset + value.length > bytes.length) return false;
+    return Array.from(value).every((char, index) => bytes[offset + index] === char.charCodeAt(0));
+}
+
+function findAscii(bytes, value) {
+    for (let offset = 0; offset <= bytes.length - value.length; offset++) {
+        if (asciiAt(bytes, offset, value)) return offset;
+    }
+    return -1;
+}
+
+function inspectArtifactBytes(file, bytes) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const fail = error => ({ valid: false, error, width: null, height: null, icoSizes: [] });
+    if (bytes.length === 0) return fail('file is empty');
+
+    if (file.format === 'png') {
+        const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+        if (bytes.length < 24 || !signature.every((value, index) => bytes[index] === value) || !asciiAt(bytes, 12, 'IHDR')) {
+            return fail('PNG signature or IHDR is invalid');
+        }
+        return { valid: true, width: view.getUint32(16, false), height: view.getUint32(20, false), icoSizes: [], error: '' };
+    }
+
+    if (file.format === 'ico') {
+        if (bytes.length < 6 || view.getUint16(0, true) !== 0 || view.getUint16(2, true) !== 1) {
+            return fail('ICO header is invalid');
+        }
+        const count = view.getUint16(4, true);
+        if (count < 1 || 6 + count * 16 > bytes.length) return fail('ICO directory is truncated');
+        const icoSizes = [];
+        for (let index = 0; index < count; index++) {
+            const offset = 6 + index * 16;
+            const width = bytes[offset] || 256;
+            const height = bytes[offset + 1] || 256;
+            const payloadSize = view.getUint32(offset + 8, true);
+            const payloadOffset = view.getUint32(offset + 12, true);
+            if (width !== height || payloadSize < 1 || payloadOffset + payloadSize > bytes.length) {
+                return fail(`ICO entry ${index + 1} is invalid or out of bounds`);
+            }
+            icoSizes.push(width);
+        }
+        return { valid: true, width: null, height: null, icoSizes, error: '' };
+    }
+
+    if (file.format === 'svg') {
+        const text = new TextDecoder().decode(bytes).trim();
+        return /^<svg[\s>]/i.test(text)
+            ? { valid: true, width: null, height: null, icoSizes: [], error: '' }
+            : fail('SVG root element is missing');
+    }
+
+    if (file.format === 'jpg') {
+        if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8 || bytes[bytes.length - 2] !== 0xFF || bytes[bytes.length - 1] !== 0xD9) {
+            return fail('JPEG start/end markers are invalid');
+        }
+        let offset = 2;
+        while (offset + 8 < bytes.length) {
+            if (bytes[offset] !== 0xFF) {
+                offset++;
+                continue;
+            }
+            const marker = bytes[offset + 1];
+            if (marker === 0xD8 || marker === 0xD9) {
+                offset += 2;
+                continue;
+            }
+            if (offset + 4 > bytes.length) break;
+            const length = view.getUint16(offset + 2, false);
+            if (length < 2 || offset + 2 + length > bytes.length) return fail('JPEG segment is truncated');
+            if ([0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF].includes(marker)) {
+                return {
+                    valid: true,
+                    width: view.getUint16(offset + 7, false),
+                    height: view.getUint16(offset + 5, false),
+                    icoSizes: [],
+                    error: ''
+                };
+            }
+            offset += 2 + length;
+        }
+        return fail('JPEG dimensions are missing');
+    }
+
+    if (file.format === 'webp') {
+        if (bytes.length < 30 || !asciiAt(bytes, 0, 'RIFF') || !asciiAt(bytes, 8, 'WEBP')) return fail('WebP RIFF header is invalid');
+        if (asciiAt(bytes, 12, 'VP8X')) {
+            const width = 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16);
+            const height = 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16);
+            return { valid: true, width, height, icoSizes: [], error: '' };
+        }
+        if (asciiAt(bytes, 12, 'VP8L') && bytes[20] === 0x2F) {
+            const width = 1 + bytes[21] + ((bytes[22] & 0x3F) << 8);
+            const height = 1 + (bytes[22] >> 6) + (bytes[23] << 2) + ((bytes[24] & 0x0F) << 10);
+            return { valid: true, width, height, icoSizes: [], error: '' };
+        }
+        if (asciiAt(bytes, 12, 'VP8 ') && bytes.length >= 30 && bytes[23] === 0x9D && bytes[24] === 0x01 && bytes[25] === 0x2A) {
+            return {
+                valid: true,
+                width: view.getUint16(26, true) & 0x3FFF,
+                height: view.getUint16(28, true) & 0x3FFF,
+                icoSizes: [],
+                error: ''
+            };
+        }
+        return fail('WebP dimensions are missing');
+    }
+
+    if (file.format === 'avif') {
+        if (bytes.length < 24 || !asciiAt(bytes, 4, 'ftyp')) return fail('AVIF file-type box is invalid');
+        const ispe = findAscii(bytes, 'ispe');
+        if (ispe < 0 || ispe + 16 > bytes.length) return fail('AVIF image spatial extents are missing');
+        return {
+            valid: true,
+            width: view.getUint32(ispe + 8, false),
+            height: view.getUint32(ispe + 12, false),
+            icoSizes: [],
+            error: ''
+        };
+    }
+
+    return { valid: true, width: null, height: null, icoSizes: [], error: '' };
+}
+
+async function inspectGeneratedArtifact(file) {
+    const bytes = new Uint8Array(await file.blob.arrayBuffer());
+    const result = inspectArtifactBytes(file, bytes);
+    const expectedMime = artifactMimeType(file.format);
+    if (result.valid && expectedMime && file.blob.type !== expectedMime) {
+        return { ...result, valid: false, error: `MIME type is ${file.blob.type || 'empty'}, expected ${expectedMime}` };
+    }
+    return result;
+}
+
+async function decodeImagePixels(file) {
+    if (typeof createImageBitmap !== 'function') return null;
+    const bitmap = await createImageBitmap(file.blob);
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bitmap, 0, 0);
+    const pixels = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+    bitmap.close?.();
+    canvas.width = 0;
+    canvas.height = 0;
+    return pixels;
+}
+
+async function validateGeneratedArtifacts(checks) {
+    const errors = [];
+    const warnings = [];
+    for (const file of generatedFiles) {
+        let result;
+        try {
+            result = await inspectGeneratedArtifact(file);
+        } catch (error) {
+            errors.push(`${file.name}: ${error.message}`);
+            continue;
+        }
+        if (!result.valid) {
+            errors.push(`${file.name}: ${result.error}`);
+            continue;
+        }
+        if (typeof file.size?.width === 'number' && typeof file.size?.height === 'number' &&
+            (result.width !== file.size.width || result.height !== file.size.height)) {
+            errors.push(`${file.name}: decoded ${result.width || '?'}x${result.height || '?'}, declared ${file.size.width}x${file.size.height}`);
+        }
+        if (file.format === 'ico' && Array.isArray(file.icoSizes)) {
+            const expectedSizes = file.icoSizes.map(size => typeof size === 'number' ? size : size.width);
+            const missing = expectedSizes.filter(size => !result.icoSizes.includes(size));
+            if (missing.length) errors.push(`${file.name}: missing ICO entries ${missing.join(', ')}`);
+        }
+        if (file.purpose === 'monochrome') {
+            const pixels = await decodeImagePixels(file);
+            if (!pixels) {
+                warnings.push(`${file.name}: monochrome pixels could not be inspected in this browser`);
+            } else {
+                let colored = false;
+                for (let offset = 0; offset < pixels.data.length; offset += 4) {
+                    if (pixels.data[offset + 3] > 0 && (pixels.data[offset] > 1 || pixels.data[offset + 1] > 1 || pixels.data[offset + 2] > 1)) {
+                        colored = true;
+                        break;
+                    }
+                }
+                if (colored) errors.push(`${file.name}: monochrome asset contains non-black RGB pixels`);
+            }
+        }
+    }
+    if (errors.length) {
+        addValidationCheck(checks, 'fail', 'Artifact byte contracts', fileSpecSummary(errors));
+    } else if (warnings.length) {
+        addValidationCheck(checks, 'warn', 'Artifact byte contracts', fileSpecSummary(warnings));
+    } else if (generatedFiles.length) {
+        addValidationCheck(checks, 'pass', 'Artifact byte contracts', `${generatedFiles.length} image artifact${generatedFiles.length === 1 ? '' : 's'} decoded with matching signatures, MIME types, dimensions, and purpose rules.`);
+    }
+}
+
 function checkFileSet(checks, label, specs) {
     const missing = [];
     const wrong = [];
@@ -3802,13 +4087,17 @@ function expectedPresetFileGroups() {
         ];
     }
     if (activePresetKey === 'pwa') {
+        const iconSpecs = PWA_ICON_SIZES.flatMap(px => [
+            { name: `pwa/icons/icon-${px}x${px}.png`, width: px, height: px },
+            { name: `pwa/icons/icon-maskable-${px}x${px}.png`, width: px, height: px }
+        ]);
+        if (manifestMonochromeEnabled()) {
+            iconSpecs.push({ name: 'pwa/icons/icon-monochrome-512x512.png', width: 512, height: 512 });
+        }
         return [
             {
                 label: 'PWA icon files',
-                specs: PWA_ICON_SIZES.flatMap(px => [
-                    { name: `pwa/icons/icon-${px}x${px}.png`, width: px, height: px },
-                    { name: `pwa/icons/icon-maskable-${px}x${px}.png`, width: px, height: px }
-                ])
+                specs: iconSpecs
             },
             { label: 'PWA splash files', specs: pwaSplashFileSpecs() }
         ];
@@ -3875,7 +4164,7 @@ function expectedPresetFileGroups() {
     return [];
 }
 
-function validateSupportFiles(checks) {
+async function validateSupportFiles(checks) {
     const expected = ['README.txt'];
     if (generatedSnippets.html) expected.push('snippets/head.html');
     if (generatedSnippets.manifest) expected.push(activePresetKey === 'pwa' ? 'pwa/manifest.webmanifest' : 'manifest.webmanifest');
@@ -3887,8 +4176,31 @@ function validateSupportFiles(checks) {
 
     const supportNames = new Set(getSupportFiles().map(file => file.name));
     const missing = expected.filter(name => !supportNames.has(name));
-    if (missing.length) {
-        addValidationCheck(checks, 'fail', 'Deployable support files', `Missing: ${fileSpecSummary(missing)}`);
+    const malformed = [];
+    for (const file of getSupportFiles()) {
+        const text = (await file.blob.text()).trim();
+        if (!text) {
+            malformed.push(`${file.name} is empty`);
+            continue;
+        }
+        if (file.name.endsWith('.json')) {
+            try {
+                JSON.parse(text);
+            } catch {
+                malformed.push(`${file.name} is invalid JSON`);
+            }
+        } else if (file.name.endsWith('.xml') && !text.startsWith('<')) {
+            malformed.push(`${file.name} is invalid XML`);
+        } else if (file.name.endsWith('.html') && !text.includes('<')) {
+            malformed.push(`${file.name} is invalid HTML`);
+        }
+    }
+
+    if (missing.length || malformed.length) {
+        const details = [];
+        if (missing.length) details.push(`Missing: ${fileSpecSummary(missing)}`);
+        if (malformed.length) details.push(`Malformed: ${fileSpecSummary(malformed)}`);
+        addValidationCheck(checks, 'fail', 'Deployable support files', details.join(' | '));
     } else {
         addValidationCheck(checks, 'pass', 'Deployable support files', `${expected.length} support file${expected.length === 1 ? '' : 's'} will be included in ZIP/folder export.`);
     }
@@ -3897,6 +4209,7 @@ function validateSupportFiles(checks) {
 function validateManifestIcons(checks) {
     if (activePresetKey !== 'web' && activePresetKey !== 'pwa') return;
     const relevantIcons = manifestIconFiles();
+    const colorIcons = relevantIcons.filter(file => file.purpose !== 'monochrome');
 
     if (relevantIcons.length === 0) {
         addValidationCheck(checks, 'warn', 'Manifest icon metadata', 'No manifest-sized PNG icons were generated for this export.');
@@ -3911,7 +4224,7 @@ function validateManifestIcons(checks) {
         const manifest = JSON.parse(generatedSnippets.manifest);
         const icons = Array.isArray(manifest.icons) ? manifest.icons : [];
         const mismatches = [];
-        for (const file of relevantIcons) {
+        for (const file of colorIcons) {
             const expected = manifestIconEntry(file);
             const entry = icons.find(icon => icon.src === expected.src && icon.purpose === expected.purpose);
             if (!entry) {
@@ -3939,7 +4252,7 @@ function validateManifestIcons(checks) {
         if (mismatches.length) {
             addValidationCheck(checks, 'fail', 'Manifest icon metadata', fileSpecSummary(mismatches));
         } else {
-            const iconCount = relevantIcons.length + (manifestMonochromeEnabled() && monochromeManifestIconFile(relevantIcons) ? 1 : 0);
+            const iconCount = colorIcons.length + (manifestMonochromeEnabled() && monochromeManifestIconFile(relevantIcons) ? 1 : 0);
             addValidationCheck(checks, 'pass', 'Manifest icon metadata', `${iconCount} generated icon${iconCount === 1 ? '' : 's'} match manifest src, sizes, type, and purpose.`);
         }
     } catch (error) {
@@ -3947,18 +4260,70 @@ function validateManifestIcons(checks) {
     }
 }
 
-function validateMaskableSafeZone(checks) {
+function hexRgb(value) {
+    const color = normalizeSvgColor(value, '#09090b');
+    return [
+        parseInt(color.slice(1, 3), 16),
+        parseInt(color.slice(3, 5), 16),
+        parseInt(color.slice(5, 7), 16)
+    ];
+}
+
+async function validateMaskableSafeZone(checks, inspectPixels = true) {
     const maskableFiles = generatedFiles.filter(file => file.purpose === 'maskable' || file.name.includes('maskable'));
     if (activePresetKey !== 'pwa' && maskableFiles.length === 0) return;
     if (maskableFiles.length === 0) {
         addValidationCheck(checks, 'fail', 'Maskable safe zone', 'No maskable PWA icons were generated.');
         return;
     }
-    const effectivePadding = Math.max(parseInt(safePaddingSlider.value, 10) || 0, 12);
-    if (effectivePadding < 12) {
-        addValidationCheck(checks, 'warn', 'Maskable safe zone', 'Maskable icons should keep at least 12% safe padding.');
+    const metadataFailures = maskableFiles.filter(file =>
+        file.safeZoneRadiusRatio !== 0.4 ||
+        typeof file.safeZonePaddingPercent !== 'number' ||
+        file.safeZonePaddingPercent < 22
+    );
+    if (metadataFailures.length) {
+        addValidationCheck(checks, 'fail', 'Maskable safe zone', `Missing 40% safe-zone contract: ${fileSpecSummary(metadataFailures.map(file => file.name))}`);
+        return;
+    }
+    if (!inspectPixels) {
+        addValidationCheck(checks, 'pass', 'Maskable safe zone', `${maskableFiles.length} maskable icon${maskableFiles.length === 1 ? '' : 's'} use an inscribed-square 40% safe-zone contract.`);
+        return;
+    }
+
+    const pixelFailures = [];
+    const pixelWarnings = [];
+    for (const file of maskableFiles) {
+        const pixels = await decodeImagePixels(file);
+        if (!pixels) {
+            pixelWarnings.push(`${file.name}: pixel inspection unavailable`);
+            continue;
+        }
+        const expected = hexRgb(file.safeZoneBackgroundColor);
+        const radius = Math.min(pixels.width, pixels.height) * file.safeZoneRadiusRatio;
+        const centerX = (pixels.width - 1) / 2;
+        const centerY = (pixels.height - 1) / 2;
+        let mismatch = false;
+        for (let y = 0; y < pixels.height && !mismatch; y++) {
+            for (let x = 0; x < pixels.width; x++) {
+                if (Math.hypot(x - centerX, y - centerY) <= radius) continue;
+                const offset = (y * pixels.width + x) * 4;
+                if (pixels.data[offset + 3] !== 255 ||
+                    Math.abs(pixels.data[offset] - expected[0]) > 3 ||
+                    Math.abs(pixels.data[offset + 1] - expected[1]) > 3 ||
+                    Math.abs(pixels.data[offset + 2] - expected[2]) > 3) {
+                    mismatch = true;
+                    break;
+                }
+            }
+        }
+        if (mismatch) pixelFailures.push(`${file.name}: foreground or transparency extends outside the 40% safe zone`);
+    }
+    if (pixelFailures.length) {
+        addValidationCheck(checks, 'fail', 'Maskable safe zone', fileSpecSummary(pixelFailures));
+    } else if (pixelWarnings.length) {
+        addValidationCheck(checks, 'warn', 'Maskable safe zone', fileSpecSummary(pixelWarnings));
     } else {
-        addValidationCheck(checks, 'pass', 'Maskable safe zone', `${maskableFiles.length} maskable icon${maskableFiles.length === 1 ? '' : 's'} use at least ${effectivePadding}% safe padding.`);
+        addValidationCheck(checks, 'pass', 'Maskable safe zone', `${maskableFiles.length} decoded maskable icon${maskableFiles.length === 1 ? '' : 's'} keep foreground pixels inside the 40% radius and an opaque background outside it.`);
     }
 }
 
@@ -3973,13 +4338,15 @@ function validateSizeBudget(checks) {
     }
 }
 
-function validateGeneratedExport() {
+async function validateGeneratedExport(options = {}) {
     const checks = [];
     if (generatedFiles.length === 0) {
         addValidationCheck(checks, 'fail', 'Generated files', 'No generated files are available to validate.');
     } else {
         addValidationCheck(checks, 'pass', 'Generated files', `${generatedFiles.length} image file${generatedFiles.length === 1 ? '' : 's'} generated.`);
     }
+
+    if (options.artifactChecks !== false) await validateGeneratedArtifacts(checks);
 
     const groups = expectedPresetFileGroups();
     for (const group of groups) checkFileSet(checks, group.label, group.specs);
@@ -3990,8 +4357,8 @@ function validateGeneratedExport() {
     }
 
     validateManifestIcons(checks);
-    validateMaskableSafeZone(checks);
-    validateSupportFiles(checks);
+    await validateMaskableSafeZone(checks, options.artifactChecks !== false);
+    await validateSupportFiles(checks);
     validateSizeBudget(checks);
 
     const status = checks.some(check => check.status === 'fail') ? 'fail' : checks.some(check => check.status === 'warn') ? 'warn' : 'pass';
@@ -4005,11 +4372,11 @@ function validateGeneratedExport() {
     };
 }
 
-function renderExportValidation() {
+async function renderExportValidation(options = {}) {
     const section = document.getElementById('validationSection');
     const summary = document.getElementById('validationSummary');
     const list = document.getElementById('validationList');
-    const result = validateGeneratedExport();
+    const result = await validateGeneratedExport(options);
 
     setElementVisible(section, true, 'block');
     summary.className = `validation-summary ${result.status}`;
@@ -4286,6 +4653,10 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         normalizeAssetBase,
         deploymentUrlFor,
         validateDeploymentUrlOptions,
+        PWA_SPLASH_SPECS,
+        startupImageMediaFor,
+        inspectArtifactBytes,
+        inspectGeneratedArtifact,
         getOutputFileName,
         iosIconFileName,
         getManifestMetadata,

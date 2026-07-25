@@ -8,9 +8,17 @@ All notable changes to IconForge will be documented in this file.
 - Custom deployment bases now reject unsafe schemes, credentials, queries, fragments, controls, quotes, markup, malformed escapes, and protocol-relative URLs.
 - Generated HTML and XML URL attributes are encoded before they are copied or exported.
 - The service worker now pre-caches both root and `index.html` shell navigations, falls back to the cached shell offline, and returns deterministic failures for uncached static assets.
+- Apple startup tags now use CSS point dimensions, device scale factors, and explicit orientation instead of raster pixels as CSS device dimensions.
+- Maskable PWA icons now reserve an inscribed-square safe area within the 40% manifest radius and use a deterministic opaque background outside it.
+
+### Added
+- Export validation now decodes every image artifact to verify signatures, MIME types, dimensions, ICO directories, support-file syntax, maskable pixels, and monochrome RGB semantics.
+- Optional monochrome export now creates a dedicated black alpha silhouette rather than reusing a full-color PNG.
+- The Apple startup matrix records its upstream source and `2026-07-25` verification date, including the iPhone Air 1260x2736 target.
 
 ### Tests
 - Browser smoke now verifies a freshly installed service worker can render both `/` and `/index.html` while the browser is offline.
+- Browser smoke now enables monochrome PWA output and requires full artifact-byte, maskable-pixel, and platform validation to pass.
 
 ## [v0.4.23] - 2026-06-30
 

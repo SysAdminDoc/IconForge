@@ -14,17 +14,17 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Social previews** - optional Open Graph, Twitter, and LinkedIn preview PNGs with copyable meta tags
 - **Auto-crop** - detect content bounds and trim whitespace with adjustable tolerance
 - **Manual crop** - draw a crop rectangle or enter precise dimensions
-- **Maskable preview** - safe-zone overlay with circle, squircle, and rounded-square masks
+- **Maskable preview and validation** - safe-zone overlays plus decoded-pixel checks against the 40% manifest safe zone
 - **Processing controls** - safe padding, lossy quality, size-budget warnings, background fill or gradient, drop shadow, tint/desaturate/glass effects, and pixel-hinted small icons
 - **Code snippets** - generates HTML `<link>` tags, `manifest.webmanifest` JSON, extension manifest icon blocks, Android XML, iOS Contents.json, and Windows browserconfig.xml
 - **Framework handoffs** - tabbed snippets for plain HTML, Vite, Next.js app router, Astro, Chrome/Firefox MV3, Android, and iOS
 - **Deployment URL controls** - generate root-relative, relative, or custom-base asset URLs with optional SHA-256 cache-busting queries
 - **Input and encoder guardrails** - rejects malformed/external SVG input and prevents empty canvas blobs from entering exports
-- **Manifest metadata** - set app name, ID, description, start URL, display mode, categories, theme colors, shortcuts, screenshots, language, direction, and optional monochrome icon purpose
+- **Manifest metadata** - set app name, ID, description, start URL, display mode, categories, theme colors, shortcuts, screenshots, language, direction, and generate an optional monochrome alpha silhouette
 - **CSP-hardened shell** - local CSS and JavaScript files run under a strict self-only policy with blob/data allowances for previews, downloads, and workers
 - **Deployable ZIPs** - exports generated images plus README.txt and the platform support files needed by the selected bundle
 - **Export manifest** - ZIP and folder exports include `iconforge-export.json` with file inventory, dimensions, MIME types, byte sizes, and SHA-256 hashes
-- **Export validation** - checks generated platform files, dimensions, manifest icon metadata, support files, and maskable safe-zone coverage before deployment
+- **Export validation** - decodes generated PNG/JPG/WebP/AVIF/ICO/SVG bytes, verifies MIME types and dimensions, parses support files, and checks manifest-purpose semantics before deployment
 - **Generation diagnostics** - reports browser feature support, selected preset/formats, skipped formats, worker fallback state, file count, byte total, and validation status
 - **Draft recovery** - saves recent settings locally and can optionally restore the source image after reloads
 - **Installed file handling** - installed Chrome/Edge PWAs can open supported image files from the operating system
@@ -75,7 +75,7 @@ rtk node -c sw.js
 | Preset | Sizes | Use Case |
 |--------|-------|----------|
 | Modern Web | 16, 32, 48, 180, 192, 512 | favicon.ico, SVG favicon, apple-touch-icon, manifest icons |
-| PWA | 72-512 icons + 38 startup images | Any + maskable icons, current iOS/iPadOS splash images, web manifest |
+| PWA | 72-512 icons + 40 startup images | Any + maskable icons, optional monochrome silhouette, current iOS/iPadOS splash images, web manifest |
 | Extension | 16, 32, 48, 128 | Chrome/Firefox extension icons |
 | Android | mdpi-xxxhdpi adaptive + legacy buckets | Foreground/background/legacy PNGs and adaptive icon XML |
 | iOS | 180, 512 + app icon matrix | Full AppIcon.appiconset with Contents.json |

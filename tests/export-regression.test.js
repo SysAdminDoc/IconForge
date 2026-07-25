@@ -374,6 +374,7 @@ function makePwaBundleFiles() {
     { width: 1488, height: 2266, name: 'ipad-mini-8-3' },
     { width: 1320, height: 2868, name: 'iphone-16-pro-max' },
     { width: 1206, height: 2622, name: 'iphone-16-pro' },
+    { width: 1260, height: 2736, name: 'iphone-air' },
     { width: 1290, height: 2796, name: 'iphone-16-plus' },
     { width: 1179, height: 2556, name: 'iphone-16' },
     { width: 1170, height: 2532, name: 'iphone-16e' },
@@ -385,25 +386,54 @@ function makePwaBundleFiles() {
     { width: 750, height: 1334, name: 'iphone-8' },
     { width: 640, height: 1136, name: 'iphone-se-4' }
   ];
+  const scaleTwoNames = new Set([
+    'ipad-pro-12-9', 'ipad-pro-11', 'ipad-9-7', 'ipad-air-11', 'ipad-air-10-5',
+    'ipad-10-2', 'ipad-mini-8-3', 'iphone-11', 'iphone-8', 'iphone-se-4'
+  ]);
+  const enrichedSplashSpecs = splashSpecs.map((splash) => {
+    const scaleFactor = scaleTwoNames.has(splash.name) ? 2 : 3;
+    return {
+      ...splash,
+      cssWidth: splash.width / scaleFactor,
+      cssHeight: splash.height / scaleFactor,
+      scaleFactor
+    };
+  });
   return [
     ...iconSizes.flatMap((px) => [
       { name: `pwa/icons/icon-${px}x${px}.png`, blob: makeBlob(), size: { width: px, height: px }, format: 'png', purpose: 'any' },
-      { name: `pwa/icons/icon-maskable-${px}x${px}.png`, blob: makeBlob(), size: { width: px, height: px }, format: 'png', purpose: 'maskable' }
+      {
+        name: `pwa/icons/icon-maskable-${px}x${px}.png`,
+        blob: makeBlob(),
+        size: { width: px, height: px },
+        format: 'png',
+        purpose: 'maskable',
+        safeZoneRadiusRatio: 0.4,
+        safeZonePaddingPercent: 22,
+        safeZoneBackgroundColor: '#123456'
+      }
     ]),
-    ...splashSpecs.flatMap((splash) => [
+    ...enrichedSplashSpecs.flatMap((splash) => [
       {
         name: `pwa/splash/apple-splash-${splash.name}-${splash.width}x${splash.height}.png`,
         blob: makeBlob(),
         size: { width: splash.width, height: splash.height },
         format: 'png',
-        role: 'splash'
+        role: 'splash',
+        splashSpec: { ...splash, orientation: 'portrait' }
       },
       {
         name: `pwa/splash/apple-splash-${splash.name}-${splash.height}x${splash.width}.png`,
         blob: makeBlob(),
         size: { width: splash.height, height: splash.width },
         format: 'png',
-        role: 'splash'
+        role: 'splash',
+        splashSpec: {
+          ...splash,
+          cssWidth: splash.cssHeight,
+          cssHeight: splash.cssWidth,
+          orientation: 'landscape'
+        }
       }
     ])
   ];
@@ -454,6 +484,21 @@ async function main() {
   );
   assert.strictEqual(api.inspectAssetBase('./assets').normalized, './assets/');
   assert.strictEqual(api.inspectAssetBase('/assets').normalized, '/assets/');
+  const pngHeader = new Uint8Array(24);
+  pngHeader.set([137, 80, 78, 71, 13, 10, 26, 10], 0);
+  pngHeader.set([73, 72, 68, 82], 12);
+  new DataView(pngHeader.buffer).setUint32(16, 192, false);
+  new DataView(pngHeader.buffer).setUint32(20, 192, false);
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(api.inspectArtifactBytes({ format: 'png' }, pngHeader))),
+    { valid: true, width: 192, height: 192, icoSizes: [], error: '' }
+  );
+  assert.strictEqual(api.inspectArtifactBytes({ format: 'png' }, new Uint8Array([1, 2, 3])).valid, false);
+  const iphone16ProMax = api.PWA_SPLASH_SPECS.find((spec) => spec.name === 'iphone-16-pro-max');
+  assert.strictEqual(iphone16ProMax.cssWidth, 440);
+  assert.strictEqual(iphone16ProMax.cssHeight, 956);
+  assert.strictEqual(iphone16ProMax.scaleFactor, 3);
+  assert.strictEqual(iphone16ProMax.lastVerified, '2026-07-25');
   [
     '',
     'javascript:alert(1)',
@@ -546,6 +591,7 @@ async function main() {
     { name: 'apple-touch-icon.png', blob: makeBlob(), size: { width: 180, height: 180 }, format: 'png' },
     { name: 'pwa/icons/icon-192x192.png', blob: makeBlob(), size: { width: 192, height: 192 }, format: 'png', purpose: 'any' },
     { name: 'pwa/icons/icon-maskable-512x512.png', blob: makeBlob(), size: { width: 512, height: 512 }, format: 'png', purpose: 'maskable' },
+    { name: 'pwa/icons/icon-monochrome-512x512.png', blob: makeBlob(), size: { width: 512, height: 512 }, format: 'png', purpose: 'monochrome' },
     { name: 'pwa/splash/apple-splash-iphone-se-640x1136.png', blob: makeBlob(), size: { width: 640, height: 1136 }, format: 'png', role: 'splash' }
   ];
   api.setState({
@@ -618,7 +664,7 @@ async function main() {
   assert.strictEqual(editedManifest.background_color, '#445566');
   assert.strictEqual(editedManifest.lang, 'ar');
   assert.strictEqual(editedManifest.dir, 'rtl');
-  assert(editedManifest.icons.some((icon) => icon.src === '/pwa/icons/icon-192x192.png' && icon.purpose === 'monochrome' && icon.type === 'image/png'));
+  assert(editedManifest.icons.some((icon) => icon.src === '/pwa/icons/icon-monochrome-512x512.png' && icon.purpose === 'monochrome' && icon.type === 'image/png'));
   assert.strictEqual(editedManifest.shortcuts[0].url, './reports/');
   assert.strictEqual(editedManifest.screenshots[0].sizes, '1280x720');
 
@@ -733,8 +779,10 @@ async function main() {
   await api.generateSnippets([], []);
   const pwaSnippets = api.getState().generatedSnippets;
   assert(pwaSnippets.html.includes('/pwa/splash/apple-splash-iphone-16-pro-max-1320x2868.png'), 'PWA snippets should include latest iPhone splash dimensions');
-  assert.strictEqual((pwaSnippets.html.match(/apple-touch-startup-image/g) || []).length, 38, 'PWA snippets should include every generated splash orientation');
-  const pwaValidation = api.validateGeneratedExport();
+  assert(pwaSnippets.html.includes('(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)'), 'PWA snippets should use CSS points, scale factor, and portrait orientation');
+  assert(pwaSnippets.html.includes('(device-width: 956px) and (device-height: 440px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)'), 'PWA snippets should swap CSS points for landscape orientation');
+  assert.strictEqual((pwaSnippets.html.match(/apple-touch-startup-image/g) || []).length, 40, 'PWA snippets should include every generated splash orientation');
+  const pwaValidation = await api.validateGeneratedExport({ artifactChecks: false });
   assert.strictEqual(pwaValidation.status, 'pass');
   assert(pwaValidation.checks.some((check) => check.label === 'PWA icon files' && check.status === 'pass'));
   const splashCheck = pwaValidation.checks.find((check) => check.label === 'PWA splash files');
@@ -781,7 +829,7 @@ async function main() {
   api.setState({ lossyQualityPercent: 65, sizeBudgetKb: 0.1 });
   assert.strictEqual(api.getState().lossyQualityPercent, 65);
   assert.strictEqual(api.getState().sizeBudgetBytes, 102);
-  const budgetValidation = api.validateGeneratedExport();
+  const budgetValidation = await api.validateGeneratedExport({ artifactChecks: false });
   assert.strictEqual(budgetValidation.status, 'warn');
   assert(budgetValidation.checks.some((check) => check.label === 'Size budget' && check.status === 'warn'));
   const qualityDiagnostics = api.buildGenerationDiagnostics({
@@ -812,7 +860,7 @@ async function main() {
     backgroundColor: '#123456'
   });
   await api.generateSnippets([], []);
-  const brokenValidation = api.validateGeneratedExport();
+  const brokenValidation = await api.validateGeneratedExport({ artifactChecks: false });
   assert.strictEqual(brokenValidation.status, 'fail');
   assert(brokenValidation.checks.some((check) => check.detail.includes('Missing: pwa/icons/icon-maskable-72x72.png')));
   assert(brokenValidation.checks.some((check) => check.detail.includes('Wrong dimensions: pwa/icons/icon-192x192.png is 128x128, expected 192x192')));
@@ -853,7 +901,7 @@ async function main() {
   assert(socialSnippets.social.includes('name="twitter:image" content="/social/twitter-card.png"'), 'Social snippet should include Twitter image');
   assert(socialSnippets.social.includes('property="og:image:width" content="1200"'), 'Social snippet should include image width');
   assert(api.getSupportFiles().some((file) => file.name === 'snippets/social-meta.html'), 'Social meta support file should be exported');
-  const socialValidation = api.validateGeneratedExport();
+  const socialValidation = await api.validateGeneratedExport({ artifactChecks: false });
   assert.strictEqual(socialValidation.status, 'pass');
   assert(socialValidation.checks.some((check) => check.label === 'Social preview files' && check.status === 'pass'));
 
@@ -865,7 +913,7 @@ async function main() {
   await api.generateSnippets([], []);
   assert(api.getState().generatedSnippets.handoff.android.includes('android/mipmap-mdpi/ic_launcher_foreground.png -> app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png'));
   assert(api.getState().generatedSnippets.handoff.android.includes('android/mipmap-xxxhdpi/ic_launcher.png -> app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'));
-  const androidValidation = api.validateGeneratedExport();
+  const androidValidation = await api.validateGeneratedExport({ artifactChecks: false });
   assert.strictEqual(androidValidation.status, 'pass', 'Android density bucket validation should pass');
   assert(androidValidation.checks.some((check) => check.label === 'Android adaptive icon files' && check.detail.includes('15 expected files')));
   api.setState({
@@ -933,7 +981,7 @@ async function main() {
       fallbackReasons: ['OffscreenCanvas unavailable']
     }
   });
-  const diagnosticsValidation = api.validateGeneratedExport();
+  const diagnosticsValidation = await api.validateGeneratedExport({ artifactChecks: false });
   const diagnosticsReport = api.buildDiagnosticsSupportReport({
     selectedFormats: ['png', 'webp'],
     validationResult: diagnosticsValidation,

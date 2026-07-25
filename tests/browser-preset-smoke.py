@@ -44,12 +44,16 @@ EXPECTED = {
         "files": {
             "pwa/icons/icon-192x192.png",
             "pwa/icons/icon-maskable-192x192.png",
+            "pwa/icons/icon-monochrome-512x512.png",
             "pwa/splash/apple-splash-iphone-16-pro-max-1320x2868.png",
+            "pwa/splash/apple-splash-iphone-air-1260x2736.png",
         },
         "png": {
             "pwa/icons/icon-192x192.png": (192, 192),
             "pwa/icons/icon-maskable-192x192.png": (192, 192),
+            "pwa/icons/icon-monochrome-512x512.png": (512, 512),
             "pwa/splash/apple-splash-iphone-16-pro-max-1320x2868.png": (1320, 2868),
+            "pwa/splash/apple-splash-iphone-air-1260x2736.png": (1260, 2736),
         },
         "zip": {"pwa/manifest.webmanifest", "iconforge-export.json"},
         "ico": {},
@@ -218,7 +222,7 @@ async (preset) => {
   }
   const zipBlob = api.buildZip(zipItems);
   const zipBytes = new Uint8Array(await zipBlob.arrayBuffer());
-  const validation = api.validateGeneratedExport();
+  const validation = await api.validateGeneratedExport();
   const diagnostics = api.buildGenerationDiagnostics({ selectedFormats: [], validationResult: validation });
 
   return {
@@ -243,6 +247,8 @@ def run_preset(page, url: str, preset: str) -> dict:
     page.locator("#textInput").fill("IF")
     page.locator("#btnUseTextIcon").click()
     page.locator(f'button[data-preset="{preset}"]').click()
+    if preset == "pwa":
+        page.locator("#manifestMonochrome").check()
     page.locator("#btnGenerate").click()
     page.wait_for_function(
         """() => {
