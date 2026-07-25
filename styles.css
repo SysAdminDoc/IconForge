@@ -7,7 +7,7 @@
     --border-hover: #3f3f46;
     --text-primary: #fafafa;
     --text-secondary: #a1a1aa;
-    --text-muted: #71717a;
+    --text-muted: #85858e;
     --accent: #f97316;
     --accent-hover: #fb923c;
     --accent-subtle: rgba(249, 115, 22, 0.08);
@@ -36,6 +36,19 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+}
+
+button:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+    outline: 3px solid #fbbf24 !important;
+    outline-offset: 3px;
+    box-shadow: 0 0 0 3px #09090b, 0 0 0 6px #fbbf24 !important;
 }
 
 body {
@@ -1410,6 +1423,15 @@ footer a:hover {
     background: var(--bg-elevated);
     color: var(--text-primary);
     box-shadow: var(--shadow-sm);
+}
+
+.mode-tab:focus,
+.mode-tab:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: 3px solid #fbbf24 !important;
+    outline-offset: 3px;
+    box-shadow: 0 0 0 3px #09090b, 0 0 0 6px #fbbf24 !important;
 }
 
 /* Text-to-favicon */

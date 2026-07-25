@@ -12,6 +12,7 @@ All notable changes to IconForge will be documented in this file.
 - Maskable PWA icons now reserve an inscribed-square safe area within the 40% manifest radius and use a deterministic opaque background outside it.
 - Manifest generation now fails closed on malformed JSON, invalid BCP 47 language tags, unsafe or out-of-scope URLs, invalid shortcut objects, and malformed screenshot metadata.
 - Resize-worker crashes, unreadable messages, transfer failures, and timeouts now terminate the worker and reject every pending job immediately; canvas encoders also have a bounded callback timeout.
+- Clear Draft now cancels pending autosaves so a queued settings write cannot recreate the deleted draft.
 
 ### Added
 - Export validation now decodes every image artifact to verify signatures, MIME types, dimensions, ICO directories, support-file syntax, maskable pixels, and monochrome RGB semantics.
@@ -19,11 +20,13 @@ All notable changes to IconForge will be documented in this file.
 - The Apple startup matrix records its upstream source and `2026-07-25` verification date, including the iPhone Air 1260x2736 target.
 - Large generations now show stage, filename, and completed-work progress with cancellation that clears partial output and permits immediate retry.
 - Folder export now preflights destination conflicts, creates a collision-free bundle directory, and rolls back the whole directory on failure or cancellation; failed rollback reports every partial file.
+- Upload, Text, and Emoji source modes now implement APG tabs with roving focus and Arrow/Home/End activation; errors receive assertive programmatic focus, focus rings remain visible, and muted text meets 4.5:1 on supported dark surfaces.
 
 ### Tests
 - Browser smoke now verifies a freshly installed service worker can render both `/` and `/index.html` while the browser is offline.
 - Browser smoke now enables monochrome PWA output and requires full artifact-byte, maskable-pixel, and platform validation to pass.
 - Browser smoke now cancels a live PWA generation, verifies partial output is removed, and regenerates successfully.
+- Browser smoke now exercises source-tab keyboard navigation, rendered focus styling, and assertive error focus.
 
 ## [v0.4.23] - 2026-06-30
 

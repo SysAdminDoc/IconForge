@@ -625,6 +625,8 @@ function queueDraftSave() {
 }
 
 function clearDraftState() {
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
     const storage = draftStorage();
     try {
         storage?.removeItem(DRAFT_STORAGE_KEY);
@@ -1251,8 +1253,12 @@ function getActiveInputMode() {
 
 function setInputMode(mode) {
     const nextMode = ['upload', 'text', 'emoji'].includes(mode) ? mode : 'upload';
-    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-    document.querySelector(`.mode-tab[data-mode="${nextMode}"]`)?.classList.add('active');
+    document.querySelectorAll('.mode-tab').forEach(tab => {
+        const selected = tab.dataset.mode === nextMode;
+        tab.classList.toggle('active', selected);
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+    });
     setElementVisible(uploadMode, nextMode === 'upload');
     setElementVisible(textMode, nextMode === 'text');
     setElementVisible(emojiMode, nextMode === 'emoji');
@@ -1264,6 +1270,23 @@ document.querySelector('.input-mode-tabs').addEventListener('click', (e) => {
     const tab = e.target.closest('.mode-tab');
     if (!tab) return;
     setInputMode(tab.dataset.mode);
+    queueDraftSave();
+});
+document.querySelector('.input-mode-tabs').addEventListener('keydown', (event) => {
+    const tab = event.target.closest('.mode-tab');
+    if (!tab) return;
+    const tabs = Array.from(document.querySelectorAll('.mode-tab'));
+    const currentIndex = tabs.indexOf(tab);
+    let nextIndex = currentIndex;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    const nextTab = tabs[nextIndex];
+    setInputMode(nextTab.dataset.mode);
+    nextTab.focus();
     queueDraftSave();
 });
 
@@ -5030,10 +5053,16 @@ function showStatus(message, type) {
     if (!message) {
         status.className = 'status';
         status.textContent = '';
+        status.setAttribute('role', 'status');
+        status.setAttribute('aria-live', 'polite');
         return;
     }
     status.className = `status visible ${type}`;
     status.textContent = message;
+    const isError = type === 'error';
+    status.setAttribute('role', isError ? 'alert' : 'status');
+    status.setAttribute('aria-live', isError ? 'assertive' : 'polite');
+    if (isError) status.focus();
 }
 
 const updateNotice = document.getElementById('updateNotice');

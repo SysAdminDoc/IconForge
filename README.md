@@ -27,6 +27,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Export validation** - decodes generated PNG/JPG/WebP/AVIF/ICO/SVG bytes, verifies MIME types and dimensions, parses support files, and checks manifest-purpose semantics before deployment
 - **Observable, cancellable generation** - shows the current stage and filename for large bundles, cancels promptly, clears partial output, and supports immediate retry
 - **Conflict-safe folder exports** - writes each bundle into a new collision-free folder and removes the entire folder after a failed or cancelled write
+- **Keyboard-accessible source modes** - Upload, Text, and Emoji use APG tabs with Arrow/Home/End navigation, high-visibility focus rings, assertive error focus, and WCAG-compliant muted text
 - **Generation diagnostics** - reports browser feature support, selected preset/formats, skipped formats, worker fallback state, file count, byte total, and validation status
 - **Draft recovery** - saves recent settings locally and can optionally restore the source image after reloads
 - **Installed file handling** - installed Chrome/Edge PWAs can open supported image files from the operating system

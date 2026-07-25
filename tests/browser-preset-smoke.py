@@ -281,7 +281,7 @@ def run_preset(page, url: str, preset: str) -> dict:
             const status = document.querySelector("#status")?.textContent || "";
             return button && !button.disabled && /Generated/.test(status);
         }""",
-        timeout=60000,
+        timeout=15000,
     )
     result = page.evaluate(COLLECT_SCRIPT, preset)
     result["cancelRecovery"] = cancel_recovery
@@ -291,6 +291,84 @@ def run_preset(page, url: str, preset: str) -> dict:
     )
     page.set_viewport_size({"width": 1440, "height": 1000})
     return result
+
+
+def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
+    page.goto(url, wait_until="networkidle")
+    failures = []
+    upload_tab = page.locator("#sourceTabUpload")
+    page.keyboard.press("Tab")
+    if page.evaluate("() => document.activeElement?.id") != "sourceTabUpload":
+        failures.append("first keyboard tab stop should be the selected Upload source tab")
+    upload_tab.press("ArrowRight")
+    arrow_state = page.evaluate(
+        """() => ({
+            activeId: document.activeElement?.id,
+            selected: document.querySelector('[role="tab"][aria-selected="true"]')?.id,
+            textVisible: getComputedStyle(document.querySelector("#textMode")).display !== "none"
+        })"""
+    )
+    if arrow_state != {"activeId": "sourceTabText", "selected": "sourceTabText", "textVisible": True}:
+        failures.append(f"source tab ArrowRight state was incorrect: {arrow_state}")
+
+    page.locator("#sourceTabText").press("End")
+    end_state = page.evaluate(
+        """() => ({
+            activeId: document.activeElement?.id,
+            selected: document.querySelector('[role="tab"][aria-selected="true"]')?.id,
+            emojiVisible: getComputedStyle(document.querySelector("#emojiMode")).display !== "none"
+        })"""
+    )
+    if end_state != {"activeId": "sourceTabEmoji", "selected": "sourceTabEmoji", "emojiVisible": True}:
+        failures.append(f"source tab End state was incorrect: {end_state}")
+
+    page.locator("#sourceTabEmoji").press("Home")
+    page.wait_for_timeout(200)
+    focus_style = page.locator("#sourceTabUpload").evaluate(
+        """element => {
+            const style = getComputedStyle(element);
+            return {
+                activeId: document.activeElement?.id,
+                focused: element.matches(":focus"),
+                focusVisible: element.matches(":focus-visible"),
+                outlineStyle: style.outlineStyle,
+                outlineWidth: style.outlineWidth,
+                boxShadow: style.boxShadow
+            };
+        }"""
+    )
+    has_outline = focus_style["outlineStyle"] != "none" and float(focus_style["outlineWidth"].replace("px", "")) >= 2
+    has_focus_ring = focus_style["boxShadow"] != "none"
+    if not has_outline and not has_focus_ring:
+        failures.append(f"source tab focus indicator was not visible: {focus_style}")
+
+    page.locator("#sourceTabText").click()
+    page.locator("#textInput").fill("IF")
+    page.locator("#btnUseTextIcon").click()
+    page.wait_for_function("() => !document.querySelector('#btnGenerate').disabled")
+    page.locator("#manifestShortcuts").fill("{")
+    page.locator("#btnGenerate").click()
+    page.wait_for_function(
+        """() => {
+            const status = document.querySelector("#status");
+            return status?.getAttribute("role") === "alert" && document.activeElement === status;
+        }"""
+    )
+    error_focus = page.evaluate(
+        """() => ({
+            activeId: document.activeElement?.id,
+            role: document.querySelector("#status")?.getAttribute("role"),
+            live: document.querySelector("#status")?.getAttribute("aria-live")
+        })"""
+    )
+    if error_focus != {"activeId": "status", "role": "alert", "live": "assertive"}:
+        failures.append(f"error status focus state was incorrect: {error_focus}")
+    return {
+        "arrowNavigation": arrow_state,
+        "endNavigation": end_state,
+        "focusStyle": focus_style,
+        "errorFocus": error_focus,
+    }, failures
 
 
 def validate_result(result: dict) -> list[str]:
@@ -350,17 +428,39 @@ def main() -> int:
     results = []
     failures = []
     offline_shell = {"root": False, "index": False}
+    accessibility = {}
 
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
+            accessibility_context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+            accessibility_page = accessibility_context.new_page()
+            accessibility_page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
+            accessibility_page.on("console", lambda msg: console_messages.append({"type": msg.type, "text": msg.text}))
+            accessibility_page.on("pageerror", lambda exc: page_errors.append(str(exc)))
+            accessibility, accessibility_failures = check_accessibility_interactions(accessibility_page, url)
+            failures.extend(accessibility_failures)
+            accessibility_context.close()
+
             context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
             page = context.new_page()
             page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
             page.on("console", lambda msg: console_messages.append({"type": msg.type, "text": msg.text}))
             page.on("pageerror", lambda exc: page_errors.append(str(exc)))
             for preset in PRESETS:
-                result = run_preset(page, url, preset)
+                try:
+                    result = run_preset(page, url, preset)
+                except Exception as error:
+                    state = page.evaluate(
+                        """() => ({
+                            status: document.querySelector("#status")?.textContent,
+                            statusRole: document.querySelector("#status")?.getAttribute("role"),
+                            shortcuts: document.querySelector("#manifestShortcuts")?.value,
+                            generateDisabled: document.querySelector("#btnGenerate")?.disabled,
+                            outputItems: document.querySelectorAll("#outputGrid .output-item").length
+                        })"""
+                    )
+                    raise RuntimeError(f"{preset} preset browser smoke failed with state {state}") from error
                 results.append(result)
                 failures.extend(validate_result(result))
 
@@ -402,6 +502,7 @@ def main() -> int:
             }
             for item in results
         ],
+        "accessibility": accessibility,
         "offlineShell": offline_shell,
         "failures": failures,
     }
