@@ -28,6 +28,13 @@ CURRENT_VERSION = re.search(
     r"ICONFORGE_VERSION\s*=\s*'([^']+)'",
     (ROOT / "version.js").read_text(encoding="utf-8"),
 ).group(1)
+CHANGELOG_VERSIONS = re.findall(
+    r"^## \[(v\d+\.\d+\.\d+)\] - \d{4}-\d{2}-\d{2}$",
+    (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
+    re.MULTILINE,
+)
+CURRENT_RELEASE_INDEX = CHANGELOG_VERSIONS.index(CURRENT_VERSION)
+PREVIOUS_VERSION = CHANGELOG_VERSIONS[CURRENT_RELEASE_INDEX + 1]
 PRESETS = ("web", "pwa", "android", "ios", "windows", "social")
 
 EXPECTED = {
@@ -497,6 +504,10 @@ def check_reforge_import(page, url: str) -> tuple[dict, list[str]]:
         "mimeType": "application/json",
         "buffer": json.dumps(future_manifest).encode("utf-8"),
     })
+    page.wait_for_function(
+        """() => document.querySelector("#btnApplyReforge")?.disabled
+            && /newer than supported/.test(document.querySelector("#reforgeStatus")?.textContent || "")"""
+    )
     rejected = page.evaluate(
         """() => ({
             applyDisabled: document.querySelector("#btnApplyReforge")?.disabled,
@@ -1454,8 +1465,7 @@ def check_pwa_upgrade(
             "reason": "Production manifest diagnostics require the Chromium DevTools Protocol.",
         }, []
 
-    match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)", CURRENT_VERSION)
-    previous_version = f"v{match.group(1)}.{match.group(2)}.{max(0, int(match.group(3)) - 1)}"
+    previous_version = PREVIOUS_VERSION
     report = {
         "supported": True,
         "status": "fail",

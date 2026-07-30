@@ -1,1 +1,1 @@
-globalThis.ICONFORGE_VERSION = 'v0.4.24';
+globalThis.ICONFORGE_VERSION = 'v0.5.0';

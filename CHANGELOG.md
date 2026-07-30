@@ -4,6 +4,8 @@ All notable changes to IconForge will be documented in this file.
 
 ## [Unreleased]
 
+## [v0.5.0] - 2026-07-29
+
 ### Changed
 - The app shell is now a responsive forge workstation with a compact command header, Source → Configure → Export workflow rail, source studio, layered configuration cards, and a distinct export console.
 - Presets, metadata, output sizing, processing controls, generated assets, diagnostics, and snippets now use a cohesive navy, ember, and indigo visual system with stronger hierarchy and touch targets.
