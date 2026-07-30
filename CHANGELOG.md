@@ -24,6 +24,7 @@ All notable changes to IconForge will be documented in this file.
 
 ### Tests
 - Versioned adversarial fixtures cover EXIF orientation, alpha edges, Unicode SVG text, malformed and mismatched files, oversized metadata, and engine codec support; decoded 16/32/512, maskable, and monochrome pixels are checked with explicit tolerances.
+- Installed-PWA coverage now requires a clean production-manifest parse and a controlled two-version worker transition with one reload action, eligible-draft restoration, obsolete-cache deletion, and an offline reopen.
 
 ### Accessibility
 - Text shapes and emoji choices now maintain one `aria-pressed` selection, the workflow rail advances a single `aria-current` step, and every generated download/copy action includes its filename.

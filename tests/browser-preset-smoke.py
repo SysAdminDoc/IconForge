@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import contextlib
 import json
+import re
 import socket
 import sys
 import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlparse
 
 try:
     from playwright.sync_api import sync_playwright
@@ -22,6 +24,10 @@ except ModuleNotFoundError as exc:
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_ROOT = ROOT / "tests" / "fixtures"
+CURRENT_VERSION = re.search(
+    r"ICONFORGE_VERSION\s*=\s*'([^']+)'",
+    (ROOT / "version.js").read_text(encoding="utf-8"),
+).group(1)
 PRESETS = ("web", "pwa", "android", "ios", "windows", "social")
 
 EXPECTED = {
@@ -144,6 +150,31 @@ class QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, _format: str, *args: object) -> None:
         return
 
+    def copyfile(self, source, outputfile) -> None:
+        try:
+            super().copyfile(source, outputfile)
+        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+            return
+
+    def do_GET(self) -> None:
+        pwa_version = getattr(self.server, "pwa_version", None)
+        request_path = urlparse(self.path).path
+        if pwa_version and request_path in {"/version.js", "/sw.js"}:
+            if request_path == "/version.js":
+                content = f"globalThis.ICONFORGE_VERSION = '{pwa_version}';\n"
+            else:
+                content = (ROOT / "sw.js").read_text(encoding="utf-8")
+                content += f"\n// Browser upgrade fixture: {pwa_version}\n"
+            payload = content.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/javascript; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        super().do_GET()
+
 
 def free_port() -> int:
     with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
@@ -155,6 +186,7 @@ def start_server() -> tuple[ThreadingHTTPServer, str]:
     port = free_port()
     handler = lambda *args, **kwargs: QuietHandler(*args, directory=str(ROOT), **kwargs)
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
+    server.pwa_version = None
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server, f"http://127.0.0.1:{port}/"
@@ -1028,6 +1060,126 @@ def check_supported_format_outputs(page, capability_report: dict) -> tuple[list[
     return outputs, failures
 
 
+def check_pwa_upgrade(
+    browser,
+    url: str,
+    server: ThreadingHTTPServer,
+    engine_name: str,
+) -> tuple[dict, list[str]]:
+    if engine_name != "chromium":
+        return {
+            "supported": False,
+            "status": "unsupported-by-harness",
+            "reason": "Production manifest diagnostics require the Chromium DevTools Protocol.",
+        }, []
+
+    match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)", CURRENT_VERSION)
+    previous_version = f"v{match.group(1)}.{match.group(2)}.{max(0, int(match.group(3)) - 1)}"
+    report = {
+        "supported": True,
+        "status": "fail",
+        "fromVersion": previous_version,
+        "toVersion": CURRENT_VERSION,
+    }
+    failures = []
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = context.new_page()
+    page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
+    try:
+        server.pwa_version = previous_version
+        page.goto(url, wait_until="networkidle")
+        cdp = context.new_cdp_session(page)
+        cdp.send("Page.enable")
+        manifest_result = cdp.send("Page.getAppManifest")
+        manifest_errors = manifest_result.get("errors", [])
+        report["manifestErrors"] = manifest_errors
+        if manifest_errors:
+            failures.append(f"production manifest diagnostics reported errors: {manifest_errors}")
+
+        page.wait_for_function("() => navigator.serviceWorker?.ready", timeout=10000)
+        page.reload(wait_until="networkidle")
+        page.wait_for_function("() => Boolean(navigator.serviceWorker?.controller)", timeout=10000)
+        page.wait_for_function(
+            f"() => window.__ICONFORGE_TEST__?.APP_VERSION === {json.dumps(previous_version)}"
+        )
+        page.locator("#manifestName").fill("Upgrade Draft")
+        page.wait_for_timeout(500)
+        old_caches = page.evaluate("() => caches.keys()")
+        report["oldCaches"] = old_caches
+        if f"iconforge-{previous_version}" not in old_caches:
+            failures.append(f"old shell cache was not installed: {old_caches}")
+
+        server.pwa_version = CURRENT_VERSION
+        page.evaluate(
+            """async () => {
+                const registration = await navigator.serviceWorker.getRegistration();
+                await registration.update();
+            }"""
+        )
+        page.wait_for_function(
+            """() => {
+                const notice = document.querySelector("#updateNotice");
+                return Boolean(notice && !notice.hidden && document.querySelector("#btnReloadUpdate"));
+            }""",
+            timeout=15000,
+        )
+        before_reload = page.evaluate(
+            """async () => {
+                const registration = await navigator.serviceWorker.getRegistration();
+                return {
+                    waiting: Boolean(registration.waiting),
+                    noticeText: document.querySelector("#updateNoticeText")?.textContent || "",
+                    updateActionCount: document.querySelectorAll("#btnReloadUpdate").length,
+                    controllerVersion: window.__ICONFORGE_TEST__?.APP_VERSION,
+                    draftName: document.querySelector("#manifestName")?.value
+                };
+            }"""
+        )
+        report["beforeReload"] = before_reload
+        if not before_reload["waiting"] or before_reload["controllerVersion"] != previous_version:
+            failures.append(f"new worker did not wait for user-controlled activation: {before_reload}")
+        if before_reload["updateActionCount"] != 1:
+            failures.append(f"update notice exposed {before_reload['updateActionCount']} reload actions")
+
+        with page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
+            page.locator("#btnReloadUpdate").click()
+        page.wait_for_function(
+            f"() => window.__ICONFORGE_TEST__?.APP_VERSION === {json.dumps(CURRENT_VERSION)}",
+            timeout=10000,
+        )
+        page.wait_for_function(
+            "() => document.querySelector('#manifestName')?.value === 'Upgrade Draft'",
+            timeout=10000,
+        )
+        new_caches = page.evaluate("() => caches.keys()")
+        report["newCaches"] = new_caches
+        report["restoredDraft"] = page.locator("#manifestName").input_value()
+        report["activeVersion"] = page.evaluate("() => window.__ICONFORGE_TEST__.APP_VERSION")
+        if new_caches != [f"iconforge-{CURRENT_VERSION}"]:
+            failures.append(f"obsolete caches remained after activation: {new_caches}")
+        if report["restoredDraft"] != "Upgrade Draft":
+            failures.append("eligible settings draft was not restored after update reload")
+
+        context.set_offline(True)
+        offline_page = context.new_page()
+        try:
+            offline_page.goto(url, wait_until="domcontentloaded", timeout=10000)
+            report["offlineReopen"] = offline_page.locator("#btnGenerate").is_visible()
+        finally:
+            offline_page.close()
+            context.set_offline(False)
+        if not report["offlineReopen"]:
+            failures.append("updated shell did not reopen offline")
+        report["status"] = "pass" if not failures else "fail"
+    except Exception as error:
+        report["reason"] = str(error).splitlines()[0]
+        failures.append(f"PWA upgrade harness failed: {report['reason']}")
+    finally:
+        server.pwa_version = None
+        context.close()
+    return report, failures
+
+
 def check_offline_navigation(browser, url: str) -> tuple[dict, list[str]]:
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     page = context.new_page()
@@ -1116,6 +1268,9 @@ def main() -> int:
                 browser = browser_type.launch(headless=True)
                 engine_failures = []
 
+                pwa_upgrade, pwa_upgrade_failures = check_pwa_upgrade(browser, url, server, engine_name)
+                engine_failures.extend(pwa_upgrade_failures)
+
                 fixture_context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
                 fixture_page = fixture_context.new_page()
                 fixture_page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
@@ -1190,6 +1345,7 @@ def main() -> int:
                         for key, value in capability_report["capabilities"].items()
                     },
                     "workerFallback": worker_metric,
+                    "pwaUpgrade": pwa_upgrade,
                     "imageFixtures": fixture_report,
                     "draftRecovery": draft_recovery,
                     "offlineShell": offline,

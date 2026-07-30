@@ -35,6 +35,12 @@ assert(appSource.includes('const APP_VERSION = globalThis.ICONFORGE_VERSION;'));
 assert(workerSource.startsWith("importScripts('./version.js');"), 'service worker must load canonical version before declaring its cache');
 assert(workerSource.includes('const CACHE_NAME = `iconforge-${globalThis.ICONFORGE_VERSION}`;'));
 assert(workerSource.includes("'./version.js'"), 'service worker shell cache must include version.js');
+assert(workerSource.includes("keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))"), 'activation must remove obsolete version caches');
+assert(workerSource.includes("e.data?.type === 'SKIP_WAITING'"), 'waiting workers must support user-controlled activation');
+const updateAction = appSource.match(/btnReloadUpdate\.addEventListener\('click', \(\) => \{([\s\S]*?)\n\}\);/)?.[1] || '';
+assert(updateAction.includes('saveDraftState({ silent: true })'), 'update reload must preserve an eligible draft first');
+assert(updateAction.includes("postMessage({ type: 'SKIP_WAITING' })"), 'reload action must activate a waiting worker');
+assert(!appSource.match(/watchServiceWorker[\s\S]{0,1400}postMessage\(\{ type: 'SKIP_WAITING'/), 'worker discovery must not activate updates without the reload action');
 
 const requiredProductionIcons = [
   { size: 192, purpose: 'any' },

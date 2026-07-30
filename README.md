@@ -40,7 +40,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **File size display** - see per-icon and total file sizes after generation
 - **Grouped result explorer** - scan artifact families by count, bytes, and validation state; collapse large sets or filter by filename, format, and status
 - **SVG dark mode** - generates SVG favicons with embedded `prefers-color-scheme` CSS
-- **Offline PWA** - install as a Progressive Web App, works without internet, and shows a reload notice when an update is ready
+- **Offline PWA** - install as a Progressive Web App, works without internet, and keeps a new shell waiting behind a reload notice that saves the current draft before activation
 - **100% client-side** - all processing happens in your browser via Canvas and Web Workers
 
 ## Getting Started
@@ -110,7 +110,7 @@ Custom sizes up to 4096x4096 can be added.
 
 WebP and AVIF output are feature-detected and hidden on unsupported browsers.
 
-The browser smoke matrix runs versioned PNG/JPEG/WebP/SVG/ICO/BMP/TIFF fixtures, EXIF orientation, malformed and mismatched inputs, pixel-tolerance goldens at 16/32/512 plus maskable/monochrome roles, exact representative Web/ICO/PNG/SVG/ZIP contracts, forced worker fallback, draft recovery, and offline navigation in Chromium, Firefox, and WebKit. Engine codec gaps such as TIFF, plus AVIF encoding, File System Access, installed-app file handling, OffscreenCanvas, and automation-level offline navigation, are reported as supported or unsupported instead of being assumed.
+The browser smoke matrix runs versioned PNG/JPEG/WebP/SVG/ICO/BMP/TIFF fixtures, EXIF orientation, malformed and mismatched inputs, pixel-tolerance goldens at 16/32/512 plus maskable/monochrome roles, exact representative Web/ICO/PNG/SVG/ZIP contracts, forced worker fallback, draft recovery, and offline navigation in Chromium, Firefox, and WebKit. Chromium also parses the production install manifest and performs a two-version service-worker transition, proving the reload choice, draft restoration, obsolete-cache cleanup, and offline reopen; engines without equivalent manifest diagnostics are reported as unsupported by the harness. Engine codec gaps such as TIFF, plus AVIF encoding, File System Access, installed-app file handling, OffscreenCanvas, and automation-level offline navigation, are reported as supported or unsupported instead of being assumed.
 
 ## Privacy
 
