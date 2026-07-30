@@ -2,7 +2,7 @@ import { buildStoredZip, crc32, crc32Update, createZipLocalHeader, createZipCent
 import { EXPORT_MANIFEST_SCHEMA, EXPORT_MANIFEST_SCHEMA_VERSION, EXPORT_MANIFEST_MIGRATIONS, inspectExportManifest, migrateDraftSchema } from './core/schema.js';
 import { buildManifestDocument, buildAndroidAdaptiveIconDocument, buildAndroidManifestDocument, buildWindowsBrowserConfigDocument } from './core/manifest.js';
 import { PWA_ICON_SIZES, PWA_SPLASH_MATRIX_SOURCE, PWA_SPLASH_MATRIX_VERIFIED, ANDROID_ICON_MATRIX_SOURCE, ANDROID_ICON_MATRIX_VERIFIED, IOS_ICON_MATRIX_SOURCE, IOS_ICON_MATRIX_VERIFIED, PLATFORM_MATRIX_METADATA, PWA_SPLASH_SPECS, WINDOWS_TILE_SPECS, ANDROID_DENSITY_SPECS, IOS_ICON_SPECS, iosIconFileName, startupImageMediaFor } from './core/platform.js';
-import { inspectArtifactBytes } from './core/validation.js';
+import { analyzeLegibilityPixels, inspectArtifactBytes } from './core/validation.js';
 
 function buildZip(files) {
     return buildStoredZip(inspectZipPlan(files));
@@ -68,6 +68,9 @@ let sourceMode = 'upload';
 let generatedFiles = [];
 let activePresetKey = null;
 let replacementTargetNames = new Set();
+let legibilityRenderToken = 0;
+let legibilityRenderTimer = null;
+let activeLegibilityMask = 'none';
 let generatedSnippets = {};
 let assetCacheBusters = new Map();
 let activeOperation = null;
@@ -253,6 +256,19 @@ const UI_STRINGS = Object.freeze({
         maskPreview: 'Mask Preview',
         squircle: 'Squircle',
         roundedSquare: 'Rounded square',
+        legibilityReview: 'Small-size legibility',
+        legibilityReviewHelp: 'Decoded PNGs from the export renderer, checked on light, dark, and transparent surfaces.',
+        legibilityWaiting: 'Choose a source to review.',
+        previewMask: 'Preview mask',
+        anyMask: 'Any',
+        lightSurface: 'Light',
+        darkSurface: 'Dark',
+        transparentSurface: 'Alpha',
+        reviewSize16: '16 px',
+        reviewSize32: '32 px',
+        reviewSize48: '48 px',
+        reviewSize192: '192 px',
+        reviewSize512: '512 px',
         replacementTemplate: 'Replacement Template',
         generateIcons: 'Generate Icons',
         cancel: 'Cancel',
@@ -479,6 +495,16 @@ const UI_STRINGS = Object.freeze({
         scalable: 'Scalable',
         generating: 'Generating...',
         generateIcons: 'Generate Icons',
+        legibilityRendering: 'Rendering decoded previews…',
+        legibilityReady: '5 decoded PNG sizes · no warnings',
+        legibilityWarnings: '5 decoded PNG sizes · {count} warning groups',
+        legibilityRenderFailed: 'Preview review unavailable: {message}',
+        legibilityCanvasLabel: '{size} pixel preview on {surface} surface',
+        legibilityEmptyAlpha: 'No visible artwork remains at {sizes}.',
+        legibilityClipping: 'Artwork reaches the canvas edge at {sizes}; add padding if that edge was not intentional.',
+        legibilityLowLight: 'Most visible pixels have low contrast on a light surface at {sizes}.',
+        legibilityLowDark: 'Most visible pixels have low contrast on a dark surface at {sizes}.',
+        legibilityLowDetail: 'Tonal detail collapses at {sizes}; simplify shapes or increase contrast.',
         allFormats: 'All formats',
         fileSingular: 'file',
         filePlural: 'files',
@@ -836,6 +862,11 @@ const dropShadowToggle = document.getElementById('dropShadowToggle');
 const maskPreviewCanvas = document.getElementById('maskPreviewCanvas');
 const maskPreviewCtx = maskPreviewCanvas.getContext('2d');
 const maskShapeSelect = document.getElementById('maskShapeSelect');
+const legibilityReview = document.getElementById('legibilityReview');
+const legibilityGrid = document.getElementById('legibilityGrid');
+const legibilityStatus = document.getElementById('legibilityStatus');
+const legibilityWarnings = document.getElementById('legibilityWarnings');
+const legibilityMaskControls = document.getElementById('legibilityMaskControls');
 const replaceInput = document.getElementById('replaceInput');
 const replaceStatus = document.getElementById('replaceStatus');
 const reforgeInput = document.getElementById('reforgeInput');
@@ -2121,6 +2152,9 @@ function updateMaskPreview() {
     if (!sourceImage) {
         maskPreviewCtx.fillStyle = '#131316';
         maskPreviewCtx.fillRect(0, 0, width, height);
+        clearTimeout(legibilityRenderTimer);
+        legibilityRenderToken++;
+        setElementVisible(legibilityReview, false);
         return;
     }
     const options = getProcessingOptions({
@@ -2128,6 +2162,7 @@ function updateMaskPreview() {
     });
     drawIconToContext(maskPreviewCtx, sourceImage, width, height, cropRegion, options);
     drawMaskOutline(maskPreviewCtx, width, height, maskShapeSelect.value);
+    queueLegibilityReview();
 }
 
 function switchToUploadMode() {
@@ -2470,6 +2505,11 @@ function updateProcessingControlLabels() {
     });
 });
 updateProcessingControlLabels();
+legibilityMaskControls?.addEventListener('click', event => {
+    const button = event.target.closest('[data-review-mask]');
+    if (!button) return;
+    applyLegibilityMask(button.dataset.reviewMask);
+});
 replaceInput.addEventListener('change', handleReplacementTemplate);
 
 if ('showDirectoryPicker' in window) {
@@ -4599,6 +4639,122 @@ async function renderIconBlob(img, width, height, crop, options, format = 'png')
         canvas.width = 0;
         canvas.height = 0;
     }
+}
+
+async function decodeLegibilityBlob(blob) {
+    if (typeof createImageBitmap === 'function') return createImageBitmap(blob);
+    const url = URL.createObjectURL(blob);
+    try {
+        return await loadImageElement(url);
+    } finally {
+        URL.revokeObjectURL(url);
+    }
+}
+
+function applyLegibilityMask(mask = activeLegibilityMask) {
+    activeLegibilityMask = ['none', 'circle', 'squircle', 'rounded'].includes(mask) ? mask : 'none';
+    legibilityGrid?.querySelectorAll('canvas').forEach(canvas => {
+        canvas.dataset.reviewMask = activeLegibilityMask;
+    });
+    legibilityMaskControls?.querySelectorAll('[data-review-mask]').forEach(button => {
+        const selected = button.dataset.reviewMask === activeLegibilityMask;
+        button.classList.toggle('active', selected);
+        button.setAttribute('aria-pressed', String(selected));
+    });
+}
+
+function queueLegibilityReview(delay = 90) {
+    clearTimeout(legibilityRenderTimer);
+    if (!sourceImage) {
+        legibilityRenderToken++;
+        setElementVisible(legibilityReview, false);
+        return;
+    }
+    setElementVisible(legibilityReview, true, 'block');
+    legibilityRenderTimer = setTimeout(() => {
+        renderLegibilityReview().catch(error => {
+            legibilityStatus.dataset.state = 'error';
+            legibilityStatus.textContent = uiText('runtime.legibilityRenderFailed', { message: error.message });
+        });
+    }, delay);
+}
+
+async function renderLegibilityReview() {
+    if (!sourceImage || !legibilityGrid) return null;
+    const token = ++legibilityRenderToken;
+    const sizes = [16, 32, 48, 192, 512];
+    const groupedWarnings = new Map();
+    const processing = getProcessingOptions();
+    legibilityStatus.dataset.state = 'rendering';
+    legibilityStatus.textContent = uiText('runtime.legibilityRendering');
+    legibilityWarnings.replaceChildren();
+    applyLegibilityMask();
+
+    for (const size of sizes) {
+        const blob = await renderIconBlob(sourceImage, size, size, cropRegion, processing, 'png');
+        if (token !== legibilityRenderToken) return null;
+        const decoded = await decodeLegibilityBlob(blob);
+        if (token !== legibilityRenderToken) {
+            decoded.close?.();
+            return null;
+        }
+
+        const card = legibilityGrid.querySelector(`[data-review-size="${size}"]`);
+        const canvases = card ? Array.from(card.querySelectorAll('canvas')) : [];
+        let imageData = null;
+        for (const canvas of canvases) {
+            const surfaceLabel = getUiString({
+                light: 'shellText.lightSurface',
+                dark: 'shellText.darkSurface',
+                transparent: 'shellText.transparentSurface'
+            }[canvas.dataset.reviewSurface]);
+            canvas.setAttribute('aria-label', uiText('runtime.legibilityCanvasLabel', {
+                size,
+                surface: surfaceLabel
+            }));
+            canvas.width = size;
+            canvas.height = size;
+            const context = canvas.getContext('2d', { willReadFrequently: true });
+            context.clearRect(0, 0, size, size);
+            context.drawImage(decoded, 0, 0, size, size);
+            imageData ||= context.getImageData(0, 0, size, size);
+        }
+        decoded.close?.();
+
+        const analysis = analyzeLegibilityPixels(imageData, processing);
+        card?.classList.toggle('has-warning', analysis.warnings.length > 0);
+        card?.setAttribute('data-warning-count', String(analysis.warnings.length));
+        for (const warning of analysis.warnings) {
+            if (!groupedWarnings.has(warning)) groupedWarnings.set(warning, []);
+            groupedWarnings.get(warning).push(size);
+        }
+    }
+
+    if (token !== legibilityRenderToken) return null;
+    const warningMessages = {
+        'empty-alpha': 'runtime.legibilityEmptyAlpha',
+        clipping: 'runtime.legibilityClipping',
+        'low-contrast-light': 'runtime.legibilityLowLight',
+        'low-contrast-dark': 'runtime.legibilityLowDark',
+        'low-detail': 'runtime.legibilityLowDetail'
+    };
+    for (const [warning, warningSizes] of groupedWarnings) {
+        const item = document.createElement('li');
+        item.dataset.warning = warning;
+        item.textContent = uiText(warningMessages[warning], {
+            sizes: warningSizes.map(size => `${size}px`).join(', ')
+        });
+        legibilityWarnings.appendChild(item);
+    }
+    legibilityStatus.dataset.state = groupedWarnings.size ? 'warning' : 'ready';
+    legibilityStatus.textContent = groupedWarnings.size
+        ? uiText('runtime.legibilityWarnings', { count: groupedWarnings.size })
+        : uiText('runtime.legibilityReady');
+    return {
+        sizes,
+        warnings: Object.fromEntries(groupedWarnings),
+        state: legibilityStatus.dataset.state
+    };
 }
 
 async function renderRoundIconBlob(img, width, height, crop, options) {
@@ -7360,6 +7516,8 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         validateDeploymentUrlOptions,
         PWA_SPLASH_SPECS,
         startupImageMediaFor,
+        analyzeLegibilityPixels,
+        renderLegibilityReview,
         inspectArtifactBytes,
         inspectGeneratedArtifact,
         getOutputFileName,

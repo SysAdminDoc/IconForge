@@ -1071,6 +1071,43 @@ def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
     page.locator("#textInput").fill("IF")
     page.locator("#btnUseTextIcon").click()
     page.wait_for_function("() => !document.querySelector('#btnGenerate').disabled")
+    page.wait_for_function(
+        "() => ['ready', 'warning'].includes(document.querySelector('#legibilityStatus')?.dataset.state)"
+    )
+    page.locator("#legibilityMaskControls [data-review-mask='circle']").click()
+    legibility_state = page.evaluate(
+        """() => ({
+            visible: getComputedStyle(document.querySelector("#legibilityReview")).display !== "none",
+            cards: [...document.querySelectorAll("#legibilityGrid [data-review-size]")].map(card => ({
+                size: Number(card.dataset.reviewSize),
+                canvases: [...card.querySelectorAll("canvas")].map(canvas => ({
+                    width: canvas.width,
+                    height: canvas.height,
+                    mask: canvas.dataset.reviewMask
+                }))
+            })),
+            selectedMask: document.querySelectorAll("#legibilityMaskControls [aria-pressed='true']").length,
+            status: document.querySelector("#legibilityStatus")?.dataset.state,
+            warnings: document.querySelectorAll("#legibilityWarnings li").length,
+            generationEnabled: !document.querySelector("#btnGenerate")?.disabled
+        })"""
+    )
+    expected_review_sizes = [16, 32, 48, 192, 512]
+    if (
+        not legibility_state["visible"]
+        or [card["size"] for card in legibility_state["cards"]] != expected_review_sizes
+        or any(len(card["canvases"]) != 3 for card in legibility_state["cards"])
+        or any(
+            canvas["width"] != card["size"]
+            or canvas["height"] != card["size"]
+            or canvas["mask"] != "circle"
+            for card in legibility_state["cards"]
+            for canvas in card["canvases"]
+        )
+        or legibility_state["selectedMask"] != 1
+        or not legibility_state["generationEnabled"]
+    ):
+        failures.append(f"small-size review workspace was incomplete: {legibility_state}")
     page.locator("#manifestShortcuts").fill("{")
     page.locator("#btnGenerate").click()
     page.wait_for_function(
@@ -1095,6 +1132,7 @@ def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
         "shapePressed": shape_pressed_state,
         "focusStyle": focus_style,
         "errorFocus": error_focus,
+        "legibilityReview": legibility_state,
     }, failures
 
 

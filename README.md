@@ -17,6 +17,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Auto-crop** - detect content bounds and trim whitespace with adjustable tolerance
 - **Manual crop** - draw a crop rectangle or enter precise dimensions
 - **Maskable preview and validation** - safe-zone overlays plus decoded-pixel checks against the 40% manifest safe zone
+- **Small-size legibility review** - decoded 16/32/48/192/512 PNG previews on light, dark, and alpha surfaces with adaptive-mask views and non-blocking clipping, empty-alpha, tonal-detail, and contrast warnings
 - **Processing controls** - safe padding, lossy quality, size-budget warnings, background fill or gradient, drop shadow, tint/desaturate/glass effects, and pixel-hinted small icons
 - **Code snippets** - generates HTML `<link>` tags, `manifest.webmanifest` JSON, extension manifest icon blocks, Android XML, iOS Contents.json, and Windows browserconfig.xml
 - **Framework handoffs** - tabbed snippets for plain HTML, Vite, Next.js app router, Astro, Chrome/Firefox MV3, Android, and iOS

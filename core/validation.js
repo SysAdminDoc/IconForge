@@ -10,6 +10,82 @@ function findAscii(bytes, value) {
     return -1;
 }
 
+function linearChannel(value) {
+    const channel = value / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+}
+
+function luminance(red, green, blue) {
+    return 0.2126 * linearChannel(red) + 0.7152 * linearChannel(green) + 0.0722 * linearChannel(blue);
+}
+
+function contrastRatio(first, second) {
+    return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
+export function analyzeLegibilityPixels(imageData, { backgroundMode = 'transparent' } = {}) {
+    const width = Number(imageData?.width) || 0;
+    const height = Number(imageData?.height) || 0;
+    const data = imageData?.data;
+    if (!data || width < 1 || height < 1 || data.length < width * height * 4) {
+        return { valid: false, visibleRatio: 0, edgeRatio: 0, warnings: ['invalid-pixels'] };
+    }
+
+    const light = luminance(255, 255, 255);
+    const dark = luminance(15, 23, 42);
+    const visibleLuminance = [];
+    let visible = 0;
+    let edgeVisible = 0;
+    let lightFailures = 0;
+    let darkFailures = 0;
+    let edgeSamples = 0;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const offset = (y * width + x) * 4;
+            const alpha = data[offset + 3] / 255;
+            const edge = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+            if (edge) edgeSamples++;
+            if (alpha < 0.05) continue;
+            visible++;
+            if (edge) edgeVisible++;
+
+            const sourceLuminance = luminance(data[offset], data[offset + 1], data[offset + 2]);
+            visibleLuminance.push(sourceLuminance);
+            if (backgroundMode === 'transparent') {
+                const onLight = sourceLuminance * alpha + light * (1 - alpha);
+                const onDark = sourceLuminance * alpha + dark * (1 - alpha);
+                if (contrastRatio(onLight, light) < 3) lightFailures++;
+                if (contrastRatio(onDark, dark) < 3) darkFailures++;
+            }
+        }
+    }
+
+    const total = width * height;
+    const warnings = [];
+    if (visible === 0 || visible / total < 0.002) warnings.push('empty-alpha');
+    if (backgroundMode === 'transparent' && edgeVisible / Math.max(1, edgeSamples) > 0.08) warnings.push('clipping');
+
+    if (visible > 0 && backgroundMode === 'transparent') {
+        if (lightFailures / visible > 0.72) warnings.push('low-contrast-light');
+        if (darkFailures / visible > 0.72) warnings.push('low-contrast-dark');
+    }
+
+    if (visibleLuminance.length > 4) {
+        visibleLuminance.sort((a, b) => a - b);
+        const low = visibleLuminance[Math.floor((visibleLuminance.length - 1) * 0.1)];
+        const high = visibleLuminance[Math.floor((visibleLuminance.length - 1) * 0.9)];
+        if (contrastRatio(low, high) < 1.35) warnings.push('low-detail');
+    }
+
+    return {
+        valid: true,
+        visibleRatio: visible / total,
+        edgeRatio: edgeVisible / Math.max(1, edgeSamples),
+        warnings
+    };
+}
+
 export function inspectArtifactBytes(file, bytes) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const fail = error => ({ valid: false, error, width: null, height: null, icoSizes: [] });

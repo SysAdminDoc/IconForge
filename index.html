@@ -709,6 +709,66 @@
                     </div>
                 </div>
 
+                <section class="legibility-review is-hidden" id="legibilityReview" aria-labelledby="legibilityReviewTitle">
+                    <div class="legibility-review-heading">
+                        <div>
+                            <span class="section-label" id="legibilityReviewTitle" data-i18n="shellText.legibilityReview">Small-size legibility</span>
+                            <p class="helper-note compact" data-i18n="shellText.legibilityReviewHelp">Decoded PNGs from the export renderer, checked on light, dark, and transparent surfaces.</p>
+                        </div>
+                        <span class="legibility-status" id="legibilityStatus" role="status" aria-live="polite" data-state="idle" data-i18n="shellText.legibilityWaiting">Choose a source to review.</span>
+                    </div>
+                    <div class="legibility-mask-controls" id="legibilityMaskControls" role="group" aria-labelledby="previewMaskLabel">
+                        <span id="previewMaskLabel" data-i18n="shellText.previewMask">Preview mask</span>
+                        <button class="btn-crop active" type="button" data-review-mask="none" aria-pressed="true" data-i18n="shellText.anyMask">Any</button>
+                        <button class="btn-crop" type="button" data-review-mask="circle" aria-pressed="false" data-i18n="shellText.circle">Circle</button>
+                        <button class="btn-crop" type="button" data-review-mask="squircle" aria-pressed="false" data-i18n="shellText.squircle">Squircle</button>
+                        <button class="btn-crop" type="button" data-review-mask="rounded" aria-pressed="false" data-i18n="shellText.roundedSquare">Rounded square</button>
+                    </div>
+                    <div class="legibility-grid" id="legibilityGrid">
+                        <article class="legibility-card" data-review-size="16">
+                            <h3 data-i18n="shellText.reviewSize16">16 px</h3>
+                            <div class="legibility-variants">
+                                <figure class="legibility-frame light"><canvas width="16" height="16" role="img" data-review-surface="light"></canvas><figcaption data-i18n="shellText.lightSurface">Light</figcaption></figure>
+                                <figure class="legibility-frame dark"><canvas width="16" height="16" role="img" data-review-surface="dark"></canvas><figcaption data-i18n="shellText.darkSurface">Dark</figcaption></figure>
+                                <figure class="legibility-frame transparent"><canvas width="16" height="16" role="img" data-review-surface="transparent"></canvas><figcaption data-i18n="shellText.transparentSurface">Alpha</figcaption></figure>
+                            </div>
+                        </article>
+                        <article class="legibility-card" data-review-size="32">
+                            <h3 data-i18n="shellText.reviewSize32">32 px</h3>
+                            <div class="legibility-variants">
+                                <figure class="legibility-frame light"><canvas width="32" height="32" role="img" data-review-surface="light"></canvas><figcaption data-i18n="shellText.lightSurface">Light</figcaption></figure>
+                                <figure class="legibility-frame dark"><canvas width="32" height="32" role="img" data-review-surface="dark"></canvas><figcaption data-i18n="shellText.darkSurface">Dark</figcaption></figure>
+                                <figure class="legibility-frame transparent"><canvas width="32" height="32" role="img" data-review-surface="transparent"></canvas><figcaption data-i18n="shellText.transparentSurface">Alpha</figcaption></figure>
+                            </div>
+                        </article>
+                        <article class="legibility-card" data-review-size="48">
+                            <h3 data-i18n="shellText.reviewSize48">48 px</h3>
+                            <div class="legibility-variants">
+                                <figure class="legibility-frame light"><canvas width="48" height="48" role="img" data-review-surface="light"></canvas><figcaption data-i18n="shellText.lightSurface">Light</figcaption></figure>
+                                <figure class="legibility-frame dark"><canvas width="48" height="48" role="img" data-review-surface="dark"></canvas><figcaption data-i18n="shellText.darkSurface">Dark</figcaption></figure>
+                                <figure class="legibility-frame transparent"><canvas width="48" height="48" role="img" data-review-surface="transparent"></canvas><figcaption data-i18n="shellText.transparentSurface">Alpha</figcaption></figure>
+                            </div>
+                        </article>
+                        <article class="legibility-card" data-review-size="192">
+                            <h3 data-i18n="shellText.reviewSize192">192 px</h3>
+                            <div class="legibility-variants">
+                                <figure class="legibility-frame light"><canvas width="192" height="192" role="img" data-review-surface="light"></canvas><figcaption data-i18n="shellText.lightSurface">Light</figcaption></figure>
+                                <figure class="legibility-frame dark"><canvas width="192" height="192" role="img" data-review-surface="dark"></canvas><figcaption data-i18n="shellText.darkSurface">Dark</figcaption></figure>
+                                <figure class="legibility-frame transparent"><canvas width="192" height="192" role="img" data-review-surface="transparent"></canvas><figcaption data-i18n="shellText.transparentSurface">Alpha</figcaption></figure>
+                            </div>
+                        </article>
+                        <article class="legibility-card" data-review-size="512">
+                            <h3 data-i18n="shellText.reviewSize512">512 px</h3>
+                            <div class="legibility-variants">
+                                <figure class="legibility-frame light"><canvas width="512" height="512" role="img" data-review-surface="light"></canvas><figcaption data-i18n="shellText.lightSurface">Light</figcaption></figure>
+                                <figure class="legibility-frame dark"><canvas width="512" height="512" role="img" data-review-surface="dark"></canvas><figcaption data-i18n="shellText.darkSurface">Dark</figcaption></figure>
+                                <figure class="legibility-frame transparent"><canvas width="512" height="512" role="img" data-review-surface="transparent"></canvas><figcaption data-i18n="shellText.transparentSurface">Alpha</figcaption></figure>
+                            </div>
+                        </article>
+                    </div>
+                    <ul class="legibility-warnings" id="legibilityWarnings" aria-live="polite"></ul>
+                </section>
+
                 <section class="generation-console" aria-labelledby="forgeReadyLabel">
                     <div class="generation-copy">
                         <span class="generation-kicker" id="forgeReadyLabel">Ready to forge</span>

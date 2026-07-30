@@ -2429,6 +2429,199 @@ button:focus-visible {
     padding: 0.9rem;
 }
 
+.legibility-review {
+    margin-bottom: 0.8rem;
+    padding: 0.9rem;
+    background:
+        linear-gradient(135deg, rgba(124, 108, 255, 0.08), transparent 58%),
+        rgba(8, 12, 20, 0.62);
+    border: 1px solid #2d3951;
+    border-radius: var(--radius-lg);
+}
+
+.legibility-review-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.legibility-review-heading .helper-note {
+    margin-top: 0.35rem;
+}
+
+.legibility-status {
+    flex: 0 0 auto;
+    max-width: 17rem;
+    padding: 0.35rem 0.55rem;
+    color: var(--text-muted);
+    background: #0c1220;
+    border: 1px solid #2c3850;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    line-height: 1.35;
+    text-align: right;
+}
+
+.legibility-status[data-state="ready"] {
+    color: #86efac;
+    border-color: rgba(34, 197, 94, 0.45);
+}
+
+.legibility-status[data-state="warning"],
+.legibility-status[data-state="error"] {
+    color: #fcd34d;
+    border-color: rgba(245, 158, 11, 0.5);
+}
+
+.legibility-mask-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+}
+
+.legibility-mask-controls > span {
+    margin-inline-end: 0.2rem;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.legibility-mask-controls .btn-crop {
+    min-height: 32px;
+    padding: 0.35rem 0.65rem;
+}
+
+.legibility-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+    gap: 0.6rem;
+    margin-top: 0.75rem;
+}
+
+.legibility-card {
+    min-width: 0;
+    padding: 0.65rem;
+    background: #0a101b;
+    border: 1px solid #29354b;
+    border-radius: 10px;
+}
+
+.legibility-card.has-warning {
+    border-color: rgba(245, 158, 11, 0.5);
+}
+
+.legibility-card h3 {
+    margin: 0 0 0.5rem;
+    color: var(--text-secondary);
+    font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+    font-size: 0.72rem;
+}
+
+.legibility-variants {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+}
+
+.legibility-frame {
+    display: flex;
+    min-width: 0;
+    min-height: 84px;
+    margin: 0;
+    padding: 0.4rem 0.2rem 0.3rem;
+    align-items: center;
+    flex-direction: column;
+    justify-content: flex-end;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.legibility-frame.light {
+    background: #f8fafc;
+}
+
+.legibility-frame.dark {
+    background: #0f172a;
+}
+
+.legibility-frame.transparent {
+    background: var(--checker);
+}
+
+.legibility-frame canvas {
+    width: min(100%, 64px);
+    height: auto;
+    max-height: 64px;
+    object-fit: contain;
+    border: 1px solid rgba(100, 116, 139, 0.24);
+    border-radius: 7px;
+}
+
+.legibility-card[data-review-size="16"] canvas {
+    width: 16px;
+    image-rendering: pixelated;
+}
+
+.legibility-card[data-review-size="32"] canvas {
+    width: 32px;
+    image-rendering: pixelated;
+}
+
+.legibility-card[data-review-size="48"] canvas {
+    width: 48px;
+    image-rendering: pixelated;
+}
+
+.legibility-frame canvas[data-review-mask="circle"] {
+    border-radius: 50%;
+}
+
+.legibility-frame canvas[data-review-mask="squircle"] {
+    border-radius: 28%;
+}
+
+.legibility-frame canvas[data-review-mask="rounded"] {
+    border-radius: 18%;
+}
+
+.legibility-frame figcaption {
+    margin-top: 0.3rem;
+    color: #64748b;
+    font-size: 0.62rem;
+}
+
+.legibility-frame.dark figcaption {
+    color: #cbd5e1;
+}
+
+.legibility-warnings {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0.7rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.legibility-warnings:empty {
+    display: none;
+}
+
+.legibility-warnings li {
+    padding: 0.45rem 0.55rem;
+    color: #fde68a;
+    background: rgba(245, 158, 11, 0.08);
+    border-inline-start: 3px solid #f59e0b;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    line-height: 1.45;
+}
+
 .role-artwork-section {
     margin: 0.15rem 0 0.85rem;
     padding: 0.75rem;
@@ -2838,6 +3031,20 @@ footer {
 
     .generation-console {
         gap: 0.75rem;
+    }
+
+    .legibility-review-heading {
+        flex-direction: column;
+        gap: 0.55rem;
+    }
+
+    .legibility-status {
+        max-width: none;
+        text-align: left;
+    }
+
+    .legibility-grid {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .custom-size-input {

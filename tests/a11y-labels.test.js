@@ -116,6 +116,11 @@ assert(app.includes("btn.setAttribute('aria-pressed', String(selected));"), 'run
 assert(app.includes("uiText('runtime.downloadFile', { name: fileName })"), 'generated downloads should localize an accessible name that includes the filename');
 assert(app.includes("uiText('runtime.copyFile', { name: fileName })"), 'generated copy actions should localize an accessible name that includes the filename');
 
+const reviewMaskButtons = Array.from(documentHtml.matchAll(/<button\b[^>]*\bdata-review-mask=["'](none|circle|squircle|rounded)["'][^>]*>/gi), (match) => attrs(match[0]));
+assert.strictEqual(reviewMaskButtons.length, 4, 'legibility review should expose four adaptive-mask previews');
+assert.strictEqual(reviewMaskButtons.filter((button) => button['aria-pressed'] === 'true').length, 1, 'legibility review should expose one selected mask');
+assert(reviewMaskButtons.every((button) => ['true', 'false'].includes(button['aria-pressed'])), 'legibility mask buttons should expose pressed state');
+
 const sourceTabList = documentHtml.match(/<div\b[^>]*\bclass=["'][^"']*\binput-mode-tabs\b[^"']*["'][^>]*>/i);
 assert(sourceTabList, 'source tablist should exist');
 assert.strictEqual(attrs(sourceTabList[0]).role, 'tablist');

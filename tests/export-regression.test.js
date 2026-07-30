@@ -627,6 +627,27 @@ async function main() {
     core.inspectArtifactBytes({ format: 'svg' }, new TextEncoder().encode('<svg></svg>')).valid,
     true
   );
+  const emptyLegibility = core.analyzeLegibilityPixels({
+    width: 2,
+    height: 2,
+    data: new Uint8ClampedArray(16)
+  });
+  assert(emptyLegibility.warnings.includes('empty-alpha'));
+  const edgeLegibility = core.analyzeLegibilityPixels({
+    width: 2,
+    height: 2,
+    data: new Uint8ClampedArray([
+      120, 120, 120, 255, 120, 120, 120, 255,
+      120, 120, 120, 255, 120, 120, 120, 255
+    ])
+  });
+  assert(edgeLegibility.warnings.includes('clipping'));
+  const flatLegibility = core.analyzeLegibilityPixels({
+    width: 3,
+    height: 3,
+    data: new Uint8ClampedArray(Array(9).fill([120, 120, 120, 255]).flat())
+  });
+  assert(flatLegibility.warnings.includes('low-detail'));
   const api = await loadApp(core);
   assert.strictEqual(api.APP_VERSION, declaredVersion);
   for (const metadata of Object.values(api.PLATFORM_MATRIX_METADATA)) {
