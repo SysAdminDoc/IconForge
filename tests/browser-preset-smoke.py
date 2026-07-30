@@ -21,6 +21,7 @@ except ModuleNotFoundError as exc:
 
 
 ROOT = Path(__file__).resolve().parents[1]
+FIXTURE_ROOT = ROOT / "tests" / "fixtures"
 PRESETS = ("web", "pwa", "android", "ios", "windows", "social")
 
 EXPECTED = {
@@ -499,6 +500,172 @@ def check_reforge_import(page, url: str) -> tuple[dict, list[str]]:
     return {"preview": preview, "applied": applied, "rejected": rejected}, failures
 
 
+def check_image_fixture_corpus(page, url: str, include_goldens: bool = False) -> tuple[dict, list[str]]:
+    cases = json.loads((FIXTURE_ROOT / "image-cases.json").read_text(encoding="utf-8"))
+    report = {"valid": {}, "invalid": {}, "goldens": None}
+    failures = []
+    for fixture in cases["valid"]:
+        page.goto(url, wait_until="networkidle")
+        page.locator("#fileInput").set_input_files(str(FIXTURE_ROOT / fixture["file"]))
+        page.wait_for_function(
+            """name => {
+                const info = document.querySelector("#previewInfo")?.textContent || "";
+                const status = document.querySelector("#status");
+                return info.includes(name) || status?.getAttribute("role") === "alert";
+            }""",
+            arg=fixture["file"],
+        )
+        outcome = page.evaluate(
+            """() => ({
+                loaded: !document.querySelector("#btnGenerate")?.disabled,
+                preview: document.querySelector("#previewInfo")?.textContent || "",
+                error: document.querySelector("#status")?.getAttribute("role") === "alert"
+                    ? document.querySelector("#status")?.textContent || ""
+                    : ""
+            })"""
+        )
+        report["valid"][fixture["file"]] = outcome
+        if fixture["format"] in {"png", "jpeg", "webp", "svg", "bmp"} and not outcome["loaded"]:
+            failures.append(f"{fixture['file']} should decode in this engine: {outcome['error']}")
+        if fixture.get("displayWidth") and outcome["loaded"]:
+            expected_dimensions = f"{fixture['displayWidth']} × {fixture['displayHeight']}"
+            if expected_dimensions not in outcome["preview"]:
+                failures.append(f"{fixture['file']} did not honor EXIF orientation: {outcome['preview']}")
+
+    for fixture in cases["invalid"]:
+        page.goto(url, wait_until="networkidle")
+        page.locator("#fileInput").set_input_files(str(FIXTURE_ROOT / fixture["file"]))
+        page.wait_for_function(
+            "() => document.querySelector('#status')?.getAttribute('role') === 'alert'"
+        )
+        outcome = page.evaluate(
+            """() => ({
+                generateDisabled: document.querySelector("#btnGenerate")?.disabled,
+                error: document.querySelector("#status")?.textContent || ""
+            })"""
+        )
+        report["invalid"][fixture["file"]] = outcome
+        if not outcome["generateDisabled"]:
+            failures.append(f"{fixture['file']} left generation enabled after rejection")
+        if fixture.get("loadError") and fixture["loadError"].lower() not in outcome["error"].lower():
+            failures.append(f"{fixture['file']} error did not explain malformed input: {outcome['error']}")
+
+    if not include_goldens:
+        return report, failures
+
+    goldens = json.loads((FIXTURE_ROOT / "pixel-goldens.json").read_text(encoding="utf-8"))
+    page.goto(url, wait_until="networkidle")
+    page.locator("#fileInput").set_input_files(str(FIXTURE_ROOT / goldens["source"]))
+    page.wait_for_function("() => !document.querySelector('#btnGenerate').disabled")
+    page.locator("#safePaddingSlider").fill("0")
+    page.locator("#sizeGrid input").evaluate_all("inputs => inputs.forEach(input => { if (input.checked) input.click(); })")
+    for size in goldens["outputs"]["standard"]["sizes"]:
+        page.locator(f'#sizeGrid input[value="{size}"]').evaluate("input => { if (!input.checked) input.click(); }")
+    page.locator("#formatOptions input").evaluate_all(
+        """inputs => inputs.forEach(input => {
+            const shouldCheck = input.value === "png";
+            if (input.checked !== shouldCheck) input.click();
+        })"""
+    )
+    page.locator("#btnGenerate").click()
+    page.wait_for_function(
+        "() => !document.querySelector('#btnGenerate').disabled && /Generated/.test(document.querySelector('#status')?.textContent || '')"
+    )
+    standard = page.evaluate(
+        """async ({ sizes, samples }) => {
+            const files = window.__ICONFORGE_TEST__.getState().generatedFiles;
+            const results = {};
+            for (const size of sizes) {
+                const file = files.find(item => item.format === "png" && item.size?.width === size && item.size?.height === size);
+                if (!file) {
+                    results[size] = { missing: true };
+                    continue;
+                }
+                const bitmap = await createImageBitmap(file.blob);
+                const canvas = document.createElement("canvas");
+                canvas.width = bitmap.width;
+                canvas.height = bitmap.height;
+                const context = canvas.getContext("2d", { willReadFrequently: true });
+                context.drawImage(bitmap, 0, 0);
+                results[size] = {
+                    width: bitmap.width,
+                    height: bitmap.height,
+                    samples: samples.map(sample => {
+                        const x = Math.round((bitmap.width - 1) * sample.at[0]);
+                        const y = Math.round((bitmap.height - 1) * sample.at[1]);
+                        return Array.from(context.getImageData(x, y, 1, 1).data);
+                    })
+                };
+                bitmap.close();
+            }
+            return results;
+        }""",
+        {
+            "sizes": goldens["outputs"]["standard"]["sizes"],
+            "samples": goldens["outputs"]["standard"]["samples"],
+        },
+    )
+    page.locator('button[data-preset="pwa"]').click()
+    page.locator("#manifestMonochrome").check()
+    page.locator("#btnGenerate").click()
+    page.wait_for_function(
+        "() => !document.querySelector('#btnGenerate').disabled && /Generated/.test(document.querySelector('#status')?.textContent || '')",
+        timeout=15000,
+    )
+    role_files = page.evaluate(
+        """async specs => {
+            const files = window.__ICONFORGE_TEST__.getState().generatedFiles;
+            const results = {};
+            for (const [role, spec] of Object.entries(specs)) {
+                const file = files.find(item => item.name === spec.file);
+                if (!file) {
+                    results[role] = { missing: true };
+                    continue;
+                }
+                const bitmap = await createImageBitmap(file.blob);
+                const canvas = document.createElement("canvas");
+                canvas.width = bitmap.width;
+                canvas.height = bitmap.height;
+                const context = canvas.getContext("2d", { willReadFrequently: true });
+                context.drawImage(bitmap, 0, 0);
+                results[role] = {
+                    width: bitmap.width,
+                    height: bitmap.height,
+                    samples: spec.samples.map(sample => {
+                        const x = Math.round((bitmap.width - 1) * sample.at[0]);
+                        const y = Math.round((bitmap.height - 1) * sample.at[1]);
+                        return Array.from(context.getImageData(x, y, 1, 1).data);
+                    })
+                };
+                bitmap.close();
+            }
+            return results;
+        }""",
+        {
+            "maskable": goldens["outputs"]["maskable"],
+            "monochrome": goldens["outputs"]["monochrome"],
+        },
+    )
+    report["goldens"] = {"standard": standard, "roles": role_files}
+
+    def compare_samples(label: str, actual: dict, spec: dict, expected_dimensions: tuple[int, int]) -> None:
+        if actual.get("missing"):
+            failures.append(f"{label} output was not generated")
+            return
+        if (actual["width"], actual["height"]) != expected_dimensions:
+            failures.append(f"{label} dimensions were {actual['width']}x{actual['height']}, expected {expected_dimensions[0]}x{expected_dimensions[1]}")
+        for index, (pixel, sample) in enumerate(zip(actual["samples"], spec["samples"])):
+            if any(abs(pixel[channel] - sample["rgba"][channel]) > sample["tolerance"][channel] for channel in range(4)):
+                failures.append(f"{label} sample {index} was {pixel}, expected {sample['rgba']} within {sample['tolerance']}")
+
+    standard_spec = goldens["outputs"]["standard"]
+    for size in standard_spec["sizes"]:
+        compare_samples(f"standard {size}", standard[str(size)], standard_spec, (size, size))
+    compare_samples("maskable", role_files["maskable"], goldens["outputs"]["maskable"], (512, 512))
+    compare_samples("monochrome", role_files["monochrome"], goldens["outputs"]["monochrome"], (512, 512))
+    return report, failures
+
+
 def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
     page.goto(url, wait_until="networkidle")
     failures = []
@@ -949,6 +1116,17 @@ def main() -> int:
                 browser = browser_type.launch(headless=True)
                 engine_failures = []
 
+                fixture_context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+                fixture_page = fixture_context.new_page()
+                fixture_page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
+                fixture_report, fixture_failures = check_image_fixture_corpus(
+                    fixture_page,
+                    url,
+                    include_goldens=engine_name == "chromium",
+                )
+                engine_failures.extend(fixture_failures)
+                fixture_context.close()
+
                 draft_context = browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
                 draft_page = draft_context.new_page()
                 draft_page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
@@ -1012,6 +1190,7 @@ def main() -> int:
                         for key, value in capability_report["capabilities"].items()
                     },
                     "workerFallback": worker_metric,
+                    "imageFixtures": fixture_report,
                     "draftRecovery": draft_recovery,
                     "offlineShell": offline,
                     "failures": engine_failures,

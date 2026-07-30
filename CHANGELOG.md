@@ -20,6 +20,10 @@ All notable changes to IconForge will be documented in this file.
 - Hidden progress and output states now remain hidden until their owning workflow explicitly reveals them.
 - Production install metadata now ships exact 192px and 512px icons, a dedicated maskable icon, aligned shell colors, and offline-cached identity assets.
 - Duplicate platform filenames now replace their previous preview card as well as their export-state record, keeping rendered counts aligned with exported files.
+- Source loading now sniffs bounded PNG/JPEG/WebP/SVG/ICO/BMP/TIFF/GIF headers and rejects truncated, type-mismatched, invalid-dimension, or unsafe-dimension files before browser decode.
+
+### Tests
+- Versioned adversarial fixtures cover EXIF orientation, alpha edges, Unicode SVG text, malformed and mismatched files, oversized metadata, and engine codec support; decoded 16/32/512, maskable, and monochrome pixels are checked with explicit tolerances.
 
 ### Accessibility
 - Text shapes and emoji choices now maintain one `aria-pressed` selection, the workflow rail advances a single `aria-current` step, and every generated download/copy action includes its filename.

@@ -87,6 +87,9 @@ if (!/^v\d+\.\d+\.\d+$/.test(APP_VERSION || '')) {
     throw new Error('IconForge version metadata is missing or invalid.');
 }
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
+const MAX_SOURCE_DECODE_PIXELS = 268_435_456;
+const MAX_SOURCE_EDGE = 32_768;
+const SOURCE_HEADER_BYTES = 64 * 1024;
 const MAX_SIZE_OPTIONS = 64;
 const MAX_GENERATION_OPERATIONS = 512;
 const MAX_GENERATION_WORKING_BYTES = 768 * 1024 * 1024;
@@ -2461,6 +2464,148 @@ function inspectSourceFile(file) {
     };
 }
 
+function sourceExtensionFormat(name = '') {
+    const extension = String(name).toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] || '';
+    if (['jpg', 'jpeg'].includes(extension)) return 'jpeg';
+    if (['tif', 'tiff'].includes(extension)) return 'tiff';
+    return ['png', 'webp', 'svg', 'ico', 'bmp', 'gif'].includes(extension) ? extension : '';
+}
+
+function sourceMimeFormat(type = '') {
+    const mime = String(type).toLowerCase().split(';', 1)[0];
+    if (mime === 'image/jpeg') return 'jpeg';
+    if (mime === 'image/tiff') return 'tiff';
+    if (mime === 'image/x-icon' || mime === 'image/vnd.microsoft.icon') return 'ico';
+    return ({
+        'image/png': 'png',
+        'image/webp': 'webp',
+        'image/svg+xml': 'svg',
+        'image/bmp': 'bmp',
+        'image/gif': 'gif'
+    })[mime] || '';
+}
+
+function readTiffDimension(view, bytes, littleEndian, tagId) {
+    if (bytes.length < 8) return null;
+    const ifdOffset = view.getUint32(4, littleEndian);
+    if (ifdOffset > bytes.length - 2) return null;
+    const count = view.getUint16(ifdOffset, littleEndian);
+    if (count > 256 || ifdOffset + 2 + count * 12 > bytes.length) return null;
+    for (let index = 0; index < count; index++) {
+        const offset = ifdOffset + 2 + index * 12;
+        if (view.getUint16(offset, littleEndian) !== tagId) continue;
+        const type = view.getUint16(offset + 2, littleEndian);
+        const valueCount = view.getUint32(offset + 4, littleEndian);
+        if (valueCount !== 1) return null;
+        if (type === 3) return view.getUint16(offset + 8, littleEndian);
+        if (type === 4) return view.getUint32(offset + 8, littleEndian);
+        return null;
+    }
+    return null;
+}
+
+function inspectImageHeader(bytesLike, file = {}) {
+    const bytes = bytesLike instanceof Uint8Array ? bytesLike : new Uint8Array(bytesLike || 0);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let format = '';
+    let width = null;
+    let height = null;
+
+    if (bytes.length >= 8 && bytes.slice(0, 8).every((byte, index) => byte === [137, 80, 78, 71, 13, 10, 26, 10][index])) {
+        format = 'png';
+        if (bytes.length >= 24) {
+            width = view.getUint32(16, false);
+            height = view.getUint32(20, false);
+        }
+    } else if (bytes.length >= 10 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+        format = 'jpeg';
+        let offset = 2;
+        while (offset + 8 < bytes.length) {
+            if (bytes[offset] !== 0xff) {
+                offset++;
+                continue;
+            }
+            const marker = bytes[offset + 1];
+            if (marker === 0xd9 || marker === 0xda) break;
+            if (marker >= 0xd0 && marker <= 0xd7) {
+                offset += 2;
+                continue;
+            }
+            const segmentLength = view.getUint16(offset + 2, false);
+            if (segmentLength < 2 || offset + 2 + segmentLength > bytes.length) break;
+            if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+                height = view.getUint16(offset + 5, false);
+                width = view.getUint16(offset + 7, false);
+                break;
+            }
+            offset += 2 + segmentLength;
+        }
+    } else if (bytes.length >= 30 && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
+        String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP') {
+        format = 'webp';
+        const chunk = String.fromCharCode(...bytes.slice(12, 16));
+        if (chunk === 'VP8X') {
+            width = 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16);
+            height = 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16);
+        } else if (chunk === 'VP8 ' && bytes.length >= 30 && bytes[23] === 0x9d && bytes[24] === 0x01 && bytes[25] === 0x2a) {
+            width = view.getUint16(26, true) & 0x3fff;
+            height = view.getUint16(28, true) & 0x3fff;
+        } else if (chunk === 'VP8L' && bytes.length >= 25 && bytes[20] === 0x2f) {
+            const packed = view.getUint32(21, true);
+            width = 1 + (packed & 0x3fff);
+            height = 1 + ((packed >>> 14) & 0x3fff);
+        }
+    } else if (bytes.length >= 10 && String.fromCharCode(...bytes.slice(0, 6)).match(/^GIF8[79]a$/)) {
+        format = 'gif';
+        width = view.getUint16(6, true);
+        height = view.getUint16(8, true);
+    } else if (bytes.length >= 26 && bytes[0] === 0x42 && bytes[1] === 0x4d) {
+        format = 'bmp';
+        width = Math.abs(view.getInt32(18, true));
+        height = Math.abs(view.getInt32(22, true));
+    } else if (bytes.length >= 8 &&
+        ((bytes[0] === 0x49 && bytes[1] === 0x49 && view.getUint16(2, true) === 42) ||
+        (bytes[0] === 0x4d && bytes[1] === 0x4d && view.getUint16(2, false) === 42))) {
+        format = 'tiff';
+        const littleEndian = bytes[0] === 0x49;
+        width = readTiffDimension(view, bytes, littleEndian, 256);
+        height = readTiffDimension(view, bytes, littleEndian, 257);
+    } else if (bytes.length >= 22 && view.getUint16(0, true) === 0 && view.getUint16(2, true) === 1) {
+        format = 'ico';
+        const count = view.getUint16(4, true);
+        if (count > 0) {
+            width = bytes[6] || 256;
+            height = bytes[7] || 256;
+        }
+    } else {
+        const prefix = new TextDecoder().decode(bytes.slice(0, Math.min(bytes.length, 1024)))
+            .replace(/^\uFEFF/, '')
+            .trimStart();
+        if (/^<svg[\s>]/i.test(prefix) || /^<\?xml[\s\S]*?<svg[\s>]/i.test(prefix)) format = 'svg';
+    }
+
+    const expected = sourceExtensionFormat(file.name) || sourceMimeFormat(file.type);
+    if (!format) {
+        return { valid: false, code: 'SOURCE_HEADER_UNKNOWN', message: 'Image header is missing, truncated, or unsupported.', format: '', width: null, height: null };
+    }
+    if (expected && expected !== format) {
+        return { valid: false, code: 'SOURCE_HEADER_MISMATCH', message: `Image contents are ${format.toUpperCase()}, but the filename or MIME type declares ${expected.toUpperCase()}.`, format, width, height };
+    }
+    if (format !== 'svg' && (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1)) {
+        return { valid: false, code: 'SOURCE_DIMENSIONS_INVALID', message: 'Image header does not contain valid dimensions.', format, width, height };
+    }
+    if (width && height && (width > MAX_SOURCE_EDGE || height > MAX_SOURCE_EDGE || width * height > MAX_SOURCE_DECODE_PIXELS)) {
+        return { valid: false, code: 'SOURCE_DIMENSIONS_UNSAFE', message: `Image dimensions ${width}×${height} exceed the safe decode limit.`, format, width, height };
+    }
+    return { valid: true, code: 'SOURCE_HEADER_ACCEPTED', message: '', format, width, height };
+}
+
+async function inspectSourceHeader(file) {
+    if (!file?.slice) return { valid: true, code: 'SOURCE_HEADER_UNAVAILABLE', message: '', format: '', width: null, height: null };
+    const header = await file.slice(0, SOURCE_HEADER_BYTES).arrayBuffer();
+    return inspectImageHeader(new Uint8Array(header), file);
+}
+
 function readFile(file, method, errorMessage) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -2549,6 +2694,8 @@ async function loadImage(file) {
         const inspection = inspectSourceFile(file);
         if (!inspection.valid) throw new Error(inspection.message);
         if (inspection.warning) showStatus(inspection.warning, 'warning');
+        const headerInspection = await inspectSourceHeader(file);
+        if (!headerInspection.valid) throw new Error(headerInspection.message);
 
         if (isSvgFile(file)) {
             validateSvgSourceText(await readFileAsText(file), file.name || 'SVG file');
@@ -6994,6 +7141,10 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         },
         validateSvgSourceText,
         inspectSourceFile,
+        inspectImageHeader,
+        inspectSourceHeader,
+        MAX_SOURCE_DECODE_PIXELS,
+        MAX_SOURCE_EDGE,
         setState(next = {}) {
             if (Object.prototype.hasOwnProperty.call(next, 'sourceFileName')) sourceFileName = next.sourceFileName;
             if (Object.prototype.hasOwnProperty.call(next, 'sourceMode')) sourceMode = next.sourceMode;

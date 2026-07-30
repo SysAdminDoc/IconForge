@@ -711,6 +711,26 @@ async function main() {
   assert.strictEqual(api.inspectSourceFile({ name: 'notes.txt', type: 'text/plain', size: 10 }).code, 'SOURCE_TYPE_INVALID');
   assert.strictEqual(api.inspectSourceFile({ name: 'huge.png', type: 'image/png', size: 201 * 1024 * 1024 }).code, 'SOURCE_TOO_LARGE');
   assert.match(api.inspectSourceFile({ name: 'large.png', type: 'image/png', size: 51 * 1024 * 1024 }).warning, /processing may be slow/);
+  const fixtureRoot = path.join(root, 'tests', 'fixtures');
+  const imageCases = JSON.parse(fs.readFileSync(path.join(fixtureRoot, 'image-cases.json'), 'utf8'));
+  for (const fixture of imageCases.valid) {
+    const bytes = new Uint8Array(fs.readFileSync(path.join(fixtureRoot, fixture.file)));
+    const result = api.inspectImageHeader(bytes, { name: fixture.file });
+    assert.strictEqual(result.valid, true, `${fixture.file} should have a valid image header: ${result.message}`);
+    assert.strictEqual(result.format, fixture.format, `${fixture.file} format mismatch`);
+    if (fixture.format !== 'svg') {
+      assert.strictEqual(result.width, fixture.width, `${fixture.file} width mismatch`);
+      assert.strictEqual(result.height, fixture.height, `${fixture.file} height mismatch`);
+    }
+  }
+  for (const fixture of imageCases.invalid.filter((entry) => entry.code)) {
+    const bytes = new Uint8Array(fs.readFileSync(path.join(fixtureRoot, fixture.file)));
+    const result = api.inspectImageHeader(bytes, { name: fixture.file });
+    assert.strictEqual(result.valid, false, `${fixture.file} should be rejected`);
+    assert.strictEqual(result.code, fixture.code, `${fixture.file} rejection mismatch`);
+  }
+  assert.strictEqual(api.MAX_SOURCE_DECODE_PIXELS, 268435456);
+  assert.strictEqual(api.MAX_SOURCE_EDGE, 32768);
   assert.throws(() => api.uiText('missing.catalog.key'), /Missing UI string/);
   const catalogValues = new Set();
   const collectCatalogValues = (value) => {

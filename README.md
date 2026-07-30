@@ -20,7 +20,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Code snippets** - generates HTML `<link>` tags, `manifest.webmanifest` JSON, extension manifest icon blocks, Android XML, iOS Contents.json, and Windows browserconfig.xml
 - **Framework handoffs** - tabbed snippets for plain HTML, Vite, Next.js app router, Astro, Chrome/Firefox MV3, Android, and iOS
 - **Deployment URL controls** - generate root-relative, relative, or custom-base asset URLs with optional SHA-256 cache-busting queries
-- **Input and encoder guardrails** - rejects malformed/external SVG input, bounds replacement ZIP bytes/entries/names/offsets, and prevents empty canvas blobs from entering exports
+- **Input and encoder guardrails** - sniffs bounded image headers before decode, rejects mismatched/truncated/unsafe-dimension inputs and malformed/external SVG, bounds replacement ZIP bytes/entries/names/offsets, and prevents empty canvas blobs from entering exports
 - **Manifest metadata** - validate app identity, scoped URLs, BCP 47 language, W3C `*_localized` language maps, shortcuts, screenshots, and purpose-specific icons before any deployable manifest is emitted
 - **CSP-hardened shell** - local CSS and JavaScript files run under a strict self-only policy with blob/data allowances for previews, downloads, and workers
 - **Deployable ZIPs** - exports generated images plus README.txt and the platform support files needed by the selected bundle
@@ -110,7 +110,7 @@ Custom sizes up to 4096x4096 can be added.
 
 WebP and AVIF output are feature-detected and hidden on unsupported browsers.
 
-The browser smoke matrix runs exact representative Web/ICO/PNG/SVG/ZIP contracts, Unicode and unsafe-source checks, large-input guards, forced worker fallback, encoder output, draft recovery, and offline navigation in Chromium, Firefox, and WebKit. Capabilities such as AVIF encoding, File System Access, installed-app file handling, OffscreenCanvas, and automation-level offline navigation are reported as supported or unsupported per engine instead of being assumed.
+The browser smoke matrix runs versioned PNG/JPEG/WebP/SVG/ICO/BMP/TIFF fixtures, EXIF orientation, malformed and mismatched inputs, pixel-tolerance goldens at 16/32/512 plus maskable/monochrome roles, exact representative Web/ICO/PNG/SVG/ZIP contracts, forced worker fallback, draft recovery, and offline navigation in Chromium, Firefox, and WebKit. Engine codec gaps such as TIFF, plus AVIF encoding, File System Access, installed-app file handling, OffscreenCanvas, and automation-level offline navigation, are reported as supported or unsupported instead of being assumed.
 
 ## Privacy
 

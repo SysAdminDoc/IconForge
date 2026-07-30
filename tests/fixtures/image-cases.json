@@ -1,0 +1,18 @@
+{
+  "schema": "iconforge-image-fixtures-v1",
+  "valid": [
+    { "file": "alpha-fringe.png", "format": "png", "width": 64, "height": 64 },
+    { "file": "orientation-6.jpg", "format": "jpeg", "width": 3, "height": 2, "displayWidth": 2, "displayHeight": 3 },
+    { "file": "sample.webp", "format": "webp", "width": 64, "height": 64 },
+    { "file": "unicode-\u754c.svg", "format": "svg", "width": 64, "height": 64 },
+    { "file": "sample.ico", "format": "ico", "width": 64, "height": 64 },
+    { "file": "sample.bmp", "format": "bmp", "width": 64, "height": 64 },
+    { "file": "sample.tiff", "format": "tiff", "width": 64, "height": 64 }
+  ],
+  "invalid": [
+    { "file": "truncated.png", "code": "SOURCE_DIMENSIONS_INVALID" },
+    { "file": "mismatch.jpg", "code": "SOURCE_HEADER_MISMATCH" },
+    { "file": "oversized.png", "code": "SOURCE_DIMENSIONS_UNSAFE" },
+    { "file": "malformed.svg", "loadError": "malformed SVG" }
+  ]
+}
