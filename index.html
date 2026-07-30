@@ -557,6 +557,90 @@
 
                 <div class="processing-section">
                     <label class="section-label">Processing</label>
+                    <div class="role-artwork-section" aria-labelledby="roleArtworkLabel">
+                        <div class="metadata-heading-row">
+                            <label class="toggle-field" id="roleArtworkLabel">
+                                <input type="checkbox" id="roleArtworkEnabled">
+                                Per-role artwork (advanced)
+                            </label>
+                            <span class="metadata-status" id="roleArtworkStatus" role="status" aria-live="polite">Main source used for every role</span>
+                        </div>
+                        <p class="helper-note compact">Optional files stay in this browser. Missing roles explicitly fall back to the main source or configured background.</p>
+                        <div class="role-artwork-grid is-hidden" id="roleArtworkGrid">
+                            <section class="role-artwork-card" data-role-source="splash">
+                                <div class="role-artwork-heading">
+                                    <div>
+                                        <strong>Splash artwork</strong>
+                                        <small>Fallback: main source</small>
+                                    </div>
+                                    <button type="button" class="btn-crop role-artwork-clear" data-clear-role="splash" disabled>Clear</button>
+                                </div>
+                                <label for="roleSplashInput">Source image</label>
+                                <input type="file" id="roleSplashInput" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/bmp,image/tiff,.ico">
+                                <img class="role-artwork-preview is-hidden" id="roleSplashPreview" alt="">
+                                <p class="helper-note compact role-artwork-source-status" id="roleSplashStatus">Using main source</p>
+                                <div class="role-artwork-controls">
+                                    <label for="roleSplashFit">Fit / crop
+                                        <select id="roleSplashFit">
+                                            <option value="contain">Contain</option>
+                                            <option value="cover">Center crop</option>
+                                        </select>
+                                    </label>
+                                    <label for="roleSplashPadding">Padding <span id="roleSplashPaddingValue">38%</span>
+                                        <input type="range" id="roleSplashPadding" min="0" max="45" value="38">
+                                    </label>
+                                </div>
+                            </section>
+                            <section class="role-artwork-card" data-role-source="androidForeground">
+                                <div class="role-artwork-heading">
+                                    <div>
+                                        <strong>Android foreground</strong>
+                                        <small>Fallback: main source</small>
+                                    </div>
+                                    <button type="button" class="btn-crop role-artwork-clear" data-clear-role="androidForeground" disabled>Clear</button>
+                                </div>
+                                <label for="roleAndroidForegroundInput">Source image</label>
+                                <input type="file" id="roleAndroidForegroundInput" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/bmp,image/tiff,.ico">
+                                <img class="role-artwork-preview is-hidden" id="roleAndroidForegroundPreview" alt="">
+                                <p class="helper-note compact role-artwork-source-status" id="roleAndroidForegroundStatus">Using main source</p>
+                                <div class="role-artwork-controls">
+                                    <label for="roleAndroidForegroundFit">Fit / crop
+                                        <select id="roleAndroidForegroundFit">
+                                            <option value="contain">Contain</option>
+                                            <option value="cover">Center crop</option>
+                                        </select>
+                                    </label>
+                                    <label for="roleAndroidForegroundPadding">Padding <span id="roleAndroidForegroundPaddingValue">18%</span>
+                                        <input type="range" id="roleAndroidForegroundPadding" min="0" max="45" value="18">
+                                    </label>
+                                </div>
+                            </section>
+                            <section class="role-artwork-card" data-role-source="androidBackground">
+                                <div class="role-artwork-heading">
+                                    <div>
+                                        <strong>Android background</strong>
+                                        <small>Fallback: configured background</small>
+                                    </div>
+                                    <button type="button" class="btn-crop role-artwork-clear" data-clear-role="androidBackground" disabled>Clear</button>
+                                </div>
+                                <label for="roleAndroidBackgroundInput">Source image</label>
+                                <input type="file" id="roleAndroidBackgroundInput" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/bmp,image/tiff,.ico">
+                                <img class="role-artwork-preview is-hidden" id="roleAndroidBackgroundPreview" alt="">
+                                <p class="helper-note compact role-artwork-source-status" id="roleAndroidBackgroundStatus">Using configured background</p>
+                                <div class="role-artwork-controls">
+                                    <label for="roleAndroidBackgroundFit">Fit / crop
+                                        <select id="roleAndroidBackgroundFit">
+                                            <option value="cover">Center crop</option>
+                                            <option value="contain">Contain</option>
+                                        </select>
+                                    </label>
+                                    <label for="roleAndroidBackgroundPadding">Padding <span id="roleAndroidBackgroundPaddingValue">0%</span>
+                                        <input type="range" id="roleAndroidBackgroundPadding" min="0" max="45" value="0">
+                                    </label>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
                     <div class="control-grid">
                         <div class="control-field">
                             <label for="safePaddingSlider">Safe Padding <span class="range-value" id="safePaddingValue">8%</span></label>

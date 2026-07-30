@@ -893,6 +893,24 @@ async function main() {
   assert.strictEqual(pwaGenerationPlan.allowed, true);
   assert.strictEqual(pwaGenerationPlan.operationCount, 66);
   assert(pwaGenerationPlan.estimatedPeakWorkingBytes > 0);
+  const multiSourcePlan = api.inspectGenerationPlan({
+    sizes: [{ width: 192, height: 192 }],
+    formats: ['png'],
+    presetKey: 'android',
+    sourceWidth: 100,
+    sourceHeight: 80,
+    roleSourcePixels: 25_000
+  });
+  assert.strictEqual(multiSourcePlan.sourcePixels, 33_000);
+  assert.strictEqual(multiSourcePlan.roleSourcePixels, 25_000);
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(api.centerCropForAspect({ naturalWidth: 400, naturalHeight: 200 }, 100, 100))),
+    { x: 100, y: 0, width: 200, height: 200 }
+  );
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(api.centerCropForAspect({ naturalWidth: 200, naturalHeight: 400 }, 100, 100))),
+    { x: 0, y: 100, width: 200, height: 200 }
+  );
   assert.strictEqual(
     api.inspectGenerationPlan({
       sizes: [{ width: 4096, height: 4096 }],
@@ -1464,6 +1482,8 @@ async function main() {
   assert.strictEqual(exportManifest.preset, 'pwa');
   assert.strictEqual(exportManifest.source.mode, 'text');
   assert.strictEqual(exportManifest.source.name, 'Acme App');
+  assert.strictEqual(exportManifest.options.roleArtwork.enabled, false);
+  assert(!JSON.stringify(exportManifest.options.roleArtwork).includes('data:image'), 'export manifest must never contain role source bytes');
   assert.strictEqual(exportManifest.options.replacementTemplate.active, true);
   assert(exportManifest.options.replacementTemplate.targets.includes('pwa/icons/icon-192x192.png'));
   assert(!exportManifest.files.some((file) => file.name === 'iconforge-export.json'), 'manifest should describe exported payload files, not itself');
@@ -1508,6 +1528,14 @@ async function main() {
       effect: 'desaturate',
       dropShadow: true
     },
+    roleArtwork: {
+      enabled: true,
+      sources: {
+        splash: { fit: 'cover', paddingPercent: 12, name: 'splash.png' },
+        androidForeground: { fit: 'contain', paddingPercent: 21, name: null },
+        androidBackground: { fit: 'cover', paddingPercent: 0, name: null }
+      }
+    },
     replacementTemplate: {
       active: true,
       targets: ['assets/icon-64.png', 'manifest.webmanifest']
@@ -1542,6 +1570,9 @@ async function main() {
   });
   assert.strictEqual(api.getState().lossyQualityPercent, 81);
   assert.strictEqual(api.getState().sizeBudgetBytes, 12288);
+  assert.strictEqual(api.getState().roleArtwork.enabled, true);
+  assert.strictEqual(api.getState().roleArtwork.sources.splash.fit, 'cover');
+  assert.strictEqual(api.getState().roleArtwork.sources.splash.paddingPercent, 12);
   const legacyReforgeManifest = {
     ...reforgeManifest,
     schemaVersion: undefined,
@@ -1647,12 +1678,38 @@ async function main() {
       lang: 'en',
       dir: 'ltr',
       monochrome: true
+    },
+    roleArtwork: {
+      enabled: true,
+      sources: {
+        splash: {
+          image: { naturalWidth: 320, naturalHeight: 180 },
+          dataUrl: 'data:image/png;base64,SPLASHDRAFT',
+          name: 'splash-local.png',
+          width: 320,
+          height: 180,
+          fit: 'cover',
+          paddingPercent: 11
+        },
+        androidForeground: {
+          image: { naturalWidth: 256, naturalHeight: 256 },
+          dataUrl: 'data:image/png;base64,FOREGROUNDDRAFT',
+          name: 'foreground-local.png',
+          width: 256,
+          height: 256,
+          fit: 'contain',
+          paddingPercent: 23
+        }
+      }
     }
   });
   let draft = JSON.parse(JSON.stringify(api.buildDraftSnapshot()));
-  assert.strictEqual(draft.schema, 'iconforge-draft-v2');
+  assert.strictEqual(draft.schema, 'iconforge-draft-v3');
   assert.strictEqual(draft.restoreSourceImage, false);
   assert.strictEqual(draft.sourceImage, null, 'source image data should be omitted until restore is enabled');
+  assert.strictEqual(draft.roleArtwork.enabled, true);
+  assert.strictEqual(draft.roleArtwork.sources.splash.dataUrl, null, 'role image bytes require the same explicit restore opt-in');
+  assert.strictEqual(draft.roleArtwork.sources.splash.fit, 'cover');
   assert.strictEqual(draft.cropRegion.width, 64);
   assert.strictEqual(draft.processing.lossyQuality, '78');
   assert.strictEqual(draft.processing.sizeBudgetKb, '2');
@@ -1664,10 +1721,12 @@ async function main() {
   assert.strictEqual(draft.restoreSourceImage, true);
   assert.strictEqual(draft.sourceImage.name, 'restored-image', 'upload draft should not preserve the original local filename');
   assert.strictEqual(draft.sourceImage.dataUrl, 'data:image/png;base64,RESTOREDRAFT');
+  assert.strictEqual(draft.roleArtwork.sources.splash.dataUrl, 'data:image/png;base64,SPLASHDRAFT');
+  assert.strictEqual(draft.roleArtwork.sources.androidForeground.dataUrl, 'data:image/png;base64,FOREGROUNDDRAFT');
   const savedDraft = JSON.parse(JSON.stringify(api.readDraftSnapshot()));
   assert.strictEqual(savedDraft.sourceImage.width, 128);
   assert.strictEqual(savedDraft.cropRegion.height, 63);
-  assert.match(api.getState().draftStatus, /Saved just now.*source image included.*expires in 30 days/);
+  assert.match(api.getState().draftStatus, /Saved just now.*source images included.*expires in 30 days/);
   assert.match(api.draftStorageSummary(savedDraft), /Saved just now.*B.*expires in 30 days/);
 
   const legacyDraft = {
@@ -1685,6 +1744,17 @@ async function main() {
   assert.strictEqual(migratedRecord.status, 'migrated');
   assert.strictEqual(migratedRecord.draft.schema, api.DRAFT_SCHEMA);
   assert.strictEqual(migratedRecord.draft.sourceImage, null, 'migration must strip image bytes without active opt-in');
+  assert.strictEqual(migratedRecord.draft.roleArtwork.sources.splash.dataUrl, null, 'migration must strip role image bytes without active opt-in');
+
+  const v2Draft = {
+    ...savedDraft,
+    schema: 'iconforge-draft-v2',
+    roleArtwork: undefined
+  };
+  const migratedV2Record = api.inspectDraftRecord(JSON.stringify(v2Draft));
+  assert.strictEqual(migratedV2Record.valid, true);
+  assert.strictEqual(migratedV2Record.migrated, true);
+  assert.strictEqual(migratedV2Record.draft.schema, api.DRAFT_SCHEMA);
 
   const expiredRecord = api.inspectDraftRecord(JSON.stringify({
     ...savedDraft,
@@ -1700,7 +1770,7 @@ async function main() {
   assert.strictEqual(api.getState().draftSourceEnabled, false);
   assert.strictEqual(api.saveDraftState({ silent: true }), null, 'clear should suppress beforeunload-style resaves until another change');
 
-  api.setStoredDraftForTest(JSON.stringify(legacyDraft), api.LEGACY_DRAFT_STORAGE_KEYS[0]);
+  api.setStoredDraftForTest(JSON.stringify(v2Draft), api.LEGACY_DRAFT_STORAGE_KEYS[0]);
   const migratedStoredDraft = api.readDraftSnapshot({ reportStatus: false });
   assert.strictEqual(migratedStoredDraft.schema, api.DRAFT_SCHEMA);
   assert.strictEqual(api.getStoredDraftForTest(api.LEGACY_DRAFT_STORAGE_KEYS[0]), null);

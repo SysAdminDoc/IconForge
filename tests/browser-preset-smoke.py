@@ -826,6 +826,172 @@ def check_localization_boundary(page, url: str) -> tuple[dict, list[str]]:
     }, failures
 
 
+def check_role_artwork(page, url: str) -> tuple[dict, list[str]]:
+    page.goto(url, wait_until="networkidle")
+    failures = []
+    page.locator("#fileInput").set_input_files(str(FIXTURE_ROOT / "alpha-fringe.png"))
+    page.wait_for_function("() => !document.querySelector('#btnGenerate')?.disabled")
+    page.locator("#roleArtworkEnabled").check()
+    page.locator("#roleSplashInput").set_input_files(str(FIXTURE_ROOT / "sample.webp"))
+    page.locator("#roleAndroidForegroundInput").set_input_files(str(FIXTURE_ROOT / "unicode-界.svg"))
+    page.locator("#roleAndroidBackgroundInput").set_input_files(str(FIXTURE_ROOT / "orientation-6.jpg"))
+    page.wait_for_function(
+        """() => {
+            const sources = window.__ICONFORGE_TEST__.getState().roleArtwork.sources;
+            return sources.splash.name && sources.androidForeground.name && sources.androidBackground.name;
+        }"""
+    )
+    page.locator("#roleSplashFit").select_option("cover")
+    page.locator("#roleSplashPadding").fill("9")
+    page.locator("#roleAndroidForegroundPadding").fill("21")
+    page.locator("#roleAndroidBackgroundFit").select_option("contain")
+    page.locator("#roleAndroidBackgroundPadding").fill("4")
+    page.locator("#draftSourceToggle").check()
+
+    configured = page.evaluate(
+        """() => {
+            const api = window.__ICONFORGE_TEST__;
+            const splash = api.resolveRoleRenderSource(
+                "splash",
+                { naturalWidth: 64, naturalHeight: 64 },
+                null,
+                1200,
+                630
+            );
+            const saved = api.saveDraftState({ silent: true });
+            return {
+                state: api.getState().roleArtwork,
+                splashResolved: {
+                    custom: splash.custom,
+                    width: splash.image.naturalWidth,
+                    height: splash.image.naturalHeight,
+                    crop: splash.crop,
+                    paddingPercent: splash.paddingPercent
+                },
+                draftSchema: saved.schema,
+                draftBytes: JSON.stringify(saved).length,
+                draftHasMain: Boolean(saved.sourceImage?.dataUrl),
+                draftRoleBytes: Object.fromEntries(
+                    Object.entries(saved.roleArtwork.sources).map(([key, source]) => [key, Boolean(source.dataUrl)])
+                )
+            };
+        }"""
+    )
+
+    page.reload(wait_until="networkidle")
+    page.wait_for_function(
+        """() => {
+            const state = window.__ICONFORGE_TEST__.getState();
+            return !document.querySelector("#btnGenerate")?.disabled &&
+                state.roleArtwork.sources.splash.name === "sample.webp" &&
+                state.roleArtwork.sources.androidForeground.name === "unicode-界.svg" &&
+                state.roleArtwork.sources.androidBackground.name === "orientation-6.jpg";
+        }""",
+        timeout=15000,
+    )
+    restored = page.evaluate(
+        """() => ({
+            state: window.__ICONFORGE_TEST__.getState().roleArtwork,
+            visiblePreviews: Array.from(document.querySelectorAll(".role-artwork-preview"))
+                .filter(preview => getComputedStyle(preview).display !== "none").length,
+            status: document.querySelector("#roleArtworkStatus")?.textContent || "",
+            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+        })"""
+    )
+
+    page.locator('button[data-preset="android"]').click()
+    page.locator("#btnGenerate").click()
+    page.wait_for_function(
+        """() => {
+            const label = document.querySelector("#generationProgressLabel")?.textContent || "";
+            return label.includes("ic_launcher_background.png");
+        }""",
+        timeout=15000,
+    )
+    page.locator("#btnCancelOperation").click()
+    page.wait_for_function(
+        """() => !document.querySelector("#btnGenerate")?.disabled &&
+            /cancelled/i.test(document.querySelector("#status")?.textContent || "")""",
+        timeout=10000,
+    )
+    cancelled = page.evaluate(
+        """() => ({
+            generatedCount: window.__ICONFORGE_TEST__.getState().generatedFiles.length,
+            status: document.querySelector("#status")?.textContent || "",
+            controlsEnabled: !document.querySelector("#roleArtworkEnabled")?.disabled &&
+                !document.querySelector("#roleAndroidForegroundInput")?.disabled
+        })"""
+    )
+
+    page.locator("#btnGenerate").click()
+    page.wait_for_function(
+        """() => !document.querySelector("#btnGenerate")?.disabled &&
+            document.querySelectorAll("#outputGrid .output-item").length > 0""",
+        timeout=30000,
+    )
+    generated = page.evaluate(
+        """async () => {
+            const api = window.__ICONFORGE_TEST__;
+            const files = api.getState().generatedFiles;
+            const manifestFile = (await api.getExportFilesWithManifest())
+                .find(file => file.name === "iconforge-export.json");
+            const manifestText = await manifestFile.blob.text();
+            const manifest = JSON.parse(manifestText);
+            return {
+                validation: (await api.validateGeneratedExport()).status,
+                foregroundRoles: Array.from(new Set(
+                    files.filter(file => file.role === "android-foreground").map(file => file.sourceRole)
+                )),
+                backgroundRoles: Array.from(new Set(
+                    files.filter(file => file.role === "android-background").map(file => file.sourceRole)
+                )),
+                legacyRoles: Array.from(new Set(
+                    files.filter(file => file.role === "android-legacy").map(file => file.sourceRole)
+                )),
+                manifestRoleArtwork: manifest.options.roleArtwork,
+                manifestContainsImageBytes: manifestText.includes("data:image"),
+                diagnosticsRoleMetric: api.buildGenerationDiagnostics().metrics
+                    .find(metric => metric.label === "Role artwork")?.value || ""
+            };
+        }"""
+    )
+
+    expected_role_bytes = {
+        "splash": True,
+        "androidForeground": True,
+        "androidBackground": True,
+    }
+    if configured["draftSchema"] != "iconforge-draft-v3":
+        failures.append(f"advanced role draft did not migrate to v3: {configured['draftSchema']}")
+    if not configured["draftHasMain"] or configured["draftRoleBytes"] != expected_role_bytes:
+        failures.append(f"role draft did not retain opted-in local bytes: {configured}")
+    if not configured["splashResolved"]["custom"] or configured["splashResolved"]["paddingPercent"] != 9:
+        failures.append(f"splash role did not resolve custom crop/scale settings: {configured['splashResolved']}")
+    if restored["visiblePreviews"] != 3 or restored["overflow"]:
+        failures.append(f"restored role artwork UI was incomplete or overflowing: {restored}")
+    if cancelled["generatedCount"] != 0 or not cancelled["controlsEnabled"]:
+        failures.append(f"role-aware generation cancellation did not roll back cleanly: {cancelled}")
+    if generated["validation"] != "pass":
+        failures.append(f"role-aware Android export failed validation: {generated}")
+    if generated["foregroundRoles"] != ["androidForeground"] or generated["legacyRoles"] != ["androidForeground"]:
+        failures.append(f"Android foreground source was not used consistently: {generated}")
+    if generated["backgroundRoles"] != ["androidBackground"]:
+        failures.append(f"Android background source was not used consistently: {generated}")
+    if generated["manifestContainsImageBytes"]:
+        failures.append("role artwork bytes leaked into iconforge-export.json")
+    if not generated["manifestRoleArtwork"]["enabled"] or "sample.webp" not in json.dumps(generated["manifestRoleArtwork"]):
+        failures.append(f"role settings were not recorded for reforge: {generated['manifestRoleArtwork']}")
+    if "androidForeground" not in generated["diagnosticsRoleMetric"]:
+        failures.append(f"role diagnostics were incomplete: {generated['diagnosticsRoleMetric']}")
+
+    return {
+        "configured": configured,
+        "restored": restored,
+        "cancelled": cancelled,
+        "generated": generated,
+    }, failures
+
+
 def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
     page.goto(url, wait_until="networkidle")
     failures = []
@@ -1354,6 +1520,7 @@ def main() -> int:
     failures = []
     accessibility = {}
     localization = {}
+    role_artwork = {}
     reforge = {}
     engine_matrix = {}
 
@@ -1395,6 +1562,15 @@ def main() -> int:
                 results.append(result)
                 failures.extend(validate_result(result))
             context.close()
+
+            role_context = chromium.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+            role_page = role_context.new_page()
+            role_page.add_init_script("window.__ICONFORGE_ENABLE_TEST_API__ = true;")
+            role_page.on("console", lambda msg: console_messages.append({"type": msg.type, "text": msg.text}))
+            role_page.on("pageerror", lambda exc: page_errors.append(str(exc)))
+            role_artwork, role_artwork_failures = check_role_artwork(role_page, url)
+            failures.extend(role_artwork_failures)
+            role_context.close()
             chromium.close()
 
             for engine_name in ("chromium", "firefox", "webkit"):
@@ -1511,6 +1687,7 @@ def main() -> int:
         ],
         "accessibility": accessibility,
         "localization": localization,
+        "roleArtwork": role_artwork,
         "reforge": reforge,
         "engines": engine_matrix,
         "failures": failures,

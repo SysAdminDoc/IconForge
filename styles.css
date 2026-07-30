@@ -2429,6 +2429,116 @@ button:focus-visible {
     padding: 0.9rem;
 }
 
+.role-artwork-section {
+    margin: 0.15rem 0 0.85rem;
+    padding: 0.75rem;
+    background: rgba(12, 17, 29, 0.72);
+    border: 1px solid #2a354b;
+    border-radius: var(--radius-md);
+}
+
+.role-artwork-section > .helper-note {
+    margin: 0.55rem 0 0;
+}
+
+.role-artwork-section .toggle-field {
+    flex: 1;
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    color: var(--text-primary);
+    font-size: 0.74rem;
+    letter-spacing: 0.02em;
+}
+
+.role-artwork-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.65rem;
+    margin-top: 0.75rem;
+}
+
+.role-artwork-card {
+    min-width: 0;
+    padding: 0.7rem;
+    background: #0b101b;
+    border: 1px solid #2e3950;
+    border-radius: 10px;
+}
+
+.role-artwork-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    align-items: flex-start;
+    margin-bottom: 0.55rem;
+}
+
+.role-artwork-heading strong,
+.role-artwork-heading small {
+    display: block;
+}
+
+.role-artwork-heading strong {
+    color: var(--text-primary);
+    font-size: 0.76rem;
+}
+
+.role-artwork-heading small,
+.role-artwork-card > label,
+.role-artwork-controls label {
+    color: #8995ad;
+    font-size: 0.64rem;
+}
+
+.role-artwork-card > input[type="file"],
+.role-artwork-controls select {
+    width: 100%;
+    min-height: 36px;
+    margin-top: 0.25rem;
+    color: var(--text-secondary);
+    background: #080c14;
+    border: 1px solid #303a50;
+    border-radius: 8px;
+}
+
+.role-artwork-preview {
+    display: block;
+    width: 100%;
+    height: 92px;
+    margin-top: 0.55rem;
+    object-fit: contain;
+    background: var(--checker);
+    border: 1px solid #303a50;
+    border-radius: 8px;
+}
+
+.role-artwork-source-status {
+    min-height: 2.8em;
+    margin: 0.45rem 0;
+}
+
+.role-artwork-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.45rem;
+}
+
+.role-artwork-controls label {
+    min-width: 0;
+}
+
+.role-artwork-controls input[type="range"] {
+    width: 100%;
+    margin-top: 0.55rem;
+}
+
+.role-artwork-clear {
+    min-height: 30px;
+    padding: 0.25rem 0.5rem;
+}
+
 .control-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.65rem;
@@ -2704,6 +2814,7 @@ footer {
     .manifest-metadata-grid,
     .size-grid,
     .control-grid,
+    .role-artwork-grid,
     .reforge-controls,
     .output-shape-card,
     .generation-console,

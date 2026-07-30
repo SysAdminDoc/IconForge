@@ -97,10 +97,10 @@ const ZIP16_MAX = 0xFFFF;
 const ZIP32_MAX = 0xFFFFFFFF;
 const ZIP_CRC_CHUNK_BYTES = 1024 * 1024;
 const MAX_ZIP_WORKING_BYTES = 768 * 1024 * 1024;
-const DRAFT_STORAGE_KEY = 'iconforge-draft-v2';
-const LEGACY_DRAFT_STORAGE_KEYS = Object.freeze(['iconforge-draft-v1']);
+const DRAFT_STORAGE_KEY = 'iconforge-draft-v3';
+const LEGACY_DRAFT_STORAGE_KEYS = Object.freeze(['iconforge-draft-v2', 'iconforge-draft-v1']);
 const DRAFT_PREFERENCES_KEY = 'iconforge-draft-preferences-v1';
-const DRAFT_SCHEMA = 'iconforge-draft-v2';
+const DRAFT_SCHEMA = 'iconforge-draft-v3';
 const DRAFT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_DRAFT_BYTES = 4 * 1024 * 1024;
 
@@ -148,6 +148,26 @@ let activeOperation = null;
 let latestOperationSnapshot = null;
 let latestExportWriteResult = null;
 let serviceWorkerRegistration = null;
+const ROLE_SOURCE_DEFINITIONS = Object.freeze({
+    splash: Object.freeze({ defaultFit: 'contain', defaultPadding: 38, fallback: 'main' }),
+    androidForeground: Object.freeze({ defaultFit: 'contain', defaultPadding: 18, fallback: 'main' }),
+    androidBackground: Object.freeze({ defaultFit: 'cover', defaultPadding: 0, fallback: 'background' })
+});
+let roleArtworkEnabled = false;
+let roleSourceLoadSequence = 0;
+const roleSources = Object.fromEntries(Object.entries(ROLE_SOURCE_DEFINITIONS).map(([key, definition]) => [
+    key,
+    {
+        image: null,
+        dataUrl: null,
+        name: '',
+        width: 0,
+        height: 0,
+        fit: definition.defaultFit,
+        paddingPercent: definition.defaultPadding,
+        loadToken: 0
+    }
+]));
 
 const OUTPUT_FORMATS = ['png', 'jpg', 'ico', 'webp', 'avif', 'svg'];
 const UI_STRINGS = Object.freeze({
@@ -168,7 +188,23 @@ const UI_STRINGS = Object.freeze({
         interfaceLanguage: 'Interface Language',
         english: 'English',
         pseudoExpanded: 'Pseudo Expanded',
-        pseudoRtl: 'Pseudo RTL'
+        pseudoRtl: 'Pseudo RTL',
+        perRoleArtwork: 'Per-role artwork (advanced)',
+        mainSourceEveryRole: 'Main source used for every role',
+        roleArtworkPrivacy: 'Optional files stay in this browser. Missing roles explicitly fall back to the main source or configured background.',
+        splashArtwork: 'Splash artwork',
+        fallbackMainSource: 'Fallback: main source',
+        clear: 'Clear',
+        roleSourceImage: 'Source image',
+        usingMainSource: 'Using main source',
+        fitCrop: 'Fit / crop',
+        contain: 'Contain',
+        centerCrop: 'Center crop',
+        padding: 'Padding',
+        androidForeground: 'Android foreground',
+        androidBackground: 'Android background',
+        fallbackConfiguredBackground: 'Fallback: configured background',
+        usingConfiguredBackground: 'Using configured background'
     },
     shellText: {
         pageTitle: 'Icon Forge — Favicon, PWA & Extension Icon Generator',
@@ -424,6 +460,7 @@ const UI_STRINGS = Object.freeze({
             selectedPreset: 'Selected preset',
             selectedFormats: 'Selected formats',
             skippedFormats: 'Skipped / hidden formats',
+            roleArtwork: 'Role artwork',
             workerFallback: 'Worker fallback state',
             lossyQuality: 'Lossy quality',
             sizeBudget: 'Size budget',
@@ -453,6 +490,9 @@ const UI_STRINGS = Object.freeze({
         fileTooLarge: 'File too large ({size} MB). Maximum is 200 MB.',
         largeFile: 'Large file ({size} MB) - processing may be slow.',
         imageDownscaled: 'Image was downscaled from {fromWidth}x{fromHeight} to {toWidth}x{toHeight} (browser canvas limit)',
+        roleSourceLoaded: '{role} source loaded locally: {name} ({width}×{height}).',
+        roleSourceFailed: '{role} source was not loaded: {message}',
+        roleArtworkCustom: '{count} custom role {sourceWord} active',
         replacementTemplateError: 'Replacement template error: {message}',
         invalidDimensions: 'Please enter valid dimensions (1-4096)',
         duplicateSize: 'Size {width}x{height} already exists and has been selected',
@@ -882,6 +922,38 @@ const draftClearOnExportToggle = document.getElementById('draftClearOnExportTogg
 const btnClearDraft = document.getElementById('btnClearDraft');
 const draftStatus = document.getElementById('draftStatus');
 const localeSelect = document.getElementById('localeSelect');
+const roleArtworkToggle = document.getElementById('roleArtworkEnabled');
+const roleArtworkGrid = document.getElementById('roleArtworkGrid');
+const roleArtworkStatus = document.getElementById('roleArtworkStatus');
+const roleSourceControls = Object.freeze({
+    splash: Object.freeze({
+        input: document.getElementById('roleSplashInput'),
+        preview: document.getElementById('roleSplashPreview'),
+        status: document.getElementById('roleSplashStatus'),
+        fit: document.getElementById('roleSplashFit'),
+        padding: document.getElementById('roleSplashPadding'),
+        paddingValue: document.getElementById('roleSplashPaddingValue'),
+        clear: document.querySelector('[data-clear-role="splash"]')
+    }),
+    androidForeground: Object.freeze({
+        input: document.getElementById('roleAndroidForegroundInput'),
+        preview: document.getElementById('roleAndroidForegroundPreview'),
+        status: document.getElementById('roleAndroidForegroundStatus'),
+        fit: document.getElementById('roleAndroidForegroundFit'),
+        padding: document.getElementById('roleAndroidForegroundPadding'),
+        paddingValue: document.getElementById('roleAndroidForegroundPaddingValue'),
+        clear: document.querySelector('[data-clear-role="androidForeground"]')
+    }),
+    androidBackground: Object.freeze({
+        input: document.getElementById('roleAndroidBackgroundInput'),
+        preview: document.getElementById('roleAndroidBackgroundPreview'),
+        status: document.getElementById('roleAndroidBackgroundStatus'),
+        fit: document.getElementById('roleAndroidBackgroundFit'),
+        padding: document.getElementById('roleAndroidBackgroundPadding'),
+        paddingValue: document.getElementById('roleAndroidBackgroundPaddingValue'),
+        clear: document.querySelector('[data-clear-role="androidBackground"]')
+    })
+});
 
 // Crop DOM Elements
 const cropSection = document.getElementById('cropSection');
@@ -1098,10 +1170,32 @@ function formatDraftAge(savedAt, nowMs = Date.now()) {
     return `${Math.floor(ageMs / (24 * 60 * 60000))} day${ageMs < 2 * 24 * 60 * 60000 ? '' : 's'} ago`;
 }
 
+function draftHasSourceImages(draft) {
+    return Boolean(draft?.sourceImage || Object.values(draft?.roleArtwork?.sources || {}).some(source => source?.dataUrl));
+}
+
+function stripDraftSourceImages(draft) {
+    const roleArtwork = draft?.roleArtwork
+        ? {
+            ...draft.roleArtwork,
+            sources: Object.fromEntries(Object.entries(draft.roleArtwork.sources || {}).map(([role, source]) => [
+                role,
+                { ...source, dataUrl: null }
+            ]))
+        }
+        : draft?.roleArtwork;
+    return {
+        ...draft,
+        restoreSourceImage: false,
+        sourceImage: null,
+        roleArtwork
+    };
+}
+
 function draftStorageSummary(draft, raw = JSON.stringify(draft), nowMs = Date.now()) {
     const bytes = draftByteLength(raw);
     const expiresInDays = Math.max(0, Math.ceil((DRAFT_TTL_MS - Math.max(0, nowMs - Date.parse(draft.savedAt))) / (24 * 60 * 60 * 1000)));
-    const sourceState = draft.sourceImage ? 'source image included' : 'settings only';
+    const sourceState = draftHasSourceImages(draft) ? 'source images included' : 'settings only';
     return `Saved ${formatDraftAge(draft.savedAt, nowMs)} • ${formatFileSize(bytes)} • ${sourceState} • expires in ${expiresInDays} day${expiresInDays === 1 ? '' : 's'}.`;
 }
 
@@ -1146,8 +1240,8 @@ function migrateDraftSnapshot(draft) {
     }
     let migrated = false;
     let next = draft;
-    if (draft.schema === 'iconforge-draft-v1') {
-        next = { ...draft, schema: DRAFT_SCHEMA, migratedFrom: 'iconforge-draft-v1' };
+    if (['iconforge-draft-v1', 'iconforge-draft-v2'].includes(draft.schema)) {
+        next = { ...draft, schema: DRAFT_SCHEMA, migratedFrom: draft.schema };
         migrated = true;
     } else if (draft.schema !== DRAFT_SCHEMA) {
         return { valid: false, reason: `Unsupported draft schema "${draft.schema || 'missing'}".` };
@@ -1157,7 +1251,27 @@ function migrateDraftSnapshot(draft) {
         return { valid: false, reason: 'Draft savedAt timestamp is invalid.' };
     }
     if (!next.restoreSourceImage || !next.sourceImage?.dataUrl?.startsWith('data:image/')) {
-        next = { ...next, restoreSourceImage: false, sourceImage: null };
+        next = { ...next, sourceImage: null };
+    }
+    if (next.roleArtwork?.sources) {
+        next = {
+            ...next,
+            roleArtwork: {
+                ...next.roleArtwork,
+                sources: Object.fromEntries(Object.entries(next.roleArtwork.sources).map(([role, source]) => [
+                    role,
+                    {
+                        ...source,
+                        dataUrl: next.restoreSourceImage && source?.dataUrl?.startsWith('data:image/')
+                            ? source.dataUrl
+                            : null
+                    }
+                ]))
+            }
+        };
+    }
+    if (!next.restoreSourceImage || !draftHasSourceImages(next)) {
+        next = { ...next, restoreSourceImage: false };
     }
     return { valid: true, draft: next, migrated };
 }
@@ -1178,8 +1292,8 @@ function inspectDraftRecord(raw, nowMs = Date.now()) {
     let draft = migration.draft;
     let serialized = JSON.stringify(draft);
     let sourceDropped = false;
-    if (draftByteLength(serialized) > MAX_DRAFT_BYTES && draft.sourceImage) {
-        draft = { ...draft, restoreSourceImage: false, sourceImage: null };
+    if (draftByteLength(serialized) > MAX_DRAFT_BYTES && draftHasSourceImages(draft)) {
+        draft = stripDraftSourceImages(draft);
         serialized = JSON.stringify(draft);
         sourceDropped = true;
     }
@@ -1247,6 +1361,7 @@ function buildDraftSnapshot() {
                 shape: emojiShape
             }
         },
+        roleArtwork: roleArtworkSnapshot({ includeData: sourceImageDraftEnabled }),
         deploymentUrls: {
             mode: assetUrlMode.value,
             customBase: assetUrlBase.value,
@@ -1316,8 +1431,8 @@ function saveDraftState({ silent = false } = {}) {
     if (!storage) return null;
     let snapshot = buildDraftSnapshot();
     let raw = JSON.stringify(snapshot);
-    if (draftByteLength(raw) > MAX_DRAFT_BYTES && snapshot.sourceImage) {
-        snapshot = { ...snapshot, restoreSourceImage: false, sourceImage: null };
+    if (draftByteLength(raw) > MAX_DRAFT_BYTES && draftHasSourceImages(snapshot)) {
+        snapshot = stripDraftSourceImages(snapshot);
         raw = JSON.stringify(snapshot);
         if (!silent) setDraftStatus(uiText('draft.sourceOverLimit'), 'warning');
     }
@@ -1331,8 +1446,8 @@ function saveDraftState({ silent = false } = {}) {
         setDraftStatus(draftStorageSummary(snapshot, raw), 'success');
         return snapshot;
     } catch {
-        if (snapshot.sourceImage) {
-            snapshot = { ...snapshot, restoreSourceImage: false, sourceImage: null };
+        if (draftHasSourceImages(snapshot)) {
+            snapshot = stripDraftSourceImages(snapshot);
             raw = JSON.stringify(snapshot);
             try {
                 storage.setItem(DRAFT_STORAGE_KEY, raw);
@@ -1412,6 +1527,8 @@ function applyDraftControls(draft) {
         });
         renderEmojiPreview();
     }
+
+    applyRoleArtworkSettings(draft.roleArtwork || {});
 
     if (draft.deploymentUrls) {
         assetUrlMode.value = draft.deploymentUrls.mode || assetUrlMode.value;
@@ -1497,10 +1614,11 @@ async function restoreDraftState() {
     try {
         applyDraftControls(draft);
         const sourceRestored = await restoreDraftSourceImage(draft);
-        const restoredMessage = sourceRestored
+        const roleSourcesRestored = await restoreDraftRoleSources(draft);
+        const restoredMessage = sourceRestored || roleSourcesRestored > 0
             ? uiText('draft.restoredWithSource')
             : uiText('draft.restoredSettings');
-        setDraftStatus(`${restoredMessage} ${draftStorageSummary(draft)}`, sourceRestored ? 'success' : '');
+        setDraftStatus(`${restoredMessage} ${draftStorageSummary(draft)}`, sourceRestored || roleSourcesRestored > 0 ? 'success' : '');
     } catch {
         try {
             removeStoredDrafts();
@@ -1635,6 +1753,19 @@ function getWorkerDiagnostics() {
     return 'Worker available; no eligible image resizes in this export';
 }
 
+function getRoleArtworkDiagnostics() {
+    if (!roleArtworkEnabled) return 'Disabled; all roles use explicit defaults';
+    return Object.keys(ROLE_SOURCE_DEFINITIONS).map(role => {
+        const source = roleSources[role];
+        const sourceName = source.image
+            ? source.name
+            : ROLE_SOURCE_DEFINITIONS[role].fallback === 'background'
+                ? 'configured background'
+                : 'main source';
+        return `${role}: ${sourceName}, ${source.fit}, ${source.paddingPercent}% padding`;
+    }).join('; ');
+}
+
 function buildGenerationDiagnostics({ selectedFormats = getSelectedFormats(), validationResult = null, error = null } = {}) {
     const totalBytes = generatedFiles.reduce((sum, file) => sum + (file.blob?.size || 0), 0);
     const skippedFormats = getSkippedFormatDiagnostics(selectedFormats);
@@ -1650,6 +1781,7 @@ function buildGenerationDiagnostics({ selectedFormats = getSelectedFormats(), va
             { label: metricLabels.selectedPreset, value: presetLabel(activePresetKey) },
             { label: metricLabels.selectedFormats, value: selectedFormatText },
             { label: metricLabels.skippedFormats, value: skippedFormats.length ? skippedFormats.join('; ') : 'None' },
+            { label: metricLabels.roleArtwork, value: getRoleArtworkDiagnostics() },
             { label: metricLabels.workerFallback, value: getWorkerDiagnostics() },
             { label: metricLabels.lossyQuality, value: `${getLossyQualityPercent()}% for JPG/WebP/AVIF` },
             { label: metricLabels.sizeBudget, value: getSizeBudgetStatus(totalBytes) },
@@ -1690,6 +1822,7 @@ function diagnosticsFileRecord(file) {
         name: normalizedFileName(file.name),
         format: file.format || null,
         role: file.role || file.purpose || null,
+        sourceRole: file.sourceRole || null,
         dimensions: dimensionsForFile(file),
         mimeType: mimeTypeForFile(file),
         byteSize: file.blob?.size || 0
@@ -1777,6 +1910,7 @@ function buildDiagnosticsSupportReport({ selectedFormats = getSelectedFormats(),
         },
         selectedFormats: [...selectedFormats],
         selectedSizes: getSelectedSizes(),
+        roleArtwork: roleArtworkSnapshot(),
         generation: {
             fileCount: generatedFiles.length,
             totalBytes,
@@ -2352,6 +2486,30 @@ draftSourceToggle?.addEventListener('change', () => {
 });
 draftClearOnExportToggle?.addEventListener('change', saveDraftPreferences);
 btnClearDraft?.addEventListener('click', clearDraftState);
+roleArtworkToggle?.addEventListener('change', () => {
+    roleArtworkEnabled = roleArtworkToggle.checked;
+    updateRoleArtworkUi();
+    renderGenerationPreflight();
+    queueDraftSave();
+});
+for (const [role, controls] of Object.entries(roleSourceControls)) {
+    controls.input?.addEventListener('change', () => {
+        const file = controls.input.files?.[0];
+        if (file) loadRoleSourceFile(role, file);
+    });
+    controls.fit?.addEventListener('change', () => {
+        roleSources[role].fit = controls.fit.value === 'cover' ? 'cover' : 'contain';
+        updateRoleArtworkUi();
+        queueDraftSave();
+    });
+    controls.padding?.addEventListener('input', () => {
+        roleSources[role].paddingPercent = Math.round(clampNumber(controls.padding.value, 0, 45, ROLE_SOURCE_DEFINITIONS[role].defaultPadding));
+        controls.paddingValue.textContent = `${roleSources[role].paddingPercent}%`;
+        queueDraftSave();
+    });
+    controls.clear?.addEventListener('click', () => clearRoleSource(role));
+}
+updateRoleArtworkUi();
 btnCopyDiagnostics?.addEventListener('click', async function() {
     try {
         await navigator.clipboard.writeText(diagnosticsSupportJson());
@@ -2870,6 +3028,188 @@ function loadImageElement(src) {
     });
 }
 
+function roleSourceLabel(role) {
+    const key = role === 'splash'
+        ? 'shell.splashArtwork'
+        : role === 'androidForeground'
+            ? 'shell.androidForeground'
+            : 'shell.androidBackground';
+    return uiText(key);
+}
+
+function roleSourceFallbackText(role) {
+    return uiText(ROLE_SOURCE_DEFINITIONS[role]?.fallback === 'background'
+        ? 'shell.usingConfiguredBackground'
+        : 'shell.usingMainSource');
+}
+
+function roleArtworkSnapshot({ includeData = false } = {}) {
+    return {
+        enabled: roleArtworkEnabled,
+        sources: Object.fromEntries(Object.keys(ROLE_SOURCE_DEFINITIONS).map(role => {
+            const source = roleSources[role];
+            return [role, {
+                name: source.name || null,
+                width: source.width || null,
+                height: source.height || null,
+                fit: source.fit,
+                paddingPercent: source.paddingPercent,
+                dataUrl: includeData ? source.dataUrl : null
+            }];
+        }))
+    };
+}
+
+function updateRoleArtworkUi() {
+    roleArtworkEnabled = Boolean(roleArtworkToggle?.checked);
+    setElementVisible(roleArtworkGrid, roleArtworkEnabled, 'grid');
+    let customCount = 0;
+    for (const [role, controls] of Object.entries(roleSourceControls)) {
+        const source = roleSources[role];
+        if (source.image) customCount += 1;
+        controls.preview.src = source.dataUrl || '';
+        controls.preview.alt = source.image
+            ? `${roleSourceLabel(role)} preview: ${source.name}`
+            : '';
+        setElementVisible(controls.preview, Boolean(source.image), 'block');
+        controls.status.textContent = source.image
+            ? `${source.name} — ${source.width} × ${source.height}`
+            : roleSourceFallbackText(role);
+        controls.fit.value = source.fit;
+        controls.padding.value = String(source.paddingPercent);
+        controls.paddingValue.textContent = `${source.paddingPercent}%`;
+        controls.clear.disabled = !source.image;
+    }
+    roleArtworkStatus.textContent = roleArtworkEnabled && customCount
+        ? uiText('status.roleArtworkCustom', {
+            count: customCount,
+            sourceWord: customCount === 1 ? 'source' : 'sources'
+        })
+        : uiText('shell.mainSourceEveryRole');
+}
+
+function setRoleArtworkControlsDisabled(disabled) {
+    if (roleArtworkToggle) roleArtworkToggle.disabled = disabled;
+    for (const [role, controls] of Object.entries(roleSourceControls)) {
+        controls.input.disabled = disabled;
+        controls.fit.disabled = disabled;
+        controls.padding.disabled = disabled;
+        controls.clear.disabled = disabled || !roleSources[role].image;
+    }
+}
+
+function cancelPendingRoleSourceLoads() {
+    for (const source of Object.values(roleSources)) source.loadToken = ++roleSourceLoadSequence;
+}
+
+function clearRoleSource(role, { save = true } = {}) {
+    const source = roleSources[role];
+    const controls = roleSourceControls[role];
+    if (!source || !controls) return;
+    source.loadToken = ++roleSourceLoadSequence;
+    source.image = null;
+    source.dataUrl = null;
+    source.name = '';
+    source.width = 0;
+    source.height = 0;
+    controls.input.value = '';
+    updateRoleArtworkUi();
+    renderGenerationPreflight();
+    if (save) queueDraftSave();
+}
+
+async function loadRoleSourceFile(role, file) {
+    const source = roleSources[role];
+    if (!source || !file) return false;
+    const token = ++roleSourceLoadSequence;
+    source.loadToken = token;
+    try {
+        const inspection = inspectSourceFile(file);
+        if (!inspection.valid) throw new Error(inspection.message);
+        const headerInspection = await inspectSourceHeader(file);
+        if (!headerInspection.valid) throw new Error(headerInspection.message);
+        if (isSvgFile(file)) validateSvgSourceText(await readFileAsText(file), file.name || 'SVG file');
+        const dataUrl = await readFileAsDataUrl(file);
+        let img = await loadImageElement(dataUrl);
+        let storedDataUrl = dataUrl;
+        const safeSize = limitImageSize(img.naturalWidth, img.naturalHeight);
+        if (safeSize.scaled) {
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = safeSize.width;
+            tmpCanvas.height = safeSize.height;
+            try {
+                tmpCanvas.getContext('2d').drawImage(img, 0, 0, safeSize.width, safeSize.height);
+                storedDataUrl = tmpCanvas.toDataURL('image/png');
+                img = await loadImageElement(storedDataUrl);
+            } finally {
+                tmpCanvas.width = 0;
+                tmpCanvas.height = 0;
+            }
+        }
+        if (source.loadToken !== token) return false;
+        source.image = img;
+        source.dataUrl = storedDataUrl;
+        source.name = file.name;
+        source.width = img.naturalWidth;
+        source.height = img.naturalHeight;
+        updateRoleArtworkUi();
+        renderGenerationPreflight();
+        saveDraftState({ silent: true });
+        showStatus(uiText('status.roleSourceLoaded', {
+            role: roleSourceLabel(role),
+            name: file.name,
+            width: img.naturalWidth,
+            height: img.naturalHeight
+        }), 'success');
+        return true;
+    } catch (error) {
+        if (source.loadToken !== token) return false;
+        clearRoleSource(role, { save: false });
+        const message = uiText('status.roleSourceFailed', {
+            role: roleSourceLabel(role),
+            message: error?.message || 'Failed to load image.'
+        });
+        showStatus(message, 'error');
+        return false;
+    }
+}
+
+function applyRoleArtworkSettings(settings = {}) {
+    roleArtworkEnabled = Boolean(settings.enabled);
+    if (roleArtworkToggle) roleArtworkToggle.checked = roleArtworkEnabled;
+    for (const [role, definition] of Object.entries(ROLE_SOURCE_DEFINITIONS)) {
+        const source = roleSources[role];
+        const saved = settings.sources?.[role] || {};
+        source.fit = ['contain', 'cover'].includes(saved.fit) ? saved.fit : definition.defaultFit;
+        source.paddingPercent = Math.round(clampNumber(saved.paddingPercent, 0, 45, definition.defaultPadding));
+    }
+    updateRoleArtworkUi();
+}
+
+async function restoreDraftRoleSources(draft) {
+    applyRoleArtworkSettings(draft?.roleArtwork || {});
+    if (!draft?.restoreSourceImage || !draft.roleArtwork?.sources) return 0;
+    let restored = 0;
+    for (const role of Object.keys(ROLE_SOURCE_DEFINITIONS)) {
+        const saved = draft.roleArtwork.sources[role];
+        if (!saved?.dataUrl?.startsWith('data:image/')) continue;
+        try {
+            const img = await loadImageElement(saved.dataUrl);
+            const source = roleSources[role];
+            source.image = img;
+            source.dataUrl = saved.dataUrl;
+            source.name = saved.name || `${role}-restored`;
+            source.width = img.naturalWidth;
+            source.height = img.naturalHeight;
+            restored += 1;
+        } catch {
+            clearRoleSource(role, { save: false });
+        }
+    }
+    updateRoleArtworkUi();
+    return restored;
+}
+
 function validateSvgSourceText(svgText, fileName = 'SVG file') {
     const text = String(svgText || '').replace(/^\uFEFF/, '').trim();
     if (!text) throw new Error(`${fileName} is empty.`);
@@ -2999,6 +3339,7 @@ function initFileHandlingLaunch() {
 initFileHandlingLaunch();
 
 function resetInput() {
+    for (const role of Object.keys(ROLE_SOURCE_DEFINITIONS)) clearRoleSource(role, { save: false });
     sourceImage = null;
     renderGenerationPreflight();
     setWorkflowStep('source');
@@ -3933,6 +4274,7 @@ function inspectGenerationPlan({
     presetKey = activePresetKey,
     sourceWidth = sourceImage?.naturalWidth || 0,
     sourceHeight = sourceImage?.naturalHeight || 0,
+    roleSourcePixels = null,
     monochrome = manifestMonochromeEnabled(),
     maxOperations = MAX_GENERATION_OPERATIONS,
     maxWorkingBytes = MAX_GENERATION_WORKING_BYTES
@@ -3984,7 +4326,13 @@ function inspectGenerationPlan({
     }
     operationCount += 2;
 
-    const sourcePixels = Math.max(0, Number(sourceWidth) * Number(sourceHeight));
+    const mainSourcePixels = Math.max(0, Number(sourceWidth) * Number(sourceHeight));
+    const additionalSourcePixels = roleSourcePixels === null
+        ? (roleArtworkEnabled
+            ? Object.values(roleSources).reduce((sum, source) => sum + Math.max(0, source.width * source.height), 0)
+            : 0)
+        : Math.max(0, Number(roleSourcePixels));
+    const sourcePixels = mainSourcePixels + additionalSourcePixels;
     const retainedOutputBytes = totalPixels * 4;
     const activeCanvasBytes = largestOutputPixels * 8;
     const sourceBytes = sourcePixels * 4;
@@ -4002,6 +4350,7 @@ function inspectGenerationPlan({
         totalPixels,
         largestOutputPixels,
         sourcePixels,
+        roleSourcePixels: additionalSourcePixels,
         estimatedPeakWorkingBytes,
         limits: { maxOperations, maxWorkingBytes }
     };
@@ -4056,6 +4405,8 @@ async function generateIcons() {
     }
 
     const operation = beginOperation('generation', plan.operationCount);
+    cancelPendingRoleSourceLoads();
+    setRoleArtworkControlsDisabled(true);
     setWorkflowStep('export');
     btnGenerate.disabled = true;
     btnDownloadAll.disabled = true;
@@ -4141,6 +4492,8 @@ async function generateIcons() {
         }
     } finally {
         finishOperation(operation);
+        setRoleArtworkControlsDisabled(false);
+        updateRoleArtworkUi();
         btnGenerate.disabled = false;
         btnDownloadAll.disabled = false;
         if (btnSaveToFolder) btnSaveToFolder.disabled = false;
@@ -4349,16 +4702,68 @@ async function renderRoundIconBlob(img, width, height, crop, options) {
     }
 }
 
+function centerCropForAspect(img, width, height) {
+    const sourceWidth = img.naturalWidth;
+    const sourceHeight = img.naturalHeight;
+    const targetRatio = width / height;
+    const sourceRatio = sourceWidth / sourceHeight;
+    if (Math.abs(sourceRatio - targetRatio) < 0.0001) return null;
+    if (sourceRatio > targetRatio) {
+        const cropWidth = Math.max(1, Math.round(sourceHeight * targetRatio));
+        return {
+            x: Math.round((sourceWidth - cropWidth) / 2),
+            y: 0,
+            width: cropWidth,
+            height: sourceHeight
+        };
+    }
+    const cropHeight = Math.max(1, Math.round(sourceWidth / targetRatio));
+    return {
+        x: 0,
+        y: Math.round((sourceHeight - cropHeight) / 2),
+        width: sourceWidth,
+        height: cropHeight
+    };
+}
+
+function resolveRoleRenderSource(role, fallbackImage, fallbackCrop, width, height) {
+    const custom = roleArtworkEnabled ? roleSources[role] : null;
+    if (!custom?.image) {
+        return {
+            image: fallbackImage,
+            crop: fallbackCrop,
+            paddingPercent: null,
+            custom: false
+        };
+    }
+    return {
+        image: custom.image,
+        crop: custom.fit === 'cover' ? centerCropForAspect(custom.image, width, height) : null,
+        paddingPercent: custom.paddingPercent,
+        custom: true
+    };
+}
+
 async function renderSplashBlob(img, width, height, crop) {
+    const source = resolveRoleRenderSource('splash', img, crop, width, height);
     const options = getProcessingOptions({
-        paddingPercent: 38,
+        paddingPercent: source.custom ? source.paddingPercent : 38,
         backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value,
         dropShadow: true
     });
-    return renderIconBlob(img, width, height, crop, options, 'png');
+    return renderIconBlob(source.image, width, height, source.crop, options, 'png');
 }
 
-async function renderBackgroundBlob(width, height) {
+async function renderBackgroundBlob(width, height, fallbackImage = null, fallbackCrop = null) {
+    const source = resolveRoleRenderSource('androidBackground', fallbackImage, fallbackCrop, width, height);
+    if (source.custom) {
+        return renderIconBlob(source.image, width, height, source.crop, getProcessingOptions({
+            paddingPercent: source.paddingPercent,
+            backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value,
+            effect: 'none',
+            dropShadow: false
+        }), 'png');
+    }
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
@@ -4511,6 +4916,7 @@ async function generatePwaBundle(img, crop, operation) {
         );
         addGeneratedFile(portraitName, portrait, { width: splash.width, height: splash.height }, 'png', {
             role: 'splash',
+            sourceRole: roleArtworkEnabled && roleSources.splash.image ? 'splash' : 'main',
             splashSpec: { ...splash, orientation: 'portrait' }
         });
 
@@ -4520,6 +4926,7 @@ async function generatePwaBundle(img, crop, operation) {
         );
         addGeneratedFile(landscapeName, landscape, { width: splash.height, height: splash.width }, 'png', {
             role: 'splash',
+            sourceRole: roleArtworkEnabled && roleSources.splash.image ? 'splash' : 'main',
             splashSpec: {
                 ...splash,
                 cssWidth: splash.cssHeight,
@@ -4531,10 +4938,6 @@ async function generatePwaBundle(img, crop, operation) {
 }
 
 async function generateAndroidBundle(img, crop, operation) {
-    const foregroundOptions = getProcessingOptions({
-        paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 18),
-        backgroundMode: 'transparent'
-    });
     const legacyOptions = getProcessingOptions({
         paddingPercent: Math.max(parseInt(safePaddingSlider.value, 10) || 0, 12),
         backgroundMode: backgroundMode.value === 'transparent' ? 'solid' : backgroundMode.value
@@ -4542,36 +4945,53 @@ async function generateAndroidBundle(img, crop, operation) {
 
     for (const spec of ANDROID_DENSITY_SPECS) {
         const basePath = `android/mipmap-${spec.density}`;
+        const foregroundSource = resolveRoleRenderSource('androidForeground', img, crop, spec.adaptive, spec.adaptive);
+        const foregroundOptions = getProcessingOptions({
+            paddingPercent: foregroundSource.custom
+                ? foregroundSource.paddingPercent
+                : Math.max(parseInt(safePaddingSlider.value, 10) || 0, 18),
+            backgroundMode: 'transparent'
+        });
+        const legacySource = resolveRoleRenderSource('androidForeground', img, crop, spec.legacy, spec.legacy);
+        const roleLegacyOptions = legacySource.custom
+            ? getProcessingOptions({
+                ...legacyOptions,
+                paddingPercent: legacySource.paddingPercent
+            })
+            : legacyOptions;
         const foregroundName = `${basePath}/ic_launcher_foreground.png`;
         const foreground = await runOperationStep(operation, 'Android density assets', foregroundName, () =>
-            renderIconBlob(img, spec.adaptive, spec.adaptive, crop, foregroundOptions, 'png')
+            renderIconBlob(foregroundSource.image, spec.adaptive, spec.adaptive, foregroundSource.crop, foregroundOptions, 'png')
         );
         addGeneratedFile(foregroundName, foreground, { width: spec.adaptive, height: spec.adaptive }, 'png', {
             role: 'android-foreground',
-            density: spec.density
+            density: spec.density,
+            sourceRole: foregroundSource.custom ? 'androidForeground' : 'main'
         });
 
         const backgroundName = `${basePath}/ic_launcher_background.png`;
         const background = await runOperationStep(operation, 'Android density assets', backgroundName, () =>
-            renderBackgroundBlob(spec.adaptive, spec.adaptive)
+            renderBackgroundBlob(spec.adaptive, spec.adaptive, img, crop)
         );
         addGeneratedFile(backgroundName, background, { width: spec.adaptive, height: spec.adaptive }, 'png', {
             role: 'android-background',
-            density: spec.density
+            density: spec.density,
+            sourceRole: roleArtworkEnabled && roleSources.androidBackground.image ? 'androidBackground' : 'configured-background'
         });
 
         const legacyName = `${basePath}/ic_launcher.png`;
         const legacy = await runOperationStep(operation, 'Android density assets', legacyName, () =>
-            renderIconBlob(img, spec.legacy, spec.legacy, crop, legacyOptions, 'png')
+            renderIconBlob(legacySource.image, spec.legacy, spec.legacy, legacySource.crop, roleLegacyOptions, 'png')
         );
         addGeneratedFile(legacyName, legacy, { width: spec.legacy, height: spec.legacy }, 'png', {
             role: 'android-legacy',
-            density: spec.density
+            density: spec.density,
+            sourceRole: legacySource.custom ? 'androidForeground' : 'main'
         });
 
         const roundName = `${basePath}/ic_launcher_round.png`;
         const round = await runOperationStep(operation, 'Android density assets', roundName, () =>
-            renderRoundIconBlob(img, spec.legacy, spec.legacy, crop, legacyOptions)
+            renderRoundIconBlob(legacySource.image, spec.legacy, spec.legacy, legacySource.crop, roleLegacyOptions)
         );
         addGeneratedFile(roundName, round, { width: spec.legacy, height: spec.legacy }, 'png', {
             role: 'android-round',
@@ -4580,7 +5000,7 @@ async function generateAndroidBundle(img, crop, operation) {
 
         const monochromeName = `${basePath}/ic_launcher_monochrome.png`;
         const monochrome = await runOperationStep(operation, 'Android themed icons', monochromeName, () =>
-            renderMonochromeBlob(img, spec.adaptive, spec.adaptive, crop)
+            renderMonochromeBlob(foregroundSource.image, spec.adaptive, spec.adaptive, foregroundSource.crop)
         );
         addGeneratedFile(monochromeName, monochrome, { width: spec.adaptive, height: spec.adaptive }, 'png', {
             role: 'android-monochrome',
@@ -5840,6 +6260,7 @@ function getExportOptionsSnapshot() {
             lossyQualityPercent: getLossyQualityPercent(),
             sizeBudgetBytes: getSizeBudgetBytes()
         },
+        roleArtwork: roleArtworkSnapshot(),
         replacementTemplate: {
             active: replacementTargetNames.size > 0,
             targets: Array.from(replacementTargetNames).sort()
@@ -5856,6 +6277,7 @@ async function exportManifestRecord(file) {
         kind: file.support ? 'support' : 'image',
         format: file.format || null,
         role: file.role || file.purpose || null,
+        sourceRole: file.sourceRole || null,
         dimensions: dimensionsForFile(file),
         mimeType: mimeTypeForFile(file),
         byteSize: file.blob?.size || 0,
@@ -6061,6 +6483,7 @@ function applyReforgeManifest(input) {
     setSelectedSizesFromDraft(options.sizes);
     setSelectedFormatsFromDraft(options.formats);
     applyProcessingValues(options.processing || {});
+    applyRoleArtworkSettings(options.roleArtwork || {});
     replacementTargetNames = new Set((options.replacementTemplate?.targets || []).map(normalizeTemplateName));
     replaceInput.value = '';
     replaceStatus.textContent = replacementTargetNames.size
@@ -7414,6 +7837,16 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         inspectSourceHeader,
         MAX_SOURCE_DECODE_PIXELS,
         MAX_SOURCE_EDGE,
+        ROLE_SOURCE_DEFINITIONS,
+        roleArtworkSnapshot,
+        applyRoleArtworkSettings,
+        centerCropForAspect,
+        resolveRoleRenderSource,
+        loadRoleSourceFile,
+        clearRoleSource,
+        renderSplashBlob,
+        renderBackgroundBlob,
+        generateAndroidBundle,
         setState(next = {}) {
             if (Object.prototype.hasOwnProperty.call(next, 'sourceFileName')) sourceFileName = next.sourceFileName;
             if (Object.prototype.hasOwnProperty.call(next, 'locale')) setLocale(next.locale, { persist: false });
@@ -7424,6 +7857,18 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                 sourceImage = size ? { naturalWidth: size.width, naturalHeight: size.height } : null;
             }
             if (Object.prototype.hasOwnProperty.call(next, 'cropRegion')) cropRegion = next.cropRegion;
+            if (Object.prototype.hasOwnProperty.call(next, 'roleArtwork')) {
+                applyRoleArtworkSettings(next.roleArtwork || {});
+                for (const [role, saved] of Object.entries(next.roleArtwork?.sources || {})) {
+                    if (!roleSources[role]) continue;
+                    if (Object.prototype.hasOwnProperty.call(saved, 'image')) roleSources[role].image = saved.image;
+                    if (Object.prototype.hasOwnProperty.call(saved, 'dataUrl')) roleSources[role].dataUrl = saved.dataUrl;
+                    if (Object.prototype.hasOwnProperty.call(saved, 'name')) roleSources[role].name = saved.name || '';
+                    if (Object.prototype.hasOwnProperty.call(saved, 'width')) roleSources[role].width = Number(saved.width) || 0;
+                    if (Object.prototype.hasOwnProperty.call(saved, 'height')) roleSources[role].height = Number(saved.height) || 0;
+                }
+                updateRoleArtworkUi();
+            }
             if (Object.prototype.hasOwnProperty.call(next, 'draftEnabled')) {
                 draftEnabledToggle.checked = Boolean(next.draftEnabled);
                 if (draftEnabledToggle.checked) draftClearedUntilChange = false;
@@ -7502,6 +7947,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
                 sourceMode,
                 originalImageData,
                 cropRegion,
+                roleArtwork: roleArtworkSnapshot(),
                 draftEnabled: Boolean(draftEnabledToggle?.checked),
                 draftSourceEnabled: Boolean(draftSourceToggle?.checked),
                 draftClearOnExport: Boolean(draftClearOnExportToggle?.checked),

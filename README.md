@@ -11,6 +11,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Multiple input modes** - upload an image, paste from clipboard, create from text/letter, or pick an emoji
 - **All icon formats** - PNG, ICO (multi-resolution), SVG (with dark mode CSS), JPG, WebP, AVIF
 - **Platform bundles** - one-click exports for Modern Web, PWA, Chrome Extension, Android adaptive icons, iOS AppIcon.appiconset, Windows tiles, or All Sizes
+- **Advanced role artwork** - optionally supply separate local-only splash, Android foreground, and Android background sources with independent contain/center-crop and padding controls; omitted roles use explicit defaults
 - **Android launcher handoff** - emits regular and round density buckets, v26 adaptive XML, API 33 monochrome themed-icon XML, and manifest icon references
 - **Social previews** - optional Open Graph, Twitter, and LinkedIn preview PNGs with copyable meta tags
 - **Auto-crop** - detect content bounds and trim whitespace with adjustable tolerance
@@ -33,7 +34,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Keyboard-accessible source modes** - Upload, Text, and Emoji use APG tabs with Arrow/Home/End navigation, high-visibility focus rings, assertive error focus, and WCAG-compliant muted text
 - **Stateful assistive semantics** - shape and emoji selection expose pressed state, the workflow rail announces its current step, and repeated output actions include their filename
 - **Generation diagnostics** - reports browser and service-worker support, selected preset/formats, stable errors, per-stage timings, worker fallback state, folder-write recovery, file count, byte total, and validation status
-- **Draft recovery controls** - saves versioned settings with visible age/size and a 30-day TTL, optionally restores source bytes, supports disable/clear, and can clear automatically after ZIP or folder export
+- **Draft recovery controls** - saves v3 settings with visible age/size and a 30-day TTL, optionally restores main and per-role source bytes under one 4 MB limit, migrates v1/v2 drafts, supports disable/clear, and can clear automatically after ZIP or folder export
 - **Installed file handling** - installed Chrome/Edge PWAs can open supported image files from the operating system
 - **UI string catalog** - shell, status, diagnostic, validation, and snippet text now route through default English catalog keys for future localization
 - **Localization test modes** - persistent BCP 47 locale selection includes deterministic pseudo-expanded and pseudo-RTL catalogs that exercise shell/runtime copy, bidirectional layout, focus order, and generated-manifest `lang`/`dir`
@@ -111,7 +112,7 @@ Custom sizes up to 4096x4096 can be added.
 
 WebP and AVIF output are feature-detected and hidden on unsupported browsers.
 
-The browser smoke matrix runs versioned PNG/JPEG/WebP/SVG/ICO/BMP/TIFF fixtures, EXIF orientation, malformed and mismatched inputs, pixel-tolerance goldens at 16/32/512 plus maskable/monochrome roles, exact representative Web/ICO/PNG/SVG/ZIP contracts, forced worker fallback, draft recovery, and offline navigation in Chromium, Firefox, and WebKit. Chromium also parses the production install manifest and performs a two-version service-worker transition, proving the reload choice, draft restoration, obsolete-cache cleanup, and offline reopen; engines without equivalent manifest diagnostics are reported as unsupported by the harness. Engine codec gaps such as TIFF, plus AVIF encoding, File System Access, installed-app file handling, OffscreenCanvas, and automation-level offline navigation, are reported as supported or unsupported instead of being assumed.
+The browser smoke matrix runs versioned PNG/JPEG/WebP/SVG/ICO/BMP/TIFF fixtures, EXIF orientation, malformed and mismatched inputs, pixel-tolerance goldens at 16/32/512 plus maskable/monochrome roles, exact representative Web/ICO/PNG/SVG/ZIP contracts, forced worker fallback, draft recovery, and offline navigation in Chromium, Firefox, and WebKit. Chromium additionally verifies per-role source loading, draft restoration, Android generation, export privacy, and cancellation. It also parses the production install manifest and performs a two-version service-worker transition, proving the reload choice, draft restoration, obsolete-cache cleanup, and offline reopen; engines without equivalent manifest diagnostics are reported as unsupported by the harness. Engine codec gaps such as TIFF, plus AVIF encoding, File System Access, installed-app file handling, OffscreenCanvas, and automation-level offline navigation, are reported as supported or unsupported instead of being assumed.
 
 ## Privacy
 

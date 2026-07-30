@@ -16,6 +16,8 @@ All notable changes to IconForge will be documented in this file.
 - Android validation now proves all launcher XML references resolve across mdpi–xxxhdpi and checks themed monochrome pixel semantics.
 - Reforge Previous Export now previews and restores reproducible settings from `iconforge-export.json`, migrates v1 in memory, fails closed on malformed or future schemas, and requests source-artwork re-selection.
 - Persistent BCP 47 interface locales now update document language/direction with deterministic English fallback; pseudo-expanded and pseudo-RTL catalogs cover shell/runtime text and generated-manifest defaults without claiming production translations.
+- Advanced role artwork accepts separate local-only splash, Android foreground, and Android background sources with independent contain/center-crop and padding controls plus explicit fallbacks.
+- Draft schema v3 migrates v1/v2 records and applies the existing opt-in and 4 MB cap to main and per-role source bytes together.
 
 ### Fixed
 - Hidden progress and output states now remain hidden until their owning workflow explicitly reveals them.
@@ -26,6 +28,7 @@ All notable changes to IconForge will be documented in this file.
 ### Tests
 - Versioned adversarial fixtures cover EXIF orientation, alpha edges, Unicode SVG text, malformed and mismatched files, oversized metadata, and engine codec support; decoded 16/32/512, maskable, and monochrome pixels are checked with explicit tolerances.
 - Installed-PWA coverage now requires a clean production-manifest parse and a controlled two-version worker transition with one reload action, eligible-draft restoration, obsolete-cache deletion, and an offline reopen.
+- Chromium coverage loads and restores all role sources, cancels role-aware generation without partial output, and verifies Android source routing, diagnostics, validation, and export-manifest privacy.
 
 ### Accessibility
 - Text shapes and emoji choices now maintain one `aria-pressed` selection, the workflow rail advances a single `aria-current` step, and every generated download/copy action includes its filename.
