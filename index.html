@@ -28,7 +28,7 @@
         </header>
 
         <nav class="workflow-rail" aria-label="Icon generation workflow">
-            <div class="workflow-step is-current" aria-current="step">
+            <div class="workflow-step is-current" data-workflow-step="source" aria-current="step">
                 <span class="workflow-number">1</span>
                 <span class="workflow-copy">
                     <strong>Source</strong>
@@ -36,7 +36,7 @@
                 </span>
             </div>
             <div class="workflow-connector" aria-hidden="true"></div>
-            <div class="workflow-step">
+            <div class="workflow-step" data-workflow-step="configure">
                 <span class="workflow-number">2</span>
                 <span class="workflow-copy">
                     <strong>Configure</strong>
@@ -44,7 +44,7 @@
                 </span>
             </div>
             <div class="workflow-connector" aria-hidden="true"></div>
-            <div class="workflow-step">
+            <div class="workflow-step" data-workflow-step="export">
                 <span class="workflow-number">3</span>
                 <span class="workflow-copy">
                     <strong>Export</strong>
@@ -193,9 +193,9 @@
 
                         <label class="section-label mt-md">Shape</label>
                         <div class="shape-options" id="shapeOptions">
-                            <button class="btn-crop active" data-shape="rounded">Rounded</button>
-                            <button class="btn-crop" data-shape="circle">Circle</button>
-                            <button class="btn-crop" data-shape="square">Square</button>
+                            <button class="btn-crop active" type="button" data-shape="rounded" aria-pressed="true">Rounded</button>
+                            <button class="btn-crop" type="button" data-shape="circle" aria-pressed="false">Circle</button>
+                            <button class="btn-crop" type="button" data-shape="square" aria-pressed="false">Square</button>
                         </div>
 
                         <div class="text-preview-area mt-md">
@@ -217,9 +217,9 @@
 
                         <label class="section-label mt-md">Shape</label>
                         <div class="shape-options" id="emojiShapeOptions">
-                            <button class="btn-crop active" data-shape="rounded">Rounded</button>
-                            <button class="btn-crop" data-shape="circle">Circle</button>
-                            <button class="btn-crop" data-shape="square">Square</button>
+                            <button class="btn-crop active" type="button" data-shape="rounded" aria-pressed="true">Rounded</button>
+                            <button class="btn-crop" type="button" data-shape="circle" aria-pressed="false">Circle</button>
+                            <button class="btn-crop" type="button" data-shape="square" aria-pressed="false">Square</button>
                         </div>
 
                         <div class="text-preview-area mt-md">

@@ -14,6 +14,9 @@ All notable changes to IconForge will be documented in this file.
 - Hidden progress and output states now remain hidden until their owning workflow explicitly reveals them.
 - Production install metadata now ships exact 192px and 512px icons, a dedicated maskable icon, aligned shell colors, and offline-cached identity assets.
 
+### Accessibility
+- Text shapes and emoji choices now maintain one `aria-pressed` selection, the workflow rail advances a single `aria-current` step, and every generated download/copy action includes its filename.
+
 ## [v0.4.24] - 2026-07-25
 
 ### Fixed

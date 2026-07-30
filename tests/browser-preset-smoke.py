@@ -245,6 +245,15 @@ async (preset) => {
   const validation = await api.validateGeneratedExport();
   const diagnostics = api.buildGenerationDiagnostics({ selectedFormats: [], validationResult: validation });
   const supportReport = api.buildDiagnosticsSupportReport({ selectedFormats: [], validationResult: validation, diagnostics });
+  const outputActionViolations = Array.from(document.querySelectorAll("#outputGrid .output-item")).flatMap((item) => {
+    const download = item.querySelector(".btn-download");
+    const copy = item.querySelector(".btn-copy");
+    const fileName = download?.dataset.filename || "";
+    const violations = [];
+    if (!fileName || download?.getAttribute("aria-label") !== `Download ${fileName}`) violations.push(`download:${fileName}`);
+    if (!fileName || copy?.getAttribute("aria-label") !== `Copy ${fileName} as Base64 data URL`) violations.push(`copy:${fileName}`);
+    return violations;
+  });
 
   return {
     preset,
@@ -262,6 +271,9 @@ async (preset) => {
       progressEvents: zipCancelProgressEvents,
       generatedFilesPreserved: api.getState().generatedFiles.length === beforeCancelledZipCount
     },
+    workflowCurrent: document.querySelector('[data-workflow-step][aria-current="step"]')?.dataset.workflowStep || null,
+    workflowCurrentCount: document.querySelectorAll('[data-workflow-step][aria-current="step"]').length,
+    outputActionViolations,
     desktopOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
     diagnosticsText: document.querySelector("#diagnosticsSummary")?.textContent || ""
   };
@@ -351,6 +363,20 @@ def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
     )
     if end_state != {"activeId": "sourceTabEmoji", "selected": "sourceTabEmoji", "emojiVisible": True}:
         failures.append(f"source tab End state was incorrect: {end_state}")
+    emoji_buttons = page.locator("#emojiGrid .emoji-btn")
+    if emoji_buttons.count() < 2:
+        failures.append("emoji selector did not render enough choices")
+        emoji_pressed_state = None
+    else:
+        emoji_buttons.nth(1).click()
+        emoji_pressed_state = page.evaluate(
+            """() => ({
+                pressed: document.querySelectorAll("#emojiGrid .emoji-btn[aria-pressed='true']").length,
+                selectedMatches: document.querySelector("#emojiGrid .emoji-btn.selected")?.getAttribute("aria-pressed")
+            })"""
+        )
+        if emoji_pressed_state != {"pressed": 1, "selectedMatches": "true"}:
+            failures.append(f"emoji pressed state was incorrect: {emoji_pressed_state}")
 
     page.locator("#sourceTabEmoji").press("Home")
     page.wait_for_timeout(200)
@@ -373,6 +399,15 @@ def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
         failures.append(f"source tab focus indicator was not visible: {focus_style}")
 
     page.locator("#sourceTabText").click()
+    page.locator("#shapeOptions [data-shape='circle']").click()
+    shape_pressed_state = page.evaluate(
+        """() => ({
+            pressed: document.querySelectorAll("#shapeOptions [aria-pressed='true']").length,
+            circlePressed: document.querySelector("#shapeOptions [data-shape='circle']")?.getAttribute("aria-pressed")
+        })"""
+    )
+    if shape_pressed_state != {"pressed": 1, "circlePressed": "true"}:
+        failures.append(f"text shape pressed state was incorrect: {shape_pressed_state}")
     page.locator("#textInput").fill("IF")
     page.locator("#btnUseTextIcon").click()
     page.wait_for_function("() => !document.querySelector('#btnGenerate').disabled")
@@ -396,6 +431,8 @@ def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
     return {
         "arrowNavigation": arrow_state,
         "endNavigation": end_state,
+        "emojiPressed": emoji_pressed_state,
+        "shapePressed": shape_pressed_state,
         "focusStyle": focus_style,
         "errorFocus": error_focus,
     }, failures
@@ -471,6 +508,10 @@ def validate_result(result: dict) -> list[str]:
 
     if result["validation"]["status"] != "pass":
         failures.append(f"{preset}: validation did not pass: {result['validation']}")
+    if result.get("workflowCurrent") != "export" or result.get("workflowCurrentCount") != 1:
+        failures.append(f"{preset}: workflow rail did not expose one Export step: {result.get('workflowCurrent')}")
+    if result.get("outputActionViolations"):
+        failures.append(f"{preset}: output action accessible names were ambiguous: {result['outputActionViolations'][:3]}")
     zip_progress = result.get("zipProgress") or []
     if not zip_progress or zip_progress[-1].get("completed") != zip_progress[-1].get("total"):
         failures.append(f"{preset}: ZIP progress did not reach completion: {zip_progress[-1:]}")

@@ -4,6 +4,7 @@ const path = require('path');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
+const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 const documentHtml = html;
 const labelForIds = new Set(
   Array.from(documentHtml.matchAll(/<label\b[^>]*\bfor=["']([^"']+)["'][^>]*>/gi), (match) => match[1])
@@ -102,6 +103,19 @@ for (const tabTag of sourceTabs) {
 }
 assert.strictEqual(selectedSourceTabs, 1, 'exactly one source tab should be selected by default');
 
+const workflowSteps = Array.from(documentHtml.matchAll(/<div\b[^>]*\bdata-workflow-step=["'](source|configure|export)["'][^>]*>/gi), (match) => attrs(match[0]));
+assert.strictEqual(workflowSteps.length, 3, 'workflow rail should expose Source, Configure, and Export steps');
+assert.strictEqual(workflowSteps.filter((step) => step['aria-current'] === 'step').length, 1, 'workflow rail should expose exactly one current step');
+assert.strictEqual(workflowSteps.find((step) => step['aria-current'] === 'step')['data-workflow-step'], 'source');
+
+const shapeButtons = Array.from(documentHtml.matchAll(/<button\b[^>]*\bdata-shape=["'](rounded|circle|square)["'][^>]*>/gi), (match) => attrs(match[0]));
+assert.strictEqual(shapeButtons.length, 6, 'text and emoji source tools should each expose three shape toggles');
+assert.strictEqual(shapeButtons.filter((button) => button['aria-pressed'] === 'true').length, 2, 'each shape group should expose one default pressed toggle');
+assert(shapeButtons.every((button) => ['true', 'false'].includes(button['aria-pressed'])), 'every shape toggle should declare aria-pressed');
+assert(app.includes("btn.setAttribute('aria-pressed', String(selected));"), 'runtime selection changes should synchronize aria-pressed');
+assert(app.includes('aria-label="Download ${safeName}"'), 'generated downloads should include their filename in the accessible name');
+assert(app.includes('aria-label="Copy ${safeName} as Base64 data URL"'), 'generated copy actions should include their filename in the accessible name');
+
 const sourceTabList = documentHtml.match(/<div\b[^>]*\bclass=["'][^"']*\binput-mode-tabs\b[^"']*["'][^>]*>/i);
 assert(sourceTabList, 'source tablist should exist');
 assert.strictEqual(attrs(sourceTabList[0]).role, 'tablist');
@@ -151,4 +165,5 @@ const i18nKeys = new Set(
 console.log('visible form controls have labels');
 console.log('handoff snippet tabs expose tabpanel relationships');
 console.log('source tabs expose keyboard relationships and muted text meets contrast');
+console.log('selection, workflow, and output actions expose stateful semantics');
 console.log('shell text has catalog hooks');

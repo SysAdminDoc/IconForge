@@ -767,9 +767,22 @@ function applyManifestDraftValues(values = {}) {
 function setShapeSelection(containerSelector, shape) {
     const nextShape = ['rounded', 'circle', 'square'].includes(shape) ? shape : 'rounded';
     document.querySelectorAll(`${containerSelector} .btn-crop`).forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.shape === nextShape);
+        const selected = btn.dataset.shape === nextShape;
+        btn.classList.toggle('active', selected);
+        btn.setAttribute('aria-pressed', String(selected));
     });
     return nextShape;
+}
+
+function setWorkflowStep(step) {
+    const nextStep = ['source', 'configure', 'export'].includes(step) ? step : 'source';
+    document.querySelectorAll('[data-workflow-step]').forEach(item => {
+        const current = item.dataset.workflowStep === nextStep;
+        item.classList.toggle('is-current', current);
+        if (current) item.setAttribute('aria-current', 'step');
+        else item.removeAttribute('aria-current');
+    });
+    return nextStep;
 }
 
 function setActivePresetButton(key) {
@@ -1128,7 +1141,9 @@ function applyDraftControls(draft) {
         emojiBgColor.value = draft.sourceTools.emoji.backgroundColor || emojiBgColor.value;
         emojiShape = setShapeSelection('#emojiShapeOptions', draft.sourceTools.emoji.shape);
         emojiGrid.querySelectorAll('.emoji-btn').forEach(btn => {
-            btn.classList.toggle('selected', btn.textContent === selectedEmoji);
+            const selected = btn.textContent === selectedEmoji;
+            btn.classList.toggle('selected', selected);
+            btn.setAttribute('aria-pressed', String(selected));
         });
         renderEmojiPreview();
     }
@@ -1165,6 +1180,7 @@ async function restoreDraftSourceImage(draft) {
         cropSection.classList.add('active');
         cropRegion = validDraftCrop(draft.cropRegion, img);
         currentCropRect = null;
+        setWorkflowStep('configure');
         isManualCropMode = false;
         btnManualCrop.classList.remove('active');
         setElementVisible(btnApplyCrop, false);
@@ -1790,6 +1806,7 @@ function setInputMode(mode) {
     setElementVisible(emojiMode, nextMode === 'emoji');
     if (nextMode === 'text') renderTextPreview();
     if (nextMode === 'emoji') renderEmojiPreview();
+    setWorkflowStep('source');
 }
 
 document.querySelector('.input-mode-tabs').addEventListener('click', (e) => {
@@ -1828,9 +1845,7 @@ let textShape = 'rounded';
 document.getElementById('shapeOptions').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-shape]');
     if (!btn) return;
-    document.querySelectorAll('#shapeOptions .btn-crop').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    textShape = btn.dataset.shape;
+    textShape = setShapeSelection('#shapeOptions', btn.dataset.shape);
     renderTextPreview();
     queueDraftSave();
 });
@@ -1882,6 +1897,7 @@ document.getElementById('btnUseTextIcon').addEventListener('click', () => {
         cropRegion = null;
         initCropCanvas();
         updateMaskPreview();
+        setWorkflowStep('configure');
         saveDraftState({ silent: true });
     };
     img.src = textPreviewCanvas.toDataURL('image/png');
@@ -1903,9 +1919,13 @@ EMOJIS.forEach(em => {
     btn.className = 'emoji-btn' + (em === selectedEmoji ? ' selected' : '');
     btn.textContent = em;
     btn.setAttribute('aria-label', `Select emoji ${em}`);
+    btn.setAttribute('aria-pressed', String(em === selectedEmoji));
         btn.addEventListener('click', () => {
-            emojiGrid.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
+            emojiGrid.querySelectorAll('.emoji-btn').forEach(b => {
+                const selected = b === btn;
+                b.classList.toggle('selected', selected);
+                b.setAttribute('aria-pressed', String(selected));
+            });
             selectedEmoji = em;
             renderEmojiPreview();
             queueDraftSave();
@@ -1921,9 +1941,7 @@ let emojiShape = 'rounded';
 document.getElementById('emojiShapeOptions').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-shape]');
     if (!btn) return;
-    document.querySelectorAll('#emojiShapeOptions .btn-crop').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    emojiShape = btn.dataset.shape;
+    emojiShape = setShapeSelection('#emojiShapeOptions', btn.dataset.shape);
     renderEmojiPreview();
     queueDraftSave();
 });
@@ -1970,6 +1988,7 @@ document.getElementById('btnUseEmojiIcon').addEventListener('click', () => {
         cropRegion = null;
         initCropCanvas();
         updateMaskPreview();
+        setWorkflowStep('configure');
         saveDraftState({ silent: true });
     };
     img.src = emojiPreviewCanvas.toDataURL('image/png');
@@ -2454,6 +2473,7 @@ function activateLoadedImage(file, img, previewSrc, detail = '') {
     cropRegion = null;
     initCropCanvas();
     updateMaskPreview();
+    setWorkflowStep('configure');
     saveDraftState({ silent: true });
 }
 
@@ -2530,6 +2550,7 @@ initFileHandlingLaunch();
 function resetInput() {
     sourceImage = null;
     renderGenerationPreflight();
+    setWorkflowStep('source');
     sourceFileName = '';
     sourceMode = 'upload';
     originalImageData = null;
@@ -3575,6 +3596,7 @@ async function generateIcons() {
     }
 
     const operation = beginOperation('generation', plan.operationCount);
+    setWorkflowStep('export');
     btnGenerate.disabled = true;
     btnDownloadAll.disabled = true;
     if (btnSaveToFolder) btnSaveToFolder.disabled = true;
@@ -3645,6 +3667,7 @@ async function generateIcons() {
             generatedFiles = [];
             generatedSnippets = {};
             setElementVisible(outputSection, false);
+            setWorkflowStep('configure');
             showStatus(uiText('status.generationCancelled'), 'warning');
         } else {
             setElementVisible(outputSection, true, 'block');
@@ -4125,10 +4148,10 @@ function addOutputItem(fileName, blob, size, format, icoSizes = null, fileSize =
             <img src="${blobUrl}" alt="${safeName}">
         </div>
         <div class="output-info" title="${safeName}">${shortName}<br>${sizeText}<br>${format.toUpperCase()}${sizeDisplay}</div>
-        <button class="btn-download" data-filename="${safeName}">Download</button>
+        <button class="btn-download" data-filename="${safeName}" aria-label="Download ${safeName}">Download</button>
         <div class="base64-section">
             <div class="base64-container">
-                <button class="btn-copy" title="Copy base64 data URL">
+                <button class="btn-copy" title="Copy ${safeName} as Base64 data URL" aria-label="Copy ${safeName} as Base64 data URL">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
