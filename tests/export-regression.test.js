@@ -570,6 +570,21 @@ function makeAndroidDensityFiles() {
       size: { width: spec.legacy, height: spec.legacy },
       format: 'png',
       role: 'android-legacy'
+    },
+    {
+      name: `android/mipmap-${spec.density}/ic_launcher_round.png`,
+      blob: makeBlob(),
+      size: { width: spec.legacy, height: spec.legacy },
+      format: 'png',
+      role: 'android-round'
+    },
+    {
+      name: `android/mipmap-${spec.density}/ic_launcher_monochrome.png`,
+      blob: makeBlob(),
+      size: { width: spec.adaptive, height: spec.adaptive },
+      format: 'png',
+      role: 'android-monochrome',
+      purpose: 'monochrome'
     }
   ]);
 }
@@ -1361,9 +1376,21 @@ async function main() {
   await api.generateSnippets([], []);
   assert(api.getState().generatedSnippets.handoff.android.includes('android/mipmap-mdpi/ic_launcher_foreground.png -> app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png'));
   assert(api.getState().generatedSnippets.handoff.android.includes('android/mipmap-xxxhdpi/ic_launcher.png -> app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'));
+  assert(api.getState().generatedSnippets.handoff.android.includes('mipmap-anydpi-v33/ic_launcher.xml'));
+  assert(api.getState().generatedSnippets.handoff.android.includes('<monochrome android:drawable="@mipmap/ic_launcher_monochrome"'));
+  assert(api.getState().generatedSnippets.handoff.android.includes('android:roundIcon="@mipmap/ic_launcher_round"'));
+  const androidSupportNames = new Set(api.getSupportFiles().map((file) => file.name));
+  [
+    'android/mipmap-anydpi-v26/ic_launcher.xml',
+    'android/mipmap-anydpi-v26/ic_launcher_round.xml',
+    'android/mipmap-anydpi-v33/ic_launcher.xml',
+    'android/mipmap-anydpi-v33/ic_launcher_round.xml',
+    'android/AndroidManifest.xml'
+  ].forEach((name) => assert(androidSupportNames.has(name), `${name} should be exported`));
   const androidValidation = await api.validateGeneratedExport({ artifactChecks: false });
   assert.strictEqual(androidValidation.status, 'pass', 'Android density bucket validation should pass');
-  assert(androidValidation.checks.some((check) => check.label === 'Android adaptive icon files' && check.detail.includes('15 expected files')));
+  assert(androidValidation.checks.some((check) => check.label === 'Android adaptive icon files' && check.detail.includes('25 expected files')));
+  assert(androidValidation.checks.some((check) => check.label === 'Android launcher references' && check.status === 'pass'));
   api.setState({
     activePresetKey: 'ios',
     generatedFiles: [

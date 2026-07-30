@@ -11,6 +11,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Multiple input modes** - upload an image, paste from clipboard, create from text/letter, or pick an emoji
 - **All icon formats** - PNG, ICO (multi-resolution), SVG (with dark mode CSS), JPG, WebP, AVIF
 - **Platform bundles** - one-click exports for Modern Web, PWA, Chrome Extension, Android adaptive icons, iOS AppIcon.appiconset, Windows tiles, or All Sizes
+- **Android launcher handoff** - emits regular and round density buckets, v26 adaptive XML, API 33 monochrome themed-icon XML, and manifest icon references
 - **Social previews** - optional Open Graph, Twitter, and LinkedIn preview PNGs with copyable meta tags
 - **Auto-crop** - detect content bounds and trim whitespace with adjustable tolerance
 - **Manual crop** - draw a crop rectangle or enter precise dimensions
@@ -93,7 +94,7 @@ rtk node -c sw.js
 | Modern Web | 16, 32, 48, 180, 192, 512 | favicon.ico, SVG favicon, apple-touch-icon, manifest icons |
 | PWA | 72-512 icons + 40 startup images | Any + maskable icons, optional monochrome silhouette, current iOS/iPadOS splash images, web manifest |
 | Extension | 16, 32, 48, 128 | Chrome/Firefox extension icons |
-| Android | mdpi-xxxhdpi adaptive + legacy buckets | Foreground/background/legacy PNGs and adaptive icon XML |
+| Android | mdpi-xxxhdpi adaptive + legacy buckets | Foreground/background/regular/round/monochrome PNGs, v26/v33 adaptive XML, and AndroidManifest handoff |
 | iOS | 180, 512 + app icon matrix | Full AppIcon.appiconset with Contents.json |
 | Windows | 70, 150, 310, 310x150 | Windows tile images and browserconfig.xml |
 | All Sizes | 16-512 standard set | Complete coverage |

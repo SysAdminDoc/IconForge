@@ -498,6 +498,7 @@ const UI_STRINGS = Object.freeze({
             pwaSplash: 'PWA splash files',
             extensionFiles: 'Extension icon files',
             androidFiles: 'Android adaptive icon files',
+            androidReferences: 'Android launcher references',
             iosFiles: 'iOS AppIcon files',
             windowsFiles: 'Windows tile files',
             socialFiles: 'Social preview files'
@@ -3534,10 +3535,10 @@ function inspectGenerationPlan({
         PWA_ICON_SIZES.forEach(size => addPixels(size, size, 2));
         PWA_SPLASH_SPECS.forEach(spec => addPixels(spec.width, spec.height, 2));
     } else if (presetKey === 'android') {
-        operationCount += ANDROID_DENSITY_SPECS.length * 3;
+        operationCount += ANDROID_DENSITY_SPECS.length * 5;
         ANDROID_DENSITY_SPECS.forEach(spec => {
-            addPixels(spec.adaptive, spec.adaptive, 2);
-            addPixels(spec.legacy, spec.legacy);
+            addPixels(spec.adaptive, spec.adaptive, 3);
+            addPixels(spec.legacy, spec.legacy, 2);
         });
     } else if (presetKey === 'ios') {
         operationCount += IOS_ICON_SPECS.length;
@@ -3897,6 +3898,26 @@ async function renderIconBlob(img, width, height, crop, options, format = 'png')
     }
 }
 
+async function renderRoundIconBlob(img, width, height, crop, options) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    drawIconToContext(ctx, img, width, height, crop, options);
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.beginPath();
+    ctx.arc(width / 2, height / 2, Math.min(width, height) / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    try {
+        return await canvasToOutputBlob(canvas, 'image/png', undefined, `Round Android PNG ${width}x${height}`);
+    } finally {
+        canvas.width = 0;
+        canvas.height = 0;
+    }
+}
+
 async function renderSplashBlob(img, width, height, crop) {
     const options = getProcessingOptions({
         paddingPercent: 38,
@@ -4114,6 +4135,26 @@ async function generateAndroidBundle(img, crop, operation) {
         );
         addGeneratedFile(legacyName, legacy, { width: spec.legacy, height: spec.legacy }, 'png', {
             role: 'android-legacy',
+            density: spec.density
+        });
+
+        const roundName = `${basePath}/ic_launcher_round.png`;
+        const round = await runOperationStep(operation, 'Android density assets', roundName, () =>
+            renderRoundIconBlob(img, spec.legacy, spec.legacy, crop, legacyOptions)
+        );
+        addGeneratedFile(roundName, round, { width: spec.legacy, height: spec.legacy }, 'png', {
+            role: 'android-round',
+            density: spec.density
+        });
+
+        const monochromeName = `${basePath}/ic_launcher_monochrome.png`;
+        const monochrome = await runOperationStep(operation, 'Android themed icons', monochromeName, () =>
+            renderMonochromeBlob(img, spec.adaptive, spec.adaptive, crop)
+        );
+        addGeneratedFile(monochromeName, monochrome, { width: spec.adaptive, height: spec.adaptive }, 'png', {
+            role: 'android-monochrome',
+            purpose: 'monochrome',
+            monochromeMethod: 'alpha-silhouette',
             density: spec.density
         });
     }
@@ -4912,12 +4953,27 @@ function buildExtensionSnippet() {
     return Object.keys(icons).length > 0 ? JSON.stringify({ icons }, null, 2) : '';
 }
 
-function buildAndroidSnippet() {
-    if (activePresetKey !== 'android') return '';
+function buildAndroidAdaptiveIconSnippet({ themed = false } = {}) {
+    const monochrome = themed
+        ? '\n    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />'
+        : '';
     return `<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@mipmap/ic_launcher_background" />
-    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />${monochrome}
 </adaptive-icon>`;
+}
+
+function buildAndroidManifestSnippet() {
+    return `<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round" />
+</manifest>`;
+}
+
+function buildAndroidSnippet() {
+    if (activePresetKey !== 'android') return '';
+    return buildAndroidAdaptiveIconSnippet();
 }
 
 function buildIosContents() {
@@ -5143,7 +5199,19 @@ function buildAndroidHandoffSnippet() {
 ${fileLines}
 
 // app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
-${buildAndroidSnippet()}`;
+${buildAndroidAdaptiveIconSnippet()}
+
+// app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+${buildAndroidAdaptiveIconSnippet()}
+
+// app/src/main/res/mipmap-anydpi-v33/ic_launcher.xml
+${buildAndroidAdaptiveIconSnippet({ themed: true })}
+
+// app/src/main/res/mipmap-anydpi-v33/ic_launcher_round.xml
+${buildAndroidAdaptiveIconSnippet({ themed: true })}
+
+// app/src/main/AndroidManifest.xml
+${buildAndroidManifestSnippet()}`;
 }
 
 function buildIosHandoffSnippet() {
@@ -5276,7 +5344,13 @@ function getSupportFiles() {
     if (generatedSnippets.manifest) support.push(textSupportFile(manifestPath, generatedSnippets.manifest, 'application/manifest+json'));
     if (generatedSnippets.social) support.push(textSupportFile('snippets/social-meta.html', generatedSnippets.social, 'text/html'));
     if (generatedSnippets.extension) support.push(textSupportFile('extension/manifest-icons.json', generatedSnippets.extension, 'application/json'));
-    if (generatedSnippets.android) support.push(textSupportFile('android/mipmap-anydpi-v26/ic_launcher.xml', generatedSnippets.android, 'application/xml'));
+    if (generatedSnippets.android) {
+        support.push(textSupportFile('android/mipmap-anydpi-v26/ic_launcher.xml', buildAndroidAdaptiveIconSnippet(), 'application/xml'));
+        support.push(textSupportFile('android/mipmap-anydpi-v26/ic_launcher_round.xml', buildAndroidAdaptiveIconSnippet(), 'application/xml'));
+        support.push(textSupportFile('android/mipmap-anydpi-v33/ic_launcher.xml', buildAndroidAdaptiveIconSnippet({ themed: true }), 'application/xml'));
+        support.push(textSupportFile('android/mipmap-anydpi-v33/ic_launcher_round.xml', buildAndroidAdaptiveIconSnippet({ themed: true }), 'application/xml'));
+        support.push(textSupportFile('android/AndroidManifest.xml', buildAndroidManifestSnippet(), 'application/xml'));
+    }
     if (generatedSnippets.ios) support.push(textSupportFile('ios/AppIcon.appiconset/Contents.json', generatedSnippets.ios, 'application/json'));
     if (generatedSnippets.windows) support.push(textSupportFile('windows/browserconfig.xml', generatedSnippets.windows, 'application/xml'));
 
@@ -5785,7 +5859,9 @@ function expectedPresetFileGroups() {
                 specs: ANDROID_DENSITY_SPECS.flatMap(spec => [
                     { name: `android/mipmap-${spec.density}/ic_launcher_foreground.png`, width: spec.adaptive, height: spec.adaptive },
                     { name: `android/mipmap-${spec.density}/ic_launcher_background.png`, width: spec.adaptive, height: spec.adaptive },
-                    { name: `android/mipmap-${spec.density}/ic_launcher.png`, width: spec.legacy, height: spec.legacy }
+                    { name: `android/mipmap-${spec.density}/ic_launcher.png`, width: spec.legacy, height: spec.legacy },
+                    { name: `android/mipmap-${spec.density}/ic_launcher_round.png`, width: spec.legacy, height: spec.legacy },
+                    { name: `android/mipmap-${spec.density}/ic_launcher_monochrome.png`, width: spec.adaptive, height: spec.adaptive }
                 ])
             }
         ];
@@ -5838,7 +5914,15 @@ async function validateSupportFiles(checks) {
     if (generatedSnippets.manifest) expected.push(activePresetKey === 'pwa' ? 'pwa/manifest.webmanifest' : 'manifest.webmanifest');
     if (generatedSnippets.social) expected.push('snippets/social-meta.html');
     if (generatedSnippets.extension) expected.push('extension/manifest-icons.json');
-    if (generatedSnippets.android) expected.push('android/mipmap-anydpi-v26/ic_launcher.xml');
+    if (generatedSnippets.android) {
+        expected.push(
+            'android/mipmap-anydpi-v26/ic_launcher.xml',
+            'android/mipmap-anydpi-v26/ic_launcher_round.xml',
+            'android/mipmap-anydpi-v33/ic_launcher.xml',
+            'android/mipmap-anydpi-v33/ic_launcher_round.xml',
+            'android/AndroidManifest.xml'
+        );
+    }
     if (generatedSnippets.ios) expected.push('ios/AppIcon.appiconset/Contents.json');
     if (generatedSnippets.windows) expected.push('windows/browserconfig.xml');
 
@@ -5874,6 +5958,61 @@ async function validateSupportFiles(checks) {
             count: expected.length,
             fileWord: expected.length === 1 ? 'file' : 'files'
         }));
+    }
+}
+
+async function validateAndroidLauncherReferences(checks) {
+    if (activePresetKey !== 'android') return;
+    const fileNames = new Set(generatedFiles.map(file => normalizedFileName(file.name)));
+    const supportFiles = getSupportFiles();
+    const supportText = new Map();
+    for (const file of supportFiles) {
+        if (normalizedFileName(file.name).startsWith('android/')) {
+            supportText.set(normalizedFileName(file.name), await file.blob.text());
+        }
+    }
+
+    const failures = [];
+    const requiredSupport = [
+        'android/mipmap-anydpi-v26/ic_launcher.xml',
+        'android/mipmap-anydpi-v26/ic_launcher_round.xml',
+        'android/mipmap-anydpi-v33/ic_launcher.xml',
+        'android/mipmap-anydpi-v33/ic_launcher_round.xml',
+        'android/AndroidManifest.xml'
+    ];
+    requiredSupport.forEach(name => {
+        if (!supportText.has(name)) failures.push(`${name} missing`);
+    });
+
+    for (const [supportName, text] of supportText) {
+        for (const match of text.matchAll(/@mipmap\/([a-z0-9_]+)/g)) {
+            const resourceName = match[1];
+            const hasDensityResource = ANDROID_DENSITY_SPECS.every(spec =>
+                fileNames.has(`android/mipmap-${spec.density}/${resourceName}.png`)
+            );
+            if (!hasDensityResource) failures.push(`${supportName} references incomplete @mipmap/${resourceName}`);
+        }
+    }
+
+    for (const name of ['android/mipmap-anydpi-v33/ic_launcher.xml', 'android/mipmap-anydpi-v33/ic_launcher_round.xml']) {
+        const text = supportText.get(name) || '';
+        if (!text.includes('<monochrome android:drawable="@mipmap/ic_launcher_monochrome"')) {
+            failures.push(`${name} missing monochrome layer`);
+        }
+    }
+    const manifest = supportText.get('android/AndroidManifest.xml') || '';
+    if (!manifest.includes('android:icon="@mipmap/ic_launcher"')) failures.push('AndroidManifest.xml missing android:icon');
+    if (!manifest.includes('android:roundIcon="@mipmap/ic_launcher_round"')) failures.push('AndroidManifest.xml missing android:roundIcon');
+
+    if (failures.length) {
+        addValidationCheck(checks, 'fail', uiText('validation.labels.androidReferences'), fileSpecSummary(failures));
+    } else {
+        addValidationCheck(
+            checks,
+            'pass',
+            uiText('validation.labels.androidReferences'),
+            `${ANDROID_DENSITY_SPECS.length} density buckets resolve regular, round, adaptive, and themed launcher resources.`
+        );
     }
 }
 
@@ -6051,6 +6190,7 @@ async function validateGeneratedExport(options = {}) {
     validateManifestIcons(checks);
     await validateMaskableSafeZone(checks, options.artifactChecks !== false);
     await validateSupportFiles(checks);
+    await validateAndroidLauncherReferences(checks);
     validateSizeBudget(checks);
 
     const status = checks.some(check => check.status === 'fail') ? 'fail' : checks.some(check => check.status === 'warn') ? 'warn' : 'pass';

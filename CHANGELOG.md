@@ -11,6 +11,10 @@ All notable changes to IconForge will be documented in this file.
 - ZIP export now enforces memory and ZIP32 limits before allocation, computes CRCs incrementally, reports progress, yields between chunks, and can be cancelled without losing generated files.
 - Generated assets are grouped into collapsible platform families with file/byte summaries, validation badges, and filename/format/status filters.
 
+### Added
+- Android exports now include density-correct round launcher PNGs, black-alpha monochrome themed-icon layers, v26 regular/round adaptive XML, API 33 monochrome XML, and an `AndroidManifest.xml` handoff with `android:icon` and `android:roundIcon`.
+- Android validation now proves all launcher XML references resolve across mdpi–xxxhdpi and checks themed monochrome pixel semantics.
+
 ### Fixed
 - Hidden progress and output states now remain hidden until their owning workflow explicitly reveals them.
 - Production install metadata now ships exact 192px and 512px icons, a dedicated maskable icon, aligned shell colors, and offline-cached identity assets.
