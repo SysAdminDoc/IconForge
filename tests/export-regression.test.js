@@ -5,7 +5,8 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
-const scriptSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+const scriptSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8')
+  .replace(/^import .*;\r?\n/gm, '');
 const htmlSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const versionSource = fs.readFileSync(path.join(root, 'version.js'), 'utf8');
 const declaredVersion = versionSource.match(/ICONFORGE_VERSION\s*=\s*'([^']+)'/)[1];
@@ -323,7 +324,22 @@ function createDocumentMock() {
   };
 }
 
-function loadApp() {
+async function loadCoreContracts() {
+  const modules = await Promise.all([
+    'archive.js',
+    'schema.js',
+    'manifest.js',
+    'platform.js',
+    'validation.js'
+  ].map((name) => {
+    const source = fs.readFileSync(path.join(root, 'core', name), 'utf8');
+    return import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+  }));
+  return Object.assign({}, ...modules);
+}
+
+async function loadApp(coreContracts = loadCoreContracts()) {
+  const contracts = await coreContracts;
   const document = createDocumentMock();
   const localStorageData = new Map();
   const context = {
@@ -406,7 +422,8 @@ function loadApp() {
     setTimeout,
     clearTimeout,
     ICONFORGE_VERSION: declaredVersion,
-    __ICONFORGE_ENABLE_TEST_API__: true
+    __ICONFORGE_ENABLE_TEST_API__: true,
+    ...contracts
   };
   context.window = context;
   vm.createContext(context);
@@ -590,7 +607,27 @@ function makeAndroidDensityFiles() {
 }
 
 async function main() {
-  const api = loadApp();
+  const core = await loadCoreContracts();
+  assert.strictEqual(core.crc32(new Uint8Array([1, 2, 3])), 1438416925);
+  const coreZip = core.buildStoredZip({
+    entries: [{
+      name: 'a.txt',
+      nameBytes: new TextEncoder().encode('a.txt'),
+      size: 1,
+      file: { data: new Uint8Array([65]) }
+    }],
+    centralSize: 51
+  });
+  assert.strictEqual(new DataView(await coreZip.arrayBuffer()).getUint32(0, true), 0x04034b50);
+  assert.strictEqual(core.inspectExportManifest('{').code, 'EXPORT_MANIFEST_INVALID_JSON');
+  assert.strictEqual(core.migrateDraftSchema({ schema: 'v1' }, 'v2', ['v1']).draft.schema, 'v2');
+  assert.strictEqual(core.buildManifestDocument({ name: 'App' }, [{ src: 'icon.png' }]).icons.length, 1);
+  assert.strictEqual(core.iosIconFileName('20x20', '2x'), 'Icon-App-20x20-2x.png');
+  assert.strictEqual(
+    core.inspectArtifactBytes({ format: 'svg' }, new TextEncoder().encode('<svg></svg>')).valid,
+    true
+  );
+  const api = await loadApp(core);
   assert.strictEqual(api.APP_VERSION, declaredVersion);
   for (const metadata of Object.values(api.PLATFORM_MATRIX_METADATA)) {
     assert.match(metadata.source, /^https:\/\//);

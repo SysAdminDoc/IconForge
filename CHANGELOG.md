@@ -7,6 +7,7 @@ All notable changes to IconForge will be documented in this file.
 ### Changed
 - The app shell is now a responsive forge workstation with a compact command header, Source → Configure → Export workflow rail, source studio, layered configuration cards, and a distinct export console.
 - Presets, metadata, output sizing, processing controls, generated assets, diagnostics, and snippets now use a cohesive navy, ember, and indigo visual system with stronger hierarchy and touch targets.
+- ZIP/CRC, schema migration, platform matrices, generated manifests, and artifact validation now expose native dependency-free ES module contracts shared by the browser runtime and direct regression tests.
 - Generation now reports operation count and conservative peak working memory before starting; unsafe jobs are rejected without discarding prior output.
 - ZIP export now enforces memory and ZIP32 limits before allocation, computes CRCs incrementally, reports progress, yields between chunks, and can be cancelled without losing generated files.
 - Generated assets are grouped into collapsible platform families with file/byte summaries, validation badges, and filename/format/status filters.

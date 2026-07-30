@@ -1137,6 +1137,9 @@ def check_draft_recovery(page, url: str) -> tuple[dict, list[str]]:
     page.locator("#manifestName").fill("Disabled Recovery")
     page.wait_for_timeout(350)
     page.locator("#draftEnabledToggle").uncheck()
+    page.wait_for_function(
+        "() => document.querySelector('#draftStatus')?.textContent.includes('disabled')"
+    )
     page.reload(wait_until="networkidle")
     disabled_name = page.locator("#manifestName").input_value()
     disabled_status = page.locator("#draftStatus").inner_text()

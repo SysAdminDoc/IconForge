@@ -1,85 +1,11 @@
+import { buildStoredZip, crc32, crc32Update, createZipLocalHeader, createZipCentralEntry, createZipEndRecord } from './core/archive.js';
+import { EXPORT_MANIFEST_SCHEMA, EXPORT_MANIFEST_SCHEMA_VERSION, EXPORT_MANIFEST_MIGRATIONS, inspectExportManifest, migrateDraftSchema } from './core/schema.js';
+import { buildManifestDocument, buildAndroidAdaptiveIconDocument, buildAndroidManifestDocument, buildWindowsBrowserConfigDocument } from './core/manifest.js';
+import { PWA_ICON_SIZES, PWA_SPLASH_MATRIX_SOURCE, PWA_SPLASH_MATRIX_VERIFIED, ANDROID_ICON_MATRIX_SOURCE, ANDROID_ICON_MATRIX_VERIFIED, IOS_ICON_MATRIX_SOURCE, IOS_ICON_MATRIX_VERIFIED, PLATFORM_MATRIX_METADATA, PWA_SPLASH_SPECS, WINDOWS_TILE_SPECS, ANDROID_DENSITY_SPECS, IOS_ICON_SPECS, iosIconFileName, startupImageMediaFor } from './core/platform.js';
+import { inspectArtifactBytes } from './core/validation.js';
+
 function buildZip(files) {
-    const plan = inspectZipPlan(files);
-    const parts = [];
-    const centralEntries = [];
-    let offset = 0;
-
-    for (const entry of plan.entries) {
-        const { data } = entry.file;
-        if (!data || typeof data.length !== 'number') {
-            throw new Error(`ZIP entry "${entry.name}" must provide byte data.`);
-        }
-        const nameBytes = entry.nameBytes;
-        const crc = crc32(data);
-        const local = createZipLocalHeader(nameBytes, entry.size, crc);
-        const central = createZipCentralEntry(nameBytes, entry.size, crc, offset);
-        parts.push(local, data);
-        centralEntries.push(central);
-        offset += local.length + entry.size;
-    }
-
-    parts.push(...centralEntries, createZipEndRecord(files.length, plan.centralSize, offset));
-    return new Blob(parts, { type: 'application/zip' });
-}
-
-function crc32Update(crc, data) {
-    if (!crc32.table) {
-        crc32.table = new Uint32Array(256);
-        for (let i = 0; i < 256; i++) {
-            let c = i;
-            for (let j = 0; j < 8; j++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
-            crc32.table[i] = c;
-        }
-    }
-    for (let i = 0; i < data.length; i++) crc = crc32.table[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
-    return crc >>> 0;
-}
-
-function crc32(data) {
-    return (crc32Update(0xFFFFFFFF, data) ^ 0xFFFFFFFF) >>> 0;
-}
-
-function createZipLocalHeader(nameBytes, size, crc) {
-    const local = new Uint8Array(30 + nameBytes.length);
-    const view = new DataView(local.buffer);
-    view.setUint32(0, 0x04034b50, true);
-    view.setUint16(4, 20, true);
-    view.setUint16(6, 0x0800, true);
-    view.setUint16(8, 0, true);
-    view.setUint32(14, crc, true);
-    view.setUint32(18, size, true);
-    view.setUint32(22, size, true);
-    view.setUint16(26, nameBytes.length, true);
-    local.set(nameBytes, 30);
-    return local;
-}
-
-function createZipCentralEntry(nameBytes, size, crc, offset) {
-    const central = new Uint8Array(46 + nameBytes.length);
-    const view = new DataView(central.buffer);
-    view.setUint32(0, 0x02014b50, true);
-    view.setUint16(4, 20, true);
-    view.setUint16(6, 20, true);
-    view.setUint16(8, 0x0800, true);
-    view.setUint16(10, 0, true);
-    view.setUint32(16, crc, true);
-    view.setUint32(20, size, true);
-    view.setUint32(24, size, true);
-    view.setUint16(28, nameBytes.length, true);
-    view.setUint32(42, offset, true);
-    central.set(nameBytes, 46);
-    return central;
-}
-
-function createZipEndRecord(entryCount, centralSize, centralOffset) {
-    const end = new Uint8Array(22);
-    const view = new DataView(end.buffer);
-    view.setUint32(0, 0x06054b50, true);
-    view.setUint16(8, entryCount, true);
-    view.setUint16(10, entryCount, true);
-    view.setUint32(12, centralSize, true);
-    view.setUint32(16, centralOffset, true);
-    return end;
+    return buildStoredZip(inspectZipPlan(files));
 }
 
 const APP_VERSION = globalThis.ICONFORGE_VERSION;
@@ -1235,17 +1161,10 @@ function applyDraftPreferenceControls(preferences = readDraftPreferences()) {
 }
 
 function migrateDraftSnapshot(draft) {
-    if (!draft || typeof draft !== 'object' || Array.isArray(draft)) {
-        return { valid: false, reason: 'Draft data is not an object.' };
-    }
-    let migrated = false;
-    let next = draft;
-    if (['iconforge-draft-v1', 'iconforge-draft-v2'].includes(draft.schema)) {
-        next = { ...draft, schema: DRAFT_SCHEMA, migratedFrom: draft.schema };
-        migrated = true;
-    } else if (draft.schema !== DRAFT_SCHEMA) {
-        return { valid: false, reason: `Unsupported draft schema "${draft.schema || 'missing'}".` };
-    }
+    const schemaMigration = migrateDraftSchema(draft, DRAFT_SCHEMA, LEGACY_DRAFT_STORAGE_KEYS);
+    if (!schemaMigration.valid) return schemaMigration;
+    const { migrated } = schemaMigration;
+    let next = schemaMigration.draft;
     const savedAtMs = Date.parse(next.savedAt);
     if (!Number.isFinite(savedAtMs)) {
         return { valid: false, reason: 'Draft savedAt timestamp is invalid.' };
@@ -4828,60 +4747,6 @@ async function generatePlatformBundle(img, crop, sizes, formats, operation) {
     }
 }
 
-const PWA_ICON_SIZES = [72, 96, 128, 144, 152, 192, 384, 512];
-const PWA_SPLASH_MATRIX_SOURCE = 'https://github.com/elegantapp/pwa-asset-generator/blob/master/src/config/apple-fallback-data.json';
-const PWA_SPLASH_MATRIX_VERIFIED = '2026-07-25';
-const ANDROID_ICON_MATRIX_SOURCE = 'https://developer.android.com/reference/android/graphics/drawable/AdaptiveIconDrawable';
-const ANDROID_ICON_MATRIX_VERIFIED = '2026-07-25';
-const IOS_ICON_MATRIX_SOURCE = 'https://developer.apple.com/library/archive/documentation/Xcode/Reference/xcode_ref-Asset_Catalog_Format/AppIconType.html';
-const IOS_ICON_MATRIX_VERIFIED = '2026-07-25';
-const PLATFORM_MATRIX_METADATA = Object.freeze({
-    pwaSplash: Object.freeze({ source: PWA_SPLASH_MATRIX_SOURCE, lastVerified: PWA_SPLASH_MATRIX_VERIFIED }),
-    androidIcons: Object.freeze({ source: ANDROID_ICON_MATRIX_SOURCE, lastVerified: ANDROID_ICON_MATRIX_VERIFIED }),
-    iosIcons: Object.freeze({ source: IOS_ICON_MATRIX_SOURCE, lastVerified: IOS_ICON_MATRIX_VERIFIED })
-});
-const PWA_SPLASH_SPECS = [
-    { width: 2048, height: 2732, cssWidth: 1024, cssHeight: 1366, scaleFactor: 2, name: 'ipad-pro-12-9' },
-    { width: 1668, height: 2388, cssWidth: 834, cssHeight: 1194, scaleFactor: 2, name: 'ipad-pro-11' },
-    { width: 1536, height: 2048, cssWidth: 768, cssHeight: 1024, scaleFactor: 2, name: 'ipad-9-7' },
-    { width: 1640, height: 2360, cssWidth: 820, cssHeight: 1180, scaleFactor: 2, name: 'ipad-air-11' },
-    { width: 1668, height: 2224, cssWidth: 834, cssHeight: 1112, scaleFactor: 2, name: 'ipad-air-10-5' },
-    { width: 1620, height: 2160, cssWidth: 810, cssHeight: 1080, scaleFactor: 2, name: 'ipad-10-2' },
-    { width: 1488, height: 2266, cssWidth: 744, cssHeight: 1133, scaleFactor: 2, name: 'ipad-mini-8-3' },
-    { width: 1320, height: 2868, cssWidth: 440, cssHeight: 956, scaleFactor: 3, name: 'iphone-16-pro-max' },
-    { width: 1206, height: 2622, cssWidth: 402, cssHeight: 874, scaleFactor: 3, name: 'iphone-16-pro' },
-    { width: 1260, height: 2736, cssWidth: 420, cssHeight: 912, scaleFactor: 3, name: 'iphone-air' },
-    { width: 1290, height: 2796, cssWidth: 430, cssHeight: 932, scaleFactor: 3, name: 'iphone-16-plus' },
-    { width: 1179, height: 2556, cssWidth: 393, cssHeight: 852, scaleFactor: 3, name: 'iphone-16' },
-    { width: 1170, height: 2532, cssWidth: 390, cssHeight: 844, scaleFactor: 3, name: 'iphone-16e' },
-    { width: 1284, height: 2778, cssWidth: 428, cssHeight: 926, scaleFactor: 3, name: 'iphone-14-plus' },
-    { width: 1125, height: 2436, cssWidth: 375, cssHeight: 812, scaleFactor: 3, name: 'iphone-13-mini' },
-    { width: 1242, height: 2688, cssWidth: 414, cssHeight: 896, scaleFactor: 3, name: 'iphone-11-pro-max' },
-    { width: 828, height: 1792, cssWidth: 414, cssHeight: 896, scaleFactor: 2, name: 'iphone-11' },
-    { width: 1242, height: 2208, cssWidth: 414, cssHeight: 736, scaleFactor: 3, name: 'iphone-8-plus' },
-    { width: 750, height: 1334, cssWidth: 375, cssHeight: 667, scaleFactor: 2, name: 'iphone-8' },
-    { width: 640, height: 1136, cssWidth: 320, cssHeight: 568, scaleFactor: 2, name: 'iphone-se-4' }
-].map(spec => ({
-    ...spec,
-    source: PWA_SPLASH_MATRIX_SOURCE,
-    lastVerified: PWA_SPLASH_MATRIX_VERIFIED
-}));
-
-const WINDOWS_TILE_SPECS = [
-    { width: 70, height: 70 },
-    { width: 150, height: 150 },
-    { width: 310, height: 310 },
-    { width: 310, height: 150 }
-];
-
-const ANDROID_DENSITY_SPECS = [
-    { density: 'mdpi', adaptive: 108, legacy: 48 },
-    { density: 'hdpi', adaptive: 162, legacy: 72 },
-    { density: 'xhdpi', adaptive: 216, legacy: 96 },
-    { density: 'xxhdpi', adaptive: 324, legacy: 144 },
-    { density: 'xxxhdpi', adaptive: 432, legacy: 192 }
-];
-
 async function generatePwaBundle(img, crop, operation) {
     const maskablePadding = Math.max(parseInt(safePaddingSlider.value, 10) || 0, 22);
     for (const px of PWA_ICON_SIZES) {
@@ -5009,23 +4874,6 @@ async function generateAndroidBundle(img, crop, operation) {
             density: spec.density
         });
     }
-}
-
-const IOS_ICON_SPECS = [
-    ['iphone', '20x20', '2x', 40], ['iphone', '20x20', '3x', 60],
-    ['iphone', '29x29', '2x', 58], ['iphone', '29x29', '3x', 87],
-    ['iphone', '40x40', '2x', 80], ['iphone', '40x40', '3x', 120],
-    ['iphone', '60x60', '2x', 120], ['iphone', '60x60', '3x', 180],
-    ['ipad', '20x20', '1x', 20], ['ipad', '20x20', '2x', 40],
-    ['ipad', '29x29', '1x', 29], ['ipad', '29x29', '2x', 58],
-    ['ipad', '40x40', '1x', 40], ['ipad', '40x40', '2x', 80],
-    ['ipad', '76x76', '1x', 76], ['ipad', '76x76', '2x', 152],
-    ['ipad', '83.5x83.5', '2x', 167],
-    ['ios-marketing', '1024x1024', '1x', 1024]
-];
-
-function iosIconFileName(size, scale) {
-    return `Icon-App-${size.replace('.', '-')}-${scale}.png`;
 }
 
 async function generateIosBundle(img, crop, operation) {
@@ -5801,10 +5649,7 @@ function buildManifestSnippet() {
     const result = validateManifestMetadata();
     if (result.errors.length) return '';
     const { metadata } = result;
-    return JSON.stringify({
-        ...metadata,
-        icons
-    }, null, 2);
+    return JSON.stringify(buildManifestDocument(metadata, icons), null, 2);
 }
 
 function buildExtensionSnippet() {
@@ -5818,21 +5663,11 @@ function buildExtensionSnippet() {
 }
 
 function buildAndroidAdaptiveIconSnippet({ themed = false } = {}) {
-    const monochrome = themed
-        ? '\n    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />'
-        : '';
-    return `<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@mipmap/ic_launcher_background" />
-    <foreground android:drawable="@mipmap/ic_launcher_foreground" />${monochrome}
-</adaptive-icon>`;
+    return buildAndroidAdaptiveIconDocument({ themed });
 }
 
 function buildAndroidManifestSnippet() {
-    return `<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round" />
-</manifest>`;
+    return buildAndroidManifestDocument();
 }
 
 function buildAndroidSnippet() {
@@ -5853,18 +5688,12 @@ function buildIosContents() {
 
 function buildWindowsBrowserConfig() {
     if (activePresetKey !== 'windows') return '';
-    return `<?xml version="1.0" encoding="utf-8"?>
-<browserconfig>
-  <msapplication>
-    <tile>
-      <square70x70logo src="${escapeAttribute(hrefFor('windows/mstile-70x70.png'))}"/>
-      <square150x150logo src="${escapeAttribute(hrefFor('windows/mstile-150x150.png'))}"/>
-      <wide310x150logo src="${escapeAttribute(hrefFor('windows/mstile-310x150.png'))}"/>
-      <square310x310logo src="${escapeAttribute(hrefFor('windows/mstile-310x310.png'))}"/>
-      <TileColor>${backgroundColor.value}</TileColor>
-    </tile>
-  </msapplication>
-</browserconfig>`;
+    return buildWindowsBrowserConfigDocument(backgroundColor.value, {
+        square70: escapeAttribute(hrefFor('windows/mstile-70x70.png')),
+        square150: escapeAttribute(hrefFor('windows/mstile-150x150.png')),
+        wide310: escapeAttribute(hrefFor('windows/mstile-310x150.png')),
+        square310: escapeAttribute(hrefFor('windows/mstile-310x310.png'))
+    });
 }
 
 function escapeAttribute(value) {
@@ -5922,19 +5751,6 @@ function generatedFileCopyList(prefix = '') {
 function webManifestHref(manifest) {
     if (!manifest) return '';
     return deploymentUrlFor(activePresetKey === 'pwa' ? 'pwa/manifest.webmanifest' : 'manifest.webmanifest', { cacheBust: false });
-}
-
-function startupImageMediaFor(file) {
-    const spec = file.splashSpec;
-    if (!spec) {
-        return `(device-width: ${file.size.width}px) and (device-height: ${file.size.height}px)`;
-    }
-    return [
-        `(device-width: ${spec.cssWidth}px)`,
-        `(device-height: ${spec.cssHeight}px)`,
-        `(-webkit-device-pixel-ratio: ${spec.scaleFactor})`,
-        `(orientation: ${spec.orientation})`
-    ].join(' and ');
 }
 
 function squarePngFiles() {
@@ -6285,88 +6101,7 @@ async function exportManifestRecord(file) {
     };
 }
 
-const EXPORT_MANIFEST_SCHEMA = 'iconforge-export-v1';
-const EXPORT_MANIFEST_SCHEMA_VERSION = 2;
 const MAX_REFORGE_MANIFEST_BYTES = 1024 * 1024;
-const EXPORT_MANIFEST_MIGRATIONS = Object.freeze([
-    {
-        schemaVersion: 2,
-        compatibility: 'additive',
-        description: 'Adds schemaVersion, appVersion, and reader compatibility metadata while retaining the legacy version alias.'
-    }
-]);
-
-function inspectExportManifest(input) {
-    let manifest;
-    try {
-        manifest = typeof input === 'string' ? JSON.parse(input) : input;
-    } catch {
-        return {
-            valid: false,
-            code: 'EXPORT_MANIFEST_INVALID_JSON',
-            message: 'Export manifest must be valid JSON.',
-            manifest: null,
-            migrated: false
-        };
-    }
-    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
-        return {
-            valid: false,
-            code: 'EXPORT_MANIFEST_INVALID',
-            message: 'Export manifest must be a JSON object.',
-            manifest: null,
-            migrated: false
-        };
-    }
-    if (manifest.schema === EXPORT_MANIFEST_SCHEMA && manifest.schemaVersion === undefined) {
-        return {
-            valid: true,
-            code: 'EXPORT_MANIFEST_MIGRATED_V1',
-            message: 'Legacy export manifest v1 was migrated in memory.',
-            manifest: {
-                ...manifest,
-                schema: EXPORT_MANIFEST_SCHEMA,
-                schemaVersion: 1,
-                appVersion: manifest.version || null
-            },
-            migrated: true
-        };
-    }
-    if (manifest.schema !== EXPORT_MANIFEST_SCHEMA || !Number.isInteger(manifest.schemaVersion)) {
-        return {
-            valid: false,
-            code: 'EXPORT_SCHEMA_UNKNOWN',
-            message: `Expected ${EXPORT_MANIFEST_SCHEMA} with an integer schemaVersion.`,
-            manifest: null,
-            migrated: false
-        };
-    }
-    if (manifest.schemaVersion > EXPORT_MANIFEST_SCHEMA_VERSION) {
-        return {
-            valid: false,
-            code: 'EXPORT_SCHEMA_UNSUPPORTED',
-            message: `Export manifest schema version ${manifest.schemaVersion} is newer than supported version ${EXPORT_MANIFEST_SCHEMA_VERSION}.`,
-            manifest: null,
-            migrated: false
-        };
-    }
-    if (manifest.schemaVersion < 1) {
-        return {
-            valid: false,
-            code: 'EXPORT_SCHEMA_UNSUPPORTED',
-            message: `Export manifest schema version ${manifest.schemaVersion} is not supported.`,
-            manifest: null,
-            migrated: false
-        };
-    }
-    return {
-        valid: true,
-        code: 'EXPORT_MANIFEST_VALID',
-        message: '',
-        manifest,
-        migrated: false
-    };
-}
 
 function inspectReforgeManifest(input) {
     const inspection = inspectExportManifest(input);
@@ -6633,131 +6368,6 @@ function artifactMimeType(format) {
         webp: 'image/webp',
         avif: 'image/avif'
     }[format] || '';
-}
-
-function asciiAt(bytes, offset, value) {
-    if (offset < 0 || offset + value.length > bytes.length) return false;
-    return Array.from(value).every((char, index) => bytes[offset + index] === char.charCodeAt(0));
-}
-
-function findAscii(bytes, value) {
-    for (let offset = 0; offset <= bytes.length - value.length; offset++) {
-        if (asciiAt(bytes, offset, value)) return offset;
-    }
-    return -1;
-}
-
-function inspectArtifactBytes(file, bytes) {
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const fail = error => ({ valid: false, error, width: null, height: null, icoSizes: [] });
-    if (bytes.length === 0) return fail('file is empty');
-
-    if (file.format === 'png') {
-        const signature = [137, 80, 78, 71, 13, 10, 26, 10];
-        if (bytes.length < 24 || !signature.every((value, index) => bytes[index] === value) || !asciiAt(bytes, 12, 'IHDR')) {
-            return fail('PNG signature or IHDR is invalid');
-        }
-        return { valid: true, width: view.getUint32(16, false), height: view.getUint32(20, false), icoSizes: [], error: '' };
-    }
-
-    if (file.format === 'ico') {
-        if (bytes.length < 6 || view.getUint16(0, true) !== 0 || view.getUint16(2, true) !== 1) {
-            return fail('ICO header is invalid');
-        }
-        const count = view.getUint16(4, true);
-        if (count < 1 || 6 + count * 16 > bytes.length) return fail('ICO directory is truncated');
-        const icoSizes = [];
-        for (let index = 0; index < count; index++) {
-            const offset = 6 + index * 16;
-            const width = bytes[offset] || 256;
-            const height = bytes[offset + 1] || 256;
-            const payloadSize = view.getUint32(offset + 8, true);
-            const payloadOffset = view.getUint32(offset + 12, true);
-            if (width !== height || payloadSize < 1 || payloadOffset + payloadSize > bytes.length) {
-                return fail(`ICO entry ${index + 1} is invalid or out of bounds`);
-            }
-            icoSizes.push(width);
-        }
-        return { valid: true, width: null, height: null, icoSizes, error: '' };
-    }
-
-    if (file.format === 'svg') {
-        const text = new TextDecoder().decode(bytes).trim();
-        return /^<svg[\s>]/i.test(text)
-            ? { valid: true, width: null, height: null, icoSizes: [], error: '' }
-            : fail('SVG root element is missing');
-    }
-
-    if (file.format === 'jpg') {
-        if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8 || bytes[bytes.length - 2] !== 0xFF || bytes[bytes.length - 1] !== 0xD9) {
-            return fail('JPEG start/end markers are invalid');
-        }
-        let offset = 2;
-        while (offset + 8 < bytes.length) {
-            if (bytes[offset] !== 0xFF) {
-                offset++;
-                continue;
-            }
-            const marker = bytes[offset + 1];
-            if (marker === 0xD8 || marker === 0xD9) {
-                offset += 2;
-                continue;
-            }
-            if (offset + 4 > bytes.length) break;
-            const length = view.getUint16(offset + 2, false);
-            if (length < 2 || offset + 2 + length > bytes.length) return fail('JPEG segment is truncated');
-            if ([0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF].includes(marker)) {
-                return {
-                    valid: true,
-                    width: view.getUint16(offset + 7, false),
-                    height: view.getUint16(offset + 5, false),
-                    icoSizes: [],
-                    error: ''
-                };
-            }
-            offset += 2 + length;
-        }
-        return fail('JPEG dimensions are missing');
-    }
-
-    if (file.format === 'webp') {
-        if (bytes.length < 30 || !asciiAt(bytes, 0, 'RIFF') || !asciiAt(bytes, 8, 'WEBP')) return fail('WebP RIFF header is invalid');
-        if (asciiAt(bytes, 12, 'VP8X')) {
-            const width = 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16);
-            const height = 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16);
-            return { valid: true, width, height, icoSizes: [], error: '' };
-        }
-        if (asciiAt(bytes, 12, 'VP8L') && bytes[20] === 0x2F) {
-            const width = 1 + bytes[21] + ((bytes[22] & 0x3F) << 8);
-            const height = 1 + (bytes[22] >> 6) + (bytes[23] << 2) + ((bytes[24] & 0x0F) << 10);
-            return { valid: true, width, height, icoSizes: [], error: '' };
-        }
-        if (asciiAt(bytes, 12, 'VP8 ') && bytes.length >= 30 && bytes[23] === 0x9D && bytes[24] === 0x01 && bytes[25] === 0x2A) {
-            return {
-                valid: true,
-                width: view.getUint16(26, true) & 0x3FFF,
-                height: view.getUint16(28, true) & 0x3FFF,
-                icoSizes: [],
-                error: ''
-            };
-        }
-        return fail('WebP dimensions are missing');
-    }
-
-    if (file.format === 'avif') {
-        if (bytes.length < 24 || !asciiAt(bytes, 4, 'ftyp')) return fail('AVIF file-type box is invalid');
-        const ispe = findAscii(bytes, 'ispe');
-        if (ispe < 0 || ispe + 16 > bytes.length) return fail('AVIF image spatial extents are missing');
-        return {
-            valid: true,
-            width: view.getUint32(ispe + 8, false),
-            height: view.getUint32(ispe + 12, false),
-            icoSizes: [],
-            error: ''
-        };
-    }
-
-    return { valid: true, width: null, height: null, icoSizes: [], error: '' };
 }
 
 async function inspectGeneratedArtifact(file) {

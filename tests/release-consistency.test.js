@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '..');
 const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
 const versionSource = read('version.js');
 const appSource = read('app.js');
+const platformSource = read('core/platform.js');
 const workerSource = read('sw.js');
 const html = read('index.html');
 const readme = read('README.md');
@@ -75,13 +76,13 @@ assert.strictEqual(manifest.theme_color, shellThemeColor, 'manifest and shell th
 assert.strictEqual(manifest.background_color, shellThemeColor, 'manifest background and shell theme colors must agree');
 assert.strictEqual(cssBackgroundColor, shellThemeColor, 'CSS background and shell theme colors must agree');
 
-const versionScriptIndex = html.indexOf('<script src="version.js" defer></script>');
-const appScriptIndex = html.indexOf('<script src="app.js" defer></script>');
+const versionScriptIndex = html.indexOf('<script src="version.js"></script>');
+const appScriptIndex = html.indexOf('<script type="module" src="app.js"></script>');
 assert(versionScriptIndex >= 0 && appScriptIndex > versionScriptIndex, 'version.js must load before app.js');
 assert(readme.includes(`badge/version-${version}-`), `README badge must match ${version}`);
 assert(changelog.includes(`## [${version}] - `), `CHANGELOG must include a dated ${version} release heading`);
 
-const metadataMatch = appSource.match(/const PLATFORM_MATRIX_METADATA = Object\.freeze\((\{[\s\S]*?\})\);/);
+const metadataMatch = platformSource.match(/const PLATFORM_MATRIX_METADATA = Object\.freeze\((\{[\s\S]*?\})\);/);
 assert(metadataMatch, 'platform matrices must declare shared source and verification metadata');
 for (const key of ['pwaSplash', 'androidIcons', 'iosIcons']) {
   assert(metadataMatch[1].includes(`${key}:`), `${key} matrix metadata is missing`);
@@ -93,7 +94,7 @@ const sourceConstants = [
   'IOS_ICON_MATRIX_SOURCE'
 ];
 for (const constant of sourceConstants) {
-  const match = appSource.match(new RegExp(`const ${constant} = '(https://[^']+)';`));
+  const match = platformSource.match(new RegExp(`const ${constant} = '(https://[^']+)';`));
   assert(match, `${constant} must identify an HTTPS specification source`);
 }
 
@@ -103,7 +104,7 @@ const verifiedConstants = [
   'IOS_ICON_MATRIX_VERIFIED'
 ];
 for (const constant of verifiedConstants) {
-  const match = appSource.match(new RegExp(`const ${constant} = '(\\d{4}-\\d{2}-\\d{2})';`));
+  const match = platformSource.match(new RegExp(`const ${constant} = '(\\d{4}-\\d{2}-\\d{2})';`));
   assert(match, `${constant} must use an absolute YYYY-MM-DD date`);
   assert(!Number.isNaN(Date.parse(`${match[1]}T00:00:00Z`)), `${constant} must contain a real calendar date`);
 }

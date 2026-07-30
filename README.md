@@ -55,6 +55,8 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 
 No build step, no package manager, no dependencies.
 
+Core ZIP/CRC, schema migration, platform matrix, generated-manifest, and artifact-validation contracts live in native ES modules under `core/`. The DOM-facing `app.js` imports those `.js` modules directly, so browser runtime and regression tests exercise the same dependency-free contracts across simple static servers.
+
 ### Localization contract
 
 The **Localized Fields JSON** manifest input accepts `name_localized`, `short_name_localized`, and `description_localized` language maps. Each BCP 47 key maps to a non-empty string or a `{ "value", "lang", "dir" }` object; language tags are canonicalized and `dir` is limited to `auto`, `ltr`, or `rtl`. Unknown localized members and malformed values fail closed. The interface locale persists locally, updates document `lang`/`dir`, and falls back to English for unsupported tags. `en-XA` pseudo-expanded and `ar-XB` pseudo-RTL are test catalogs rather than production translations; they cover cataloged shell/runtime strings and synchronize default manifest language/direction so clipping, interpolation, focus order, and generated metadata remain regression-testable.
