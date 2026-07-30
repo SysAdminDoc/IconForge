@@ -1849,6 +1849,45 @@ footer a:hover {
     border-radius: var(--radius-sm);
 }
 
+.reforge-section {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: linear-gradient(135deg, rgba(124, 108, 255, 0.09), var(--bg-dark));
+    border: 1px solid rgba(124, 108, 255, 0.35);
+    border-radius: var(--radius-sm);
+}
+
+.reforge-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.65rem;
+    align-items: center;
+    margin-top: 0.65rem;
+}
+
+.reforge-controls input[type="file"] {
+    min-width: 0;
+    color: var(--text-muted);
+}
+
+.reforge-preview {
+    margin-top: 0.65rem;
+    padding: 0.65rem;
+    border-radius: var(--radius-sm);
+    background: rgba(7, 9, 15, 0.68);
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    line-height: 1.5;
+}
+
+.reforge-preview strong {
+    color: var(--text);
+}
+
+.reforge-preview.error {
+    color: var(--error);
+}
+
 .metadata-heading-row {
     display: flex;
     align-items: baseline;
@@ -2625,6 +2664,7 @@ footer {
     .manifest-metadata-grid,
     .size-grid,
     .control-grid,
+    .reforge-controls,
     .output-shape-card,
     .generation-console,
     .download-all-section {

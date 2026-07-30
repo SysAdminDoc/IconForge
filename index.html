@@ -266,6 +266,19 @@
                     <h2>Output Options</h2>
                 </div>
 
+                <div class="reforge-section" aria-labelledby="reforgeLabel">
+                    <div class="metadata-heading-row">
+                        <label class="section-label" id="reforgeLabel" for="reforgeInput">Reforge Previous Export</label>
+                        <span class="metadata-status" id="reforgeStatus" role="status" aria-live="polite">No manifest selected</span>
+                    </div>
+                    <p class="helper-note compact">Load an <code>iconforge-export.json</code> to preview its settings. Source artwork is never stored in this manifest.</p>
+                    <div class="reforge-controls">
+                        <input type="file" id="reforgeInput" accept=".json,application/json">
+                        <button type="button" class="btn-secondary" id="btnApplyReforge" disabled>Apply Settings</button>
+                    </div>
+                    <div class="reforge-preview is-hidden" id="reforgePreview"></div>
+                </div>
+
                 <div class="preset-section">
                     <label class="section-label">Quick Presets</label>
                     <div class="preset-buttons" id="presetButtons">

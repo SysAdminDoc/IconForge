@@ -25,6 +25,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **CSP-hardened shell** - local CSS and JavaScript files run under a strict self-only policy with blob/data allowances for previews, downloads, and workers
 - **Deployable ZIPs** - exports generated images plus README.txt and the platform support files needed by the selected bundle
 - **Export manifest** - ZIP and folder exports include `iconforge-export.json` schema v2 with app-version compatibility metadata, file inventory, dimensions, MIME types, byte sizes, and SHA-256 hashes
+- **Reforge previous exports** - preview and restore sizes, formats, processing, replacement targets, deployment URLs, and manifest metadata from `iconforge-export.json`, then re-select source artwork
 - **Export validation** - decodes generated PNG/JPG/WebP/AVIF/ICO/SVG bytes, verifies MIME types and dimensions, parses support files, and checks manifest-purpose semantics before deployment
 - **Observable, cancellable generation** - shows the current stage and filename for large bundles, cancels promptly, clears partial output, and supports immediate retry
 - **Resource-safe exports** - preflights operation count and peak memory, enforces ZIP32 limits, builds ZIPs incrementally with progress/cancellation, and preserves generated files when export is stopped
@@ -58,7 +59,7 @@ The **Localized Fields JSON** manifest input accepts `name_localized`, `short_na
 
 ### Export compatibility
 
-`iconforge-export.json` uses integer `schemaVersion: 2` independently of `appVersion`. Version 2 is additive: it retains the legacy `version` alias and adds explicit reader compatibility/migration metadata. The reader accepts legacy manifests without `schemaVersion` as version 1 and reports a stable `EXPORT_SCHEMA_UNSUPPORTED` error for newer schemas. Diagnostics JSON similarly publishes `schemaVersion: 2`, stable error codes, operation status/timings, service-worker state, and any completed, rolled-back, or partial folder writes; it never embeds source bytes.
+`iconforge-export.json` uses integer `schemaVersion: 2` independently of `appVersion`. Version 2 is additive: it retains the legacy `version` alias and adds explicit reader compatibility/migration metadata. **Reforge Previous Export** previews and applies the recorded preset, sizes, formats, processing, replacement targets, deployment URLs, and manifest metadata; source artwork is intentionally absent and must be re-selected. The reader migrates legacy manifests without `schemaVersion` as version 1 in memory, rejects malformed settings, and reports a stable `EXPORT_SCHEMA_UNSUPPORTED` error for newer schemas without changing current work. Diagnostics JSON similarly publishes `schemaVersion: 2`, stable error codes, operation status/timings, service-worker state, and any completed, rolled-back, or partial folder writes; it never embeds source bytes.
 
 ## Development Checks
 

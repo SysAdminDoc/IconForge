@@ -14,6 +14,7 @@ All notable changes to IconForge will be documented in this file.
 ### Added
 - Android exports now include density-correct round launcher PNGs, black-alpha monochrome themed-icon layers, v26 regular/round adaptive XML, API 33 monochrome XML, and an `AndroidManifest.xml` handoff with `android:icon` and `android:roundIcon`.
 - Android validation now proves all launcher XML references resolve across mdpi–xxxhdpi and checks themed monochrome pixel semantics.
+- Reforge Previous Export now previews and restores reproducible settings from `iconforge-export.json`, migrates v1 in memory, fails closed on malformed or future schemas, and requests source-artwork re-selection.
 
 ### Fixed
 - Hidden progress and output states now remain hidden until their owning workflow explicitly reveals them.

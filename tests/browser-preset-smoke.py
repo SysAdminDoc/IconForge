@@ -381,6 +381,124 @@ def run_preset(page, url: str, preset: str, source_text: str = "IF", worker_elig
     return result
 
 
+def check_reforge_import(page, url: str) -> tuple[dict, list[str]]:
+    page.goto(url, wait_until="networkidle")
+    page.locator("#sourceTabText").click()
+    page.locator("#textInput").fill("OLD")
+    page.locator("#btnUseTextIcon").click()
+    manifest = {
+        "schema": "iconforge-export-v1",
+        "version": "v0.4.1",
+        "preset": "web",
+        "options": {
+            "sizes": [32, {"width": 64, "height": 96}],
+            "formats": ["png", "webp"],
+            "processing": {
+                "paddingPercent": 12,
+                "lossyQualityPercent": 84,
+                "sizeBudgetBytes": 16384,
+                "resample": "nearest",
+                "backgroundMode": "gradient",
+                "backgroundColor": "#112233",
+                "backgroundColor2": "#445566",
+                "effect": "desaturate",
+                "dropShadow": True,
+            },
+            "replacementTemplate": {
+                "active": True,
+                "targets": ["assets/icon-32.png", "manifest.webmanifest"],
+            },
+            "deploymentUrls": {
+                "mode": "custom",
+                "customBase": "https://cdn.example.com/icons/",
+                "cacheBust": True,
+            },
+            "manifestMetadata": {
+                "name": "Reforged App",
+                "shortName": "Reforged",
+                "startUrl": "./launch",
+                "scope": "./",
+                "display": "standalone",
+                "themeColor": "#112233",
+                "backgroundColor": "#445566",
+            },
+        },
+        "files": [],
+    }
+    page.locator("#reforgeInput").set_input_files({
+        "name": "iconforge-export.json",
+        "mimeType": "application/json",
+        "buffer": json.dumps(manifest).encode("utf-8"),
+    })
+    page.wait_for_function("() => !document.querySelector('#btnApplyReforge').disabled")
+    preview = page.locator("#reforgePreview").inner_text()
+    page.locator("#btnApplyReforge").click()
+    applied = page.evaluate(
+        """() => ({
+            status: document.querySelector("#reforgeStatus")?.textContent,
+            preview: document.querySelector("#reforgePreview")?.textContent,
+            sourceRequired: document.querySelector("#btnGenerate")?.disabled,
+            preset: document.querySelector(".btn-preset.active")?.dataset.preset,
+            selectedSizes: Array.from(document.querySelectorAll("#sizeGrid input:checked"), input => `${input.value}x${input.dataset.height || input.value}`),
+            selectedFormats: Array.from(document.querySelectorAll("#formatOptions input:checked"), input => input.value),
+            padding: document.querySelector("#safePaddingSlider")?.value,
+            quality: document.querySelector("#lossyQualitySlider")?.value,
+            budget: document.querySelector("#sizeBudgetInput")?.value,
+            replacement: document.querySelector("#replaceStatus")?.textContent,
+            urlMode: document.querySelector("#assetUrlMode")?.value,
+            urlBase: document.querySelector("#assetUrlBase")?.value,
+            cacheBust: document.querySelector("#cacheBustToggle")?.checked,
+            manifestName: document.querySelector("#manifestName")?.value
+        })"""
+    )
+    state_before_rejected = page.evaluate(
+        """() => ({
+            preset: document.querySelector(".btn-preset.active")?.dataset.preset,
+            manifestName: document.querySelector("#manifestName")?.value,
+            padding: document.querySelector("#safePaddingSlider")?.value
+        })"""
+    )
+    future_manifest = {**manifest, "schemaVersion": 99}
+    page.locator("#reforgeInput").set_input_files({
+        "name": "future.json",
+        "mimeType": "application/json",
+        "buffer": json.dumps(future_manifest).encode("utf-8"),
+    })
+    rejected = page.evaluate(
+        """() => ({
+            applyDisabled: document.querySelector("#btnApplyReforge")?.disabled,
+            status: document.querySelector("#reforgeStatus")?.textContent,
+            state: {
+                preset: document.querySelector(".btn-preset.active")?.dataset.preset,
+                manifestName: document.querySelector("#manifestName")?.value,
+                padding: document.querySelector("#safePaddingSlider")?.value
+            }
+        })"""
+    )
+    failures = []
+    if "legacy v1 migrated in memory" not in preview:
+        failures.append("reforge preview did not report in-memory v1 migration")
+    if applied["status"] != "Settings applied" or "Re-select source artwork" not in applied["preview"]:
+        failures.append(f"reforge apply did not request source re-selection: {applied}")
+    if not applied["sourceRequired"] or applied["preset"] != "web":
+        failures.append(f"reforge did not clear source and restore preset: {applied}")
+    if set(applied["selectedSizes"]) != {"32x32", "64x96"} or set(applied["selectedFormats"]) != {"png", "webp"}:
+        failures.append(f"reforge size/format restore mismatch: {applied}")
+    if (applied["padding"], applied["quality"], applied["budget"]) != ("12", "84", "16"):
+        failures.append(f"reforge processing restore mismatch: {applied}")
+    if "2 target filenames restored" not in applied["replacement"]:
+        failures.append(f"reforge replacement targets were not restored: {applied}")
+    if (applied["urlMode"], applied["urlBase"], applied["cacheBust"]) != ("custom", "https://cdn.example.com/icons/", True):
+        failures.append(f"reforge deployment settings mismatch: {applied}")
+    if applied["manifestName"] != "Reforged App":
+        failures.append(f"reforge manifest metadata mismatch: {applied}")
+    if not rejected["applyDisabled"] or "newer than supported" not in rejected["status"]:
+        failures.append(f"future reforge manifest did not fail closed: {rejected}")
+    if rejected["state"] != state_before_rejected:
+        failures.append(f"future reforge manifest changed current settings: {rejected}")
+    return {"preview": preview, "applied": applied, "rejected": rejected}, failures
+
+
 def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
     page.goto(url, wait_until="networkidle")
     failures = []
@@ -785,6 +903,7 @@ def main() -> int:
     results = []
     failures = []
     accessibility = {}
+    reforge = {}
     engine_matrix = {}
 
     try:
@@ -797,6 +916,8 @@ def main() -> int:
             accessibility_page.on("pageerror", lambda exc: page_errors.append(str(exc)))
             accessibility, accessibility_failures = check_accessibility_interactions(accessibility_page, url)
             failures.extend(accessibility_failures)
+            reforge, reforge_failures = check_reforge_import(accessibility_page, url)
+            failures.extend(reforge_failures)
             accessibility_context.close()
 
             context = chromium.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
@@ -920,6 +1041,7 @@ def main() -> int:
             for item in results
         ],
         "accessibility": accessibility,
+        "reforge": reforge,
         "engines": engine_matrix,
         "failures": failures,
     }

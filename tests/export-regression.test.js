@@ -1459,6 +1459,71 @@ async function main() {
   assert.strictEqual(futureManifest.valid, false);
   assert.strictEqual(futureManifest.code, 'EXPORT_SCHEMA_UNSUPPORTED');
   assert.match(futureManifest.message, /newer than supported version 2/);
+  const reforgeManifest = JSON.parse(JSON.stringify(exportManifest));
+  reforgeManifest.options = {
+    ...reforgeManifest.options,
+    sizes: [{ width: 64, height: 96 }, 192],
+    formats: ['png', 'webp'],
+    processing: {
+      paddingPercent: 13,
+      lossyQualityPercent: 81,
+      sizeBudgetBytes: 12288,
+      resample: 'nearest',
+      backgroundMode: 'gradient',
+      backgroundColor: '#112233',
+      backgroundColor2: '#445566',
+      effect: 'desaturate',
+      dropShadow: true
+    },
+    replacementTemplate: {
+      active: true,
+      targets: ['assets/icon-64.png', 'manifest.webmanifest']
+    },
+    deploymentUrls: {
+      mode: 'custom',
+      customBase: 'https://cdn.example.com/icons/',
+      cacheBust: true
+    },
+    manifestMetadata: {
+      name: 'Reforged App',
+      shortName: 'Reforged',
+      startUrl: './launch',
+      scope: './',
+      display: 'standalone',
+      themeColor: '#112233',
+      backgroundColor: '#445566'
+    }
+  };
+  const reforgeInspection = api.inspectReforgeManifest(reforgeManifest);
+  assert.strictEqual(reforgeInspection.valid, true);
+  const reforgeResult = api.applyReforgeManifest(reforgeManifest);
+  assert.strictEqual(reforgeResult.valid, true);
+  assert.match(reforgeResult.message, /Re-select source artwork/);
+  assert.strictEqual(api.getState().sourceFileName, '');
+  assert.strictEqual(api.getState().activePresetKey, 'pwa');
+  assert.deepStrictEqual(api.getState().replacementTargetNames.sort(), ['assets/icon-64.png', 'manifest.webmanifest']);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(api.getState().deploymentUrls)), {
+    mode: 'custom',
+    customBase: 'https://cdn.example.com/icons/',
+    cacheBust: true
+  });
+  assert.strictEqual(api.getState().lossyQualityPercent, 81);
+  assert.strictEqual(api.getState().sizeBudgetBytes, 12288);
+  const legacyReforgeManifest = {
+    ...reforgeManifest,
+    schemaVersion: undefined,
+    version: 'v0.4.1'
+  };
+  const legacyReforgeInspection = api.inspectReforgeManifest(legacyReforgeManifest);
+  assert.strictEqual(legacyReforgeInspection.valid, true);
+  assert.strictEqual(legacyReforgeInspection.migrated, true);
+  api.setState({ activePresetKey: 'pwa', replacementTargetNames: ['keep-me.png'] });
+  const stateBeforeRejectedReforge = JSON.stringify(api.getState());
+  assert.strictEqual(api.applyReforgeManifest({ ...reforgeManifest, schemaVersion: 99 }).valid, false);
+  assert.strictEqual(JSON.stringify(api.getState()), stateBeforeRejectedReforge, 'future manifests must not mutate state');
+  assert.strictEqual(api.applyReforgeManifest({ ...reforgeManifest, options: { sizes: ['bad'], formats: ['png'] } }).valid, false);
+  assert.strictEqual(JSON.stringify(api.getState()), stateBeforeRejectedReforge, 'malformed manifests must not mutate state');
+  api.setState({ generatedFiles, generatedSnippets: snippets, activePresetKey: 'pwa' });
 
   api.setState({
     featureSupport: {

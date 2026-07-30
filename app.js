@@ -207,6 +207,12 @@ const UI_STRINGS = Object.freeze({
         useAsSource: 'Use This as Source',
         pickEmoji: 'Pick an Emoji',
         outputOptions: 'Output Options',
+        reforgePreviousExport: 'Reforge Previous Export',
+        noManifestSelected: 'No manifest selected',
+        loadManifestPrefix: 'Load an',
+        exportManifestFileName: 'iconforge-export.json',
+        loadManifestHelp: 'to preview its settings. Source artwork is never stored in this manifest.',
+        applySettings: 'Apply Settings',
         quickPresets: 'Quick Presets',
         manifestMetadata: 'Manifest Metadata',
         defaultsFromSource: 'Defaults from source',
@@ -673,6 +679,10 @@ const maskPreviewCtx = maskPreviewCanvas.getContext('2d');
 const maskShapeSelect = document.getElementById('maskShapeSelect');
 const replaceInput = document.getElementById('replaceInput');
 const replaceStatus = document.getElementById('replaceStatus');
+const reforgeInput = document.getElementById('reforgeInput');
+const reforgeStatus = document.getElementById('reforgeStatus');
+const reforgePreview = document.getElementById('reforgePreview');
+const btnApplyReforge = document.getElementById('btnApplyReforge');
 const draftSourceToggle = document.getElementById('draftSourceToggle');
 const draftEnabledToggle = document.getElementById('draftEnabledToggle');
 const draftClearOnExportToggle = document.getElementById('draftClearOnExportToggle');
@@ -710,6 +720,7 @@ function setElementVisible(element, visible, display = '') {
 let draftSaveTimer = null;
 let isRestoringDraft = false;
 let draftClearedUntilChange = false;
+let pendingReforgeManifest = null;
 
 function draftStorage() {
     try {
@@ -1178,6 +1189,34 @@ function applyDraftControls(draft) {
     setActivePresetButton(draft.activePresetKey);
     setSelectedSizesFromDraft(draft.selectedSizes || []);
     setSelectedFormatsFromDraft(draft.selectedFormats || []);
+    updateMaskPreview();
+}
+
+function applyProcessingValues(processing = {}) {
+    if (Object.prototype.hasOwnProperty.call(processing, 'paddingPercent')) {
+        safePaddingSlider.value = String(clampNumber(processing.paddingPercent, 0, 30, 8));
+    }
+    if (Object.prototype.hasOwnProperty.call(processing, 'lossyQualityPercent')) {
+        lossyQualitySlider.value = String(clampNumber(processing.lossyQualityPercent, 40, 100, 92));
+    }
+    if (Object.prototype.hasOwnProperty.call(processing, 'sizeBudgetBytes')) {
+        const bytes = Number(processing.sizeBudgetBytes);
+        sizeBudgetInput.value = Number.isFinite(bytes) && bytes > 0 ? String(Math.ceil(bytes / 1024)) : '';
+    }
+    const selectValues = {
+        resample: [resampleSelect, ['auto', 'hinted', 'nearest']],
+        backgroundMode: [backgroundMode, ['transparent', 'solid', 'gradient']],
+        effect: [effectSelect, ['none', 'tint', 'desaturate', 'glass']]
+    };
+    Object.entries(selectValues).forEach(([key, [field, allowed]]) => {
+        if (allowed.includes(processing[key])) field.value = processing[key];
+    });
+    if (/^#[0-9a-f]{6}$/i.test(processing.backgroundColor || '')) backgroundColor.value = processing.backgroundColor;
+    if (/^#[0-9a-f]{6}$/i.test(processing.backgroundColor2 || '')) backgroundColor2.value = processing.backgroundColor2;
+    if (Object.prototype.hasOwnProperty.call(processing, 'dropShadow')) {
+        dropShadowToggle.checked = Boolean(processing.dropShadow);
+    }
+    updateProcessingControlLabels();
     updateMaskPreview();
 }
 
@@ -5421,6 +5460,7 @@ async function exportManifestRecord(file) {
 
 const EXPORT_MANIFEST_SCHEMA = 'iconforge-export-v1';
 const EXPORT_MANIFEST_SCHEMA_VERSION = 2;
+const MAX_REFORGE_MANIFEST_BYTES = 1024 * 1024;
 const EXPORT_MANIFEST_MIGRATIONS = Object.freeze([
     {
         schemaVersion: 2,
@@ -5500,6 +5540,191 @@ function inspectExportManifest(input) {
         migrated: false
     };
 }
+
+function inspectReforgeManifest(input) {
+    const inspection = inspectExportManifest(input);
+    if (!inspection.valid) return inspection;
+    const manifest = inspection.manifest;
+    const options = manifest.options;
+    if (!options || typeof options !== 'object' || Array.isArray(options)) {
+        return {
+            valid: false,
+            code: 'REFORGE_OPTIONS_MISSING',
+            message: 'Export manifest does not contain reproducible settings.',
+            manifest: null,
+            migrated: inspection.migrated
+        };
+    }
+    if (!Array.isArray(options.sizes) || !Array.isArray(options.formats) ||
+        options.sizes.length > MAX_SIZE_OPTIONS || options.formats.length > OUTPUT_FORMATS.length ||
+        !options.formats.every(format => OUTPUT_FORMATS.includes(format))) {
+        return {
+            valid: false,
+            code: 'REFORGE_OPTIONS_INVALID',
+            message: 'Export manifest sizes or formats are invalid.',
+            manifest: null,
+            migrated: inspection.migrated
+        };
+    }
+    const validSizes = options.sizes.every(entry => {
+        if (typeof entry !== 'number' && (!entry || typeof entry !== 'object' || Array.isArray(entry))) return false;
+        const normalized = normalizeSizeEntry(entry);
+        return Number.isInteger(normalized.width) && Number.isInteger(normalized.height) &&
+            normalized.width >= 1 && normalized.height >= 1 &&
+            normalized.width <= 4096 && normalized.height <= 4096;
+    });
+    if (!validSizes) {
+        return {
+            valid: false,
+            code: 'REFORGE_OPTIONS_INVALID',
+            message: 'Export manifest contains an invalid icon size.',
+            manifest: null,
+            migrated: inspection.migrated
+        };
+    }
+    const targets = options.replacementTemplate?.targets ?? [];
+    if (!Array.isArray(targets) || targets.length > REPLACEMENT_ZIP_LIMITS.maxEntries ||
+        !targets.every(target => typeof target === 'string' && target.length <= REPLACEMENT_ZIP_LIMITS.maxNameBytes)) {
+        return {
+            valid: false,
+            code: 'REFORGE_TARGETS_INVALID',
+            message: 'Export manifest replacement targets are invalid.',
+            manifest: null,
+            migrated: inspection.migrated
+        };
+    }
+    const deployment = options.deploymentUrls ?? {};
+    if (typeof deployment !== 'object' || Array.isArray(deployment) ||
+        (deployment.mode && !['root', 'relative', 'custom'].includes(deployment.mode)) ||
+        (deployment.customBase !== undefined && typeof deployment.customBase !== 'string')) {
+        return {
+            valid: false,
+            code: 'REFORGE_DEPLOYMENT_INVALID',
+            message: 'Export manifest deployment URL settings are invalid.',
+            manifest: null,
+            migrated: inspection.migrated
+        };
+    }
+    if (options.processing !== undefined &&
+        (!options.processing || typeof options.processing !== 'object' || Array.isArray(options.processing))) {
+        return {
+            valid: false,
+            code: 'REFORGE_PROCESSING_INVALID',
+            message: 'Export manifest processing settings are invalid.',
+            manifest: null,
+            migrated: inspection.migrated
+        };
+    }
+    if (options.manifestMetadata !== undefined &&
+        (!options.manifestMetadata || typeof options.manifestMetadata !== 'object' || Array.isArray(options.manifestMetadata))) {
+        return {
+            valid: false,
+            code: 'REFORGE_METADATA_INVALID',
+            message: 'Export manifest metadata settings are invalid.',
+            manifest: null,
+            migrated: inspection.migrated
+        };
+    }
+    return inspection;
+}
+
+function reforgePreviewText(inspection) {
+    const manifest = inspection.manifest;
+    const sizes = manifest.options.sizes.map(size => {
+        const normalized = normalizeSizeEntry(size);
+        return `${normalized.width}×${normalized.height}`;
+    });
+    const preset = manifest.preset && PRESETS[manifest.preset] ? manifest.preset : 'custom';
+    const migrated = inspection.migrated ? ' • legacy v1 migrated in memory' : '';
+    return `<strong>${escapeHtml(preset)} preset</strong> • ${sizes.length} size${sizes.length === 1 ? '' : 's'} • ${manifest.options.formats.map(escapeHtml).join(', ') || 'no formats'}${migrated}<br>Applying clears the current source. Re-select source artwork to reforge.`;
+}
+
+function applyReforgeManifest(input) {
+    const inspection = inspectReforgeManifest(input);
+    if (!inspection.valid) return inspection;
+    const { manifest } = inspection;
+    const options = manifest.options;
+    resetInput();
+    setActivePresetButton(manifest.preset);
+    setSelectedSizesFromDraft(options.sizes);
+    setSelectedFormatsFromDraft(options.formats);
+    applyProcessingValues(options.processing || {});
+    replacementTargetNames = new Set((options.replacementTemplate?.targets || []).map(normalizeTemplateName));
+    replaceInput.value = '';
+    replaceStatus.textContent = replacementTargetNames.size
+        ? `${replacementTargetNames.size} target filenames restored`
+        : 'No replacement targets';
+    if (options.deploymentUrls) {
+        assetUrlMode.value = options.deploymentUrls.mode || 'root';
+        assetUrlBase.value = options.deploymentUrls.customBase ?? '/assets/';
+        cacheBustToggle.checked = Boolean(options.deploymentUrls.cacheBust);
+        validateDeploymentUrlOptions();
+    }
+    if (options.manifestMetadata) applyManifestDraftValues(options.manifestMetadata);
+    renderGenerationPreflight();
+    setWorkflowStep('source');
+    saveDraftState({ silent: true });
+    return {
+        ...inspection,
+        message: 'Settings applied. Re-select source artwork to reforge.'
+    };
+}
+
+function clearReforgePreview(message = 'No manifest selected', error = false) {
+    pendingReforgeManifest = null;
+    btnApplyReforge.disabled = true;
+    reforgeStatus.textContent = message;
+    reforgeStatus.classList.toggle('error', error);
+    reforgePreview.textContent = error ? message : '';
+    reforgePreview.classList.toggle('error', error);
+    setElementVisible(reforgePreview, error, 'block');
+}
+
+async function handleReforgeManifestSelection(event) {
+    const file = event.target.files?.[0];
+    if (!file) {
+        clearReforgePreview();
+        return;
+    }
+    if (file.size > MAX_REFORGE_MANIFEST_BYTES) {
+        clearReforgePreview('Manifest exceeds the 1 MB import limit.', true);
+        return;
+    }
+    let text;
+    try {
+        text = await file.text();
+    } catch {
+        clearReforgePreview('Manifest could not be read.', true);
+        return;
+    }
+    const inspection = inspectReforgeManifest(text);
+    if (!inspection.valid) {
+        clearReforgePreview(inspection.message, true);
+        return;
+    }
+    pendingReforgeManifest = inspection.manifest;
+    btnApplyReforge.disabled = false;
+    reforgeStatus.textContent = inspection.migrated ? 'Legacy manifest ready' : 'Manifest ready';
+    reforgeStatus.classList.remove('error');
+    reforgePreview.innerHTML = reforgePreviewText(inspection);
+    reforgePreview.classList.remove('error');
+    setElementVisible(reforgePreview, true, 'block');
+}
+
+reforgeInput?.addEventListener('change', handleReforgeManifestSelection);
+btnApplyReforge?.addEventListener('click', () => {
+    if (!pendingReforgeManifest) return;
+    const result = applyReforgeManifest(pendingReforgeManifest);
+    if (!result.valid) {
+        clearReforgePreview(result.message, true);
+        return;
+    }
+    pendingReforgeManifest = null;
+    btnApplyReforge.disabled = true;
+    reforgeStatus.textContent = 'Settings applied';
+    reforgePreview.textContent = result.message;
+    showStatus(result.message, 'success');
+});
 
 async function buildExportManifest(exportFiles) {
     return {
@@ -6706,6 +6931,9 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         EXPORT_MANIFEST_SCHEMA_VERSION,
         EXPORT_MANIFEST_MIGRATIONS,
         inspectExportManifest,
+        inspectReforgeManifest,
+        applyReforgeManifest,
+        MAX_REFORGE_MANIFEST_BYTES,
         buildExportManifest,
         getExportFilesWithManifest,
         buildGenerationDiagnostics,
