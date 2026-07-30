@@ -762,6 +762,11 @@ async function main() {
   const appManifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.webmanifest'), 'utf8'));
   assert.strictEqual(appManifest.scope, './');
   assert.strictEqual(appManifest.launch_handler.client_mode, 'focus-existing');
+  assert(appManifest.icons.some((icon) => icon.sizes === '192x192' && icon.type === 'image/png' && icon.purpose === 'any'));
+  assert(appManifest.icons.some((icon) => icon.sizes === '512x512' && icon.type === 'image/png' && icon.purpose === 'any'));
+  assert(appManifest.icons.some((icon) => icon.sizes === '512x512' && icon.type === 'image/png' && icon.purpose === 'maskable'));
+  assert.strictEqual(appManifest.theme_color, '#07090f');
+  assert.strictEqual(appManifest.background_color, '#07090f');
   assert(appManifest.file_handlers.some((handler) => handler.action === './index.html' && handler.accept['image/png'].includes('.png')));
   assert(appManifest.file_handlers.some((handler) => handler.accept['image/svg+xml'].includes('.svg')));
   assert(appManifest.file_handlers.some((handler) => handler.accept['image/x-icon'].includes('.ico')));

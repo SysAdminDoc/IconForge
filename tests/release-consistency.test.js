@@ -10,6 +10,17 @@ const workerSource = read('sw.js');
 const html = read('index.html');
 const readme = read('README.md');
 const changelog = read('CHANGELOG.md');
+const manifest = JSON.parse(read('manifest.webmanifest'));
+
+function readPngDimensions(name) {
+  const bytes = fs.readFileSync(path.join(root, name));
+  assert(bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), `${name} must be a PNG`);
+  assert.strictEqual(bytes.subarray(12, 16).toString('ascii'), 'IHDR', `${name} must start with a PNG IHDR chunk`);
+  return {
+    width: bytes.readUInt32BE(16),
+    height: bytes.readUInt32BE(20)
+  };
+}
 
 const versionMatch = versionSource.match(/^globalThis\.ICONFORGE_VERSION = '(v\d+\.\d+\.\d+)';\s*$/);
 assert(versionMatch, 'version.js must contain the single canonical vMAJOR.MINOR.PATCH declaration');
@@ -24,6 +35,39 @@ assert(appSource.includes('const APP_VERSION = globalThis.ICONFORGE_VERSION;'));
 assert(workerSource.startsWith("importScripts('./version.js');"), 'service worker must load canonical version before declaring its cache');
 assert(workerSource.includes('const CACHE_NAME = `iconforge-${globalThis.ICONFORGE_VERSION}`;'));
 assert(workerSource.includes("'./version.js'"), 'service worker shell cache must include version.js');
+
+const requiredProductionIcons = [
+  { size: 192, purpose: 'any' },
+  { size: 512, purpose: 'any' },
+  { size: 512, purpose: 'maskable' }
+];
+for (const requirement of requiredProductionIcons) {
+  const icon = manifest.icons.find((candidate) => (
+    candidate.sizes === `${requirement.size}x${requirement.size}` &&
+    candidate.type === 'image/png' &&
+    candidate.purpose.split(/\s+/).includes(requirement.purpose)
+  ));
+  assert(icon, `production manifest must declare a ${requirement.size}px ${requirement.purpose} PNG`);
+  assert.deepStrictEqual(
+    readPngDimensions(icon.src),
+    { width: requirement.size, height: requirement.size },
+    `${icon.src} dimensions must match its manifest declaration`
+  );
+  assert(workerSource.includes(`'./${icon.src}'`), `${icon.src} must be cached by the service worker`);
+}
+assert.strictEqual(
+  new Set(manifest.icons.map((icon) => icon.src)).size,
+  manifest.icons.length,
+  'production manifest icon paths must be unique'
+);
+
+const shellThemeColor = html.match(/<meta name="theme-color" content="(#[0-9a-fA-F]{6})">/)?.[1];
+const cssBackgroundColor = read('styles.css').match(/--bg-dark:\s*(#[0-9a-fA-F]{6});/)?.[1];
+assert(shellThemeColor, 'shell must declare a six-digit theme-color');
+assert(cssBackgroundColor, 'styles must declare a six-digit --bg-dark color');
+assert.strictEqual(manifest.theme_color, shellThemeColor, 'manifest and shell theme colors must agree');
+assert.strictEqual(manifest.background_color, shellThemeColor, 'manifest background and shell theme colors must agree');
+assert.strictEqual(cssBackgroundColor, shellThemeColor, 'CSS background and shell theme colors must agree');
 
 const versionScriptIndex = html.indexOf('<script src="version.js" defer></script>');
 const appScriptIndex = html.indexOf('<script src="app.js" defer></script>');
@@ -58,4 +102,4 @@ for (const constant of verifiedConstants) {
   assert(!Number.isNaN(Date.parse(`${match[1]}T00:00:00Z`)), `${constant} must contain a real calendar date`);
 }
 
-console.log(`release surfaces match ${version}; platform matrices include source and verification metadata`);
+console.log(`release surfaces match ${version}; production PWA identity and platform metadata are consistent`);

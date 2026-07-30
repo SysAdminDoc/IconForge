@@ -10,6 +10,7 @@ All notable changes to IconForge will be documented in this file.
 
 ### Fixed
 - Hidden progress and output states now remain hidden until their owning workflow explicitly reveals them.
+- Production install metadata now ships exact 192px and 512px icons, a dedicated maskable icon, aligned shell colors, and offline-cached identity assets.
 
 ## [v0.4.24] - 2026-07-25
 

@@ -8,7 +8,9 @@ const ASSETS = [
   './version.js',
   './app.js',
   './styles.css',
-  './icon.png',
+  './icon-192.png',
+  './icon-512.png',
+  './icon-maskable-512.png',
   './manifest.webmanifest'
 ];
 
