@@ -254,6 +254,25 @@ async (preset) => {
     if (!fileName || copy?.getAttribute("aria-label") !== `Copy ${fileName} as Base64 data URL`) violations.push(`copy:${fileName}`);
     return violations;
   });
+  const resultGroups = Array.from(document.querySelectorAll("#outputGrid .output-group")).map((group) => ({
+    key: group.dataset.groupKey,
+    count: group.querySelectorAll(".output-item").length,
+    status: group.dataset.validationStatus,
+    open: group.open
+  }));
+  document.querySelector("#btnCollapseResults")?.click();
+  const collapsedGroupCount = document.querySelectorAll("#outputGrid .output-group:not([open])").length;
+  document.querySelector("#btnExpandResults")?.click();
+  const expandedGroupCount = document.querySelectorAll("#outputGrid .output-group[open]").length;
+  const nameFilter = document.querySelector("#outputNameFilter");
+  nameFilter.value = "splash";
+  nameFilter.dispatchEvent(new Event("input", { bubbles: true }));
+  const filteredResultState = {
+    visibleGroups: Array.from(document.querySelectorAll("#outputGrid .output-group")).filter((group) => getComputedStyle(group).display !== "none").length,
+    visibleItems: Array.from(document.querySelectorAll("#outputGrid .output-item")).filter((item) => getComputedStyle(item).display !== "none").length
+  };
+  nameFilter.value = "";
+  nameFilter.dispatchEvent(new Event("input", { bubbles: true }));
 
   return {
     preset,
@@ -274,6 +293,10 @@ async (preset) => {
     workflowCurrent: document.querySelector('[data-workflow-step][aria-current="step"]')?.dataset.workflowStep || null,
     workflowCurrentCount: document.querySelectorAll('[data-workflow-step][aria-current="step"]').length,
     outputActionViolations,
+    resultGroups,
+    collapsedGroupCount,
+    expandedGroupCount,
+    filteredResultState,
     desktopOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
     diagnosticsText: document.querySelector("#diagnosticsSummary")?.textContent || ""
   };
@@ -327,6 +350,14 @@ def run_preset(page, url: str, preset: str, source_text: str = "IF", worker_elig
     )
     result = page.evaluate(COLLECT_SCRIPT, preset)
     result["cancelRecovery"] = cancel_recovery
+    page.set_viewport_size({"width": 720, "height": 500})
+    result["zoom200Overflow"] = page.evaluate(
+        "() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1"
+    )
+    result["zoom200PrimaryActionsVisible"] = page.evaluate(
+        """() => Array.from(document.querySelectorAll("#outputGrid .output-group[open] .btn-download"))
+            .every((button) => button.getBoundingClientRect().width > 0)"""
+    )
     page.set_viewport_size({"width": 390, "height": 844})
     result["mobileOverflow"] = page.evaluate(
         "() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1"
@@ -512,6 +543,19 @@ def validate_result(result: dict) -> list[str]:
         failures.append(f"{preset}: workflow rail did not expose one Export step: {result.get('workflowCurrent')}")
     if result.get("outputActionViolations"):
         failures.append(f"{preset}: output action accessible names were ambiguous: {result['outputActionViolations'][:3]}")
+    if result.get("zoom200Overflow") or result.get("zoom200PrimaryActionsVisible") is not True:
+        failures.append(f"{preset}: 200% equivalent viewport overflowed or hid primary actions")
+    result_groups = result.get("resultGroups") or []
+    if not result_groups or sum(group.get("count", 0) for group in result_groups) != len(result["files"]):
+        failures.append(f"{preset}: grouped result counts did not match generated files: {result_groups}")
+    if result.get("collapsedGroupCount") != len(result_groups) or result.get("expandedGroupCount") != len(result_groups):
+        failures.append(f"{preset}: expand/collapse controls did not affect every result group")
+    if preset == "pwa":
+        groups_by_key = {group["key"]: group for group in result_groups}
+        if groups_by_key.get("pwa-icons", {}).get("open") is not True or groups_by_key.get("pwa-splash", {}).get("open") is not False:
+            failures.append(f"pwa: large-group disclosure defaults were incorrect: {result_groups}")
+        if result.get("filteredResultState") != {"visibleGroups": 1, "visibleItems": 40}:
+            failures.append(f"pwa: filename filtering did not isolate startup images: {result.get('filteredResultState')}")
     zip_progress = result.get("zipProgress") or []
     if not zip_progress or zip_progress[-1].get("completed") != zip_progress[-1].get("total"):
         failures.append(f"{preset}: ZIP progress did not reach completion: {zip_progress[-1:]}")

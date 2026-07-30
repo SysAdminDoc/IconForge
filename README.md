@@ -36,6 +36,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **UI string catalog** - shell, status, diagnostic, validation, and snippet text now route through default English catalog keys for future localization
 - **Drop-replace template matching** - load an existing folder or ZIP filename map and export only matching generated assets
 - **File size display** - see per-icon and total file sizes after generation
+- **Grouped result explorer** - scan artifact families by count, bytes, and validation state; collapse large sets or filter by filename, format, and status
 - **SVG dark mode** - generates SVG favicons with embedded `prefers-color-scheme` CSS
 - **Offline PWA** - install as a Progressive Web App, works without internet, and shows a reload notice when an update is ready
 - **100% client-side** - all processing happens in your browser via Canvas and Web Workers

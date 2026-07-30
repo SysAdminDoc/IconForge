@@ -645,6 +645,31 @@
                         </div>
                         <h2>Generated Icons</h2>
                     </div>
+                    <div class="result-toolbar is-hidden" id="resultToolbar" aria-label="Generated result filters">
+                        <label class="result-filter">
+                            <span>Find files</span>
+                            <input type="search" id="outputNameFilter" placeholder="Filename" autocomplete="off">
+                        </label>
+                        <label class="result-filter">
+                            <span>Format</span>
+                            <select id="outputFormatFilter">
+                                <option value="">All formats</option>
+                            </select>
+                        </label>
+                        <label class="result-filter">
+                            <span>Status</span>
+                            <select id="outputStatusFilter">
+                                <option value="">All statuses</option>
+                                <option value="pass">Passed</option>
+                                <option value="warn">Warnings</option>
+                                <option value="fail">Failed</option>
+                            </select>
+                        </label>
+                        <div class="result-filter-actions">
+                            <button type="button" id="btnExpandResults">Expand all</button>
+                            <button type="button" id="btnCollapseResults">Collapse all</button>
+                        </div>
+                    </div>
                     <div class="output-grid" id="outputGrid"></div>
                     <div class="download-all-section">
                         <button class="btn-download-all" id="btnDownloadAll">

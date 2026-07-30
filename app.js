@@ -283,6 +283,18 @@ const UI_STRINGS = Object.freeze({
         cancel: 'Cancel',
         preparingExport: 'Preparing export…',
         generatedIcons: 'Generated Icons',
+        generatedResultFilters: 'Generated result filters',
+        findFiles: 'Find files',
+        filename: 'Filename',
+        format: 'Format',
+        allFormats: 'All formats',
+        status: 'Status',
+        allStatuses: 'All statuses',
+        passed: 'Passed',
+        warnings: 'Warnings',
+        failed: 'Failed',
+        expandAll: 'Expand all',
+        collapseAll: 'Collapse all',
         downloadZip: 'Download All as ZIP',
         saveFolder: 'Save to New Folder',
         runDiagnostics: 'Run generation to inspect this export.',
@@ -602,6 +614,12 @@ const generationPreflight = document.getElementById('generationPreflight');
 const status = document.getElementById('status');
 const outputSection = document.getElementById('outputSection');
 const outputGrid = document.getElementById('outputGrid');
+const resultToolbar = document.getElementById('resultToolbar');
+const outputNameFilter = document.getElementById('outputNameFilter');
+const outputFormatFilter = document.getElementById('outputFormatFilter');
+const outputStatusFilter = document.getElementById('outputStatusFilter');
+const btnExpandResults = document.getElementById('btnExpandResults');
+const btnCollapseResults = document.getElementById('btnCollapseResults');
 const btnDownloadAll = document.getElementById('btnDownloadAll');
 const btnSaveToFolder = document.getElementById('btnSaveToFolder');
 const diagnosticsSection = document.getElementById('diagnosticsSection');
@@ -2027,6 +2045,15 @@ btnAddSize.addEventListener('click', addCustomSize);
 btnGenerate.addEventListener('click', generateIcons);
 btnCancelOperation?.addEventListener('click', cancelActiveOperation);
 btnDownloadAll.addEventListener('click', downloadAll);
+outputNameFilter?.addEventListener('input', applyOutputFilters);
+outputFormatFilter?.addEventListener('change', applyOutputFilters);
+outputStatusFilter?.addEventListener('change', applyOutputFilters);
+btnExpandResults?.addEventListener('click', () => {
+    outputGrid.querySelectorAll('.output-group:not(.is-hidden)').forEach(group => { group.open = true; });
+});
+btnCollapseResults?.addEventListener('click', () => {
+    outputGrid.querySelectorAll('.output-group:not(.is-hidden)').forEach(group => { group.open = false; });
+});
 draftEnabledToggle?.addEventListener('change', () => {
     applyDraftPreferenceControls({
         enabled: draftEnabledToggle.checked,
@@ -2561,6 +2588,7 @@ function resetInput() {
     cropSection.classList.remove('active');
     btnGenerate.disabled = true;
     setElementVisible(outputSection, false);
+    resetOutputFilters();
     generatedFiles = [];
     generatedSnippets = {};
     isManualCropMode = false;
@@ -3606,6 +3634,7 @@ async function generateIcons() {
     if (featureSupport.workerApi && featureSupport.offscreenCanvas && !resizeWorker) initWorker();
     revokeOutputUrls();
     outputGrid.innerHTML = '';
+    resetOutputFilters();
     setElementVisible(outputSection, false);
     generatedFiles = [];
     generatedSnippets = {};
@@ -3645,6 +3674,7 @@ async function generateIcons() {
         await runOperationStep(operation, 'Building metadata', 'snippets and manifests', () => generateSnippets(sizes, formats));
         setElementVisible(outputSection, true, 'block');
         const validationResult = await runOperationStep(operation, 'Validating', 'generated artifact contracts', () => renderExportValidation());
+        renderOutputGroups(validationResult);
         operation.status = 'completed';
         operation.currentStage = null;
         operation.currentFile = null;
@@ -3664,6 +3694,7 @@ async function generateIcons() {
             disposeResizeWorker('Generation cancelled.');
             revokeOutputUrls();
             outputGrid.innerHTML = '';
+            resetOutputFilters();
             generatedFiles = [];
             generatedSnippets = {};
             setElementVisible(outputSection, false);
@@ -3671,6 +3702,7 @@ async function generateIcons() {
             showStatus(uiText('status.generationCancelled'), 'warning');
         } else {
             setElementVisible(outputSection, true, 'block');
+            renderOutputGroups({ status: 'fail', checks: [] });
             renderGenerationDiagnostics({ selectedFormats: formats, error });
             showStatus(uiText('status.genericError', { message: error.message }), 'error');
             console.error(error);
@@ -4130,9 +4162,171 @@ async function generateWindowsBundle(img, crop, operation) {
     }
 }
 
+const OUTPUT_GROUP_DEFINITIONS = Object.freeze({
+    'pwa-icons': 'PWA install icons',
+    'pwa-splash': 'Apple startup images',
+    android: 'Android launcher resources',
+    ios: 'iOS AppIcon set',
+    windows: 'Windows tiles',
+    social: 'Social previews',
+    extension: 'Extension icons',
+    core: 'Core web icons'
+});
+
+function outputGroupKey(fileName) {
+    const normalized = normalizedFileName(fileName).toLowerCase();
+    if (normalized.startsWith('pwa/icons/')) return 'pwa-icons';
+    if (normalized.startsWith('pwa/splash/')) return 'pwa-splash';
+    if (normalized.startsWith('android/')) return 'android';
+    if (normalized.startsWith('ios/')) return 'ios';
+    if (normalized.startsWith('windows/')) return 'windows';
+    if (normalized.startsWith('social/')) return 'social';
+    if (normalized.startsWith('extension/')) return 'extension';
+    return 'core';
+}
+
+function primaryOutputGroupKey() {
+    if (activePresetKey === 'pwa') return 'pwa-icons';
+    if (['android', 'ios', 'windows', 'social', 'extension'].includes(activePresetKey)) return activePresetKey;
+    return 'core';
+}
+
+function outputGroupValidationStatus(items, validationResult) {
+    const checks = Array.isArray(validationResult?.checks) ? validationResult.checks : [];
+    const severity = { pass: 0, warn: 1, fail: 2 };
+    let matchedStatus = 'pass';
+    let matched = false;
+    for (const check of checks) {
+        if (!['warn', 'fail'].includes(check.status)) continue;
+        const text = `${check.label || ''} ${check.detail || ''}`.toLowerCase();
+        if (items.some(item => text.includes(String(item.dataset.filename || '').toLowerCase()))) {
+            matched = true;
+            if (severity[check.status] > severity[matchedStatus]) matchedStatus = check.status;
+        }
+    }
+    if (matched) return matchedStatus;
+    return ['pass', 'warn', 'fail'].includes(validationResult?.status) ? validationResult.status : 'pass';
+}
+
+function statusLabel(statusValue) {
+    if (statusValue === 'fail') return 'Failed';
+    if (statusValue === 'warn') return 'Warnings';
+    return 'Passed';
+}
+
+function applyOutputFilters() {
+    const query = String(outputNameFilter?.value || '').trim().toLowerCase();
+    const format = String(outputFormatFilter?.value || '');
+    const statusValue = String(outputStatusFilter?.value || '');
+    const filtersActive = Boolean(query || format || statusValue);
+    outputGrid.querySelectorAll('.output-group').forEach(group => {
+        let visibleCount = 0;
+        group.querySelectorAll('.output-item').forEach(item => {
+            const visible = (!query || item.dataset.filename.toLowerCase().includes(query))
+                && (!format || item.dataset.format === format)
+                && (!statusValue || group.dataset.validationStatus === statusValue);
+            item.classList.toggle('is-hidden', !visible);
+            if (visible) visibleCount++;
+        });
+        group.classList.toggle('is-hidden', visibleCount === 0);
+        if (filtersActive && visibleCount > 0) group.open = true;
+    });
+}
+
+function resetOutputFilters() {
+    if (outputNameFilter) outputNameFilter.value = '';
+    if (outputFormatFilter) {
+        outputFormatFilter.innerHTML = '<option value="">All formats</option>';
+    }
+    if (outputStatusFilter) outputStatusFilter.value = '';
+    setElementVisible(resultToolbar, false);
+}
+
+function renderOutputGroups(validationResult = null) {
+    const items = Array.from(outputGrid.querySelectorAll('.output-item'));
+    if (!items.length) {
+        resetOutputFilters();
+        return [];
+    }
+    const groups = new Map();
+    for (const item of items) {
+        const key = item.dataset.groupKey || outputGroupKey(item.dataset.filename);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(item);
+    }
+
+    outputGrid.innerHTML = '';
+    const primaryKey = primaryOutputGroupKey();
+    const formats = new Set();
+    const rendered = [];
+    for (const [key, groupItems] of groups) {
+        const details = document.createElement('details');
+        details.className = 'output-group';
+        details.dataset.groupKey = key;
+        const validationStatus = outputGroupValidationStatus(groupItems, validationResult);
+        details.dataset.validationStatus = validationStatus;
+        const totalBytes = groupItems.reduce((sum, item) => sum + Number(item.dataset.bytes || 0), 0);
+        const largeGroup = groupItems.length > 12;
+        details.open = validationStatus === 'fail' || key === primaryKey || !largeGroup;
+
+        const summary = document.createElement('summary');
+        summary.className = 'output-group-summary';
+        const title = document.createElement('span');
+        title.className = 'output-group-title';
+        title.textContent = OUTPUT_GROUP_DEFINITIONS[key] || key;
+        const meta = document.createElement('span');
+        meta.className = 'output-group-meta';
+        meta.textContent = `${groupItems.length} file${groupItems.length === 1 ? '' : 's'} • ${formatFileSize(totalBytes)}`;
+        const badge = document.createElement('span');
+        badge.className = `output-group-status ${validationStatus}`;
+        badge.textContent = statusLabel(validationStatus);
+        summary.append(title, meta, badge);
+
+        const grid = document.createElement('div');
+        grid.className = 'output-group-grid';
+        groupItems.forEach(item => {
+            formats.add(item.dataset.format);
+            grid.appendChild(item);
+        });
+        details.append(summary, grid);
+        outputGrid.appendChild(details);
+        rendered.push({
+            key,
+            count: groupItems.length,
+            totalBytes,
+            validationStatus,
+            open: details.open
+        });
+    }
+
+    if (outputFormatFilter) {
+        outputFormatFilter.innerHTML = '<option value="">All formats</option>';
+        Array.from(formats).sort().forEach(format => {
+            const option = document.createElement('option');
+            option.value = format;
+            option.textContent = format.toUpperCase();
+            outputFormatFilter.appendChild(option);
+        });
+    }
+    setElementVisible(resultToolbar, true, 'grid');
+    applyOutputFilters();
+    return rendered;
+}
+
 function addOutputItem(fileName, blob, size, format, icoSizes = null, fileSize = 0) {
+    const existingItem = Array.from(outputGrid.querySelectorAll('.output-item'))
+        .find(candidate => candidate.dataset.filename === fileName);
+    if (existingItem) {
+        const existingUrl = existingItem.querySelector('img')?.src;
+        if (existingUrl?.startsWith('blob:')) URL.revokeObjectURL(existingUrl);
+        existingItem.remove();
+    }
     const item = document.createElement('div');
     item.className = 'output-item';
+    item.dataset.filename = fileName;
+    item.dataset.format = format;
+    item.dataset.bytes = String(fileSize || blob.size || 0);
+    item.dataset.groupKey = outputGroupKey(fileName);
 
     const blobUrl = URL.createObjectURL(blob);
     const sizeText = size.width === 'multi'
@@ -4629,6 +4823,7 @@ if (manifestMetadataGrid) {
         try {
             await generateSnippets(getSelectedSizes(), getSelectedFormats());
             const validationResult = await renderExportValidation();
+            renderOutputGroups(validationResult);
             renderGenerationDiagnostics({ validationResult });
         } catch (error) {
             renderGenerationDiagnostics({ error });
@@ -4648,6 +4843,7 @@ async function handleDeploymentUrlChange() {
     try {
         await generateSnippets(getSelectedSizes(), getSelectedFormats());
         const validationResult = await renderExportValidation();
+        renderOutputGroups(validationResult);
         renderGenerationDiagnostics({ validationResult });
     } catch (error) {
         renderGenerationDiagnostics({ error });
@@ -6326,6 +6522,9 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         buildZipFromBlobs,
         inspectZipPlan,
         inspectGenerationPlan,
+        outputGroupKey,
+        renderOutputGroups,
+        applyOutputFilters,
         crc32,
         ZIP16_MAX,
         ZIP32_MAX,

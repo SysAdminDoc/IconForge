@@ -975,6 +975,11 @@ async function main() {
   assert.strictEqual(api.getOutputFileName({ format: 'svg', size: { width: 'svg', height: '' } }), 'icon.svg');
   assert.strictEqual(api.getOutputFileName({ format: 'png', size: { width: 180, height: 180 } }), 'apple-touch-icon.png');
   assert.strictEqual(api.getOutputFileName({ format: 'png', size: { width: 512, height: 512 } }), 'icon-512.png');
+  assert.strictEqual(api.outputGroupKey('pwa/icons/icon-192x192.png'), 'pwa-icons');
+  assert.strictEqual(api.outputGroupKey('pwa/splash/apple-splash-640x1136.png'), 'pwa-splash');
+  assert.strictEqual(api.outputGroupKey('android/mipmap-hdpi/ic_launcher.png'), 'android');
+  assert.strictEqual(api.outputGroupKey('ios/AppIcon.appiconset/Icon-App-60x60-3x.png'), 'ios');
+  assert.strictEqual(api.outputGroupKey('icon-512.png'), 'core');
   api.setState({ activePresetKey: 'extension' });
   assert.strictEqual(api.getOutputFileName({ format: 'png', size: { width: 128, height: 128 } }), 'extension/icons/icon128.png');
   api.setState({ activePresetKey: 'windows' });
