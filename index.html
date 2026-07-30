@@ -218,7 +218,34 @@
 
                 <div id="emojiMode" class="is-hidden" role="tabpanel" aria-labelledby="sourceTabEmoji" tabindex="0">
                     <div class="text-favicon-section">
-                        <label class="section-label">Pick an Emoji</label>
+                        <label class="section-label" data-i18n="shellText.pickEmoji">Pick an Emoji</label>
+                        <div class="emoji-discovery-controls">
+                            <label for="emojiSearch"><span data-i18n="shellText.searchEmoji">Search emoji</span>
+                                <input type="search" id="emojiSearch" autocomplete="off" placeholder="Name or keyword" data-i18n-placeholder="shellText.emojiSearchPlaceholder">
+                            </label>
+                            <label for="emojiCategory"><span data-i18n="shellText.emojiCategory">Category</span>
+                                <select id="emojiCategory">
+                                    <option value="all" data-i18n="shellText.allCategories">All categories</option>
+                                    <option value="symbols" data-i18n="shellText.symbolsCategory">Symbols</option>
+                                    <option value="nature" data-i18n="shellText.natureCategory">Nature</option>
+                                    <option value="animals" data-i18n="shellText.animalsCategory">Animals</option>
+                                    <option value="food" data-i18n="shellText.foodCategory">Food</option>
+                                    <option value="activities" data-i18n="shellText.activitiesCategory">Activities</option>
+                                    <option value="objects" data-i18n="shellText.objectsCategory">Objects</option>
+                                    <option value="travel" data-i18n="shellText.travelCategory">Travel</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="emoji-custom-row">
+                            <label for="emojiCustomInput" class="sr-only" data-i18n="shellText.customEmojiSequence">Custom emoji sequence</label>
+                            <input type="text" id="emojiCustomInput" maxlength="32" placeholder="Paste an emoji or ZWJ sequence" data-i18n-placeholder="shellText.customEmojiPlaceholder">
+                            <button type="button" class="btn-crop" id="btnUseCustomEmoji" data-i18n="shellText.useCustomEmoji">Use custom</button>
+                        </div>
+                        <p class="emoji-search-status" id="emojiSearchStatus" role="status" aria-live="polite"></p>
+                        <div class="emoji-recent-section is-hidden" id="emojiRecentSection">
+                            <span class="section-label" id="emojiRecentLabel" data-i18n="shellText.recentEmoji">Recent</span>
+                            <div class="emoji-recent-grid" id="emojiRecentGrid" aria-labelledby="emojiRecentLabel"></div>
+                        </div>
                         <div class="emoji-grid" id="emojiGrid"></div>
 
                         <div class="text-color-row mt-md">

@@ -28,6 +28,10 @@ function isWrappedByLabel(index) {
 }
 
 const unlabeled = [];
+const destructiveLocalizedLabels = Array.from(
+  documentHtml.matchAll(/<label\b[^>]*\bdata-i18n=["'][^"']+["'][^>]*>(?:(?!<\/label>)[\s\S])*?<(?:input|select|textarea)\b/gi)
+);
+assert.strictEqual(destructiveLocalizedLabels.length, 0, 'data-i18n must not replace labels that contain form controls');
 const controls = documentHtml.matchAll(/<(input|select|textarea)\b[^>]*>/gi);
 for (const match of controls) {
   const tag = match[0];

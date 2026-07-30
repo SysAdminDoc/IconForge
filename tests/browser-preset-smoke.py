@@ -1038,6 +1038,47 @@ def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
         if emoji_pressed_state != {"pressed": 1, "selectedMatches": "true"}:
             failures.append(f"emoji pressed state was incorrect: {emoji_pressed_state}")
 
+    page.locator("#emojiSearch").fill("rocket")
+    page.locator("#emojiCategory").select_option("travel")
+    emoji_discovery_state = page.evaluate(
+        """() => ({
+            matches: [...document.querySelectorAll("#emojiGrid .emoji-btn")].map(button => ({
+                emoji: button.dataset.emoji,
+                name: button.title,
+                category: button.dataset.category
+            })),
+            status: document.querySelector("#emojiSearchStatus")?.textContent
+        })"""
+    )
+    if emoji_discovery_state["matches"] != [{"emoji": "🚀", "name": "Rocket", "category": "travel"}]:
+        failures.append(f"emoji local search/category filtering was incorrect: {emoji_discovery_state}")
+    page.locator("#emojiSearch").fill("")
+    page.locator("#emojiCategory").select_option("all")
+    page.locator("#emojiCustomInput").fill("👩‍💻")
+    page.locator("#btnUseCustomEmoji").click()
+    custom_emoji_state = page.evaluate(
+        """() => ({
+            recentVisible: getComputedStyle(document.querySelector("#emojiRecentSection")).display !== "none",
+            selectedRecent: document.querySelector("#emojiRecentGrid .emoji-btn.selected")?.dataset.emoji,
+            pressed: document.querySelectorAll("#emojiRecentGrid .emoji-btn[aria-pressed='true']").length,
+            stored: JSON.parse(localStorage.getItem("iconforge-emoji-recents-v1") || "[]"),
+            previewHasPixels: (() => {
+                const canvas = document.querySelector("#emojiPreviewCanvas");
+                const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+                return data.some((value, index) => index % 4 === 3 && value > 0);
+            })()
+        })"""
+    )
+    if (
+        not custom_emoji_state["recentVisible"]
+        or custom_emoji_state["selectedRecent"] != "👩‍💻"
+        or custom_emoji_state["pressed"] != 1
+        or not custom_emoji_state["stored"]
+        or custom_emoji_state["stored"][0] != "👩‍💻"
+        or not custom_emoji_state["previewHasPixels"]
+    ):
+        failures.append(f"custom/recent emoji workflow was incorrect: {custom_emoji_state}")
+
     page.locator("#sourceTabEmoji").press("Home")
     page.wait_for_timeout(200)
     focus_style = page.locator("#sourceTabUpload").evaluate(
@@ -1129,6 +1170,8 @@ def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
         "arrowNavigation": arrow_state,
         "endNavigation": end_state,
         "emojiPressed": emoji_pressed_state,
+        "emojiDiscovery": emoji_discovery_state,
+        "customEmoji": custom_emoji_state,
         "shapePressed": shape_pressed_state,
         "focusStyle": focus_style,
         "errorFocus": error_focus,

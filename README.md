@@ -9,6 +9,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 ## Features
 
 - **Multiple input modes** - upload an image, paste from clipboard, create from text/letter, or pick an emoji
+- **Local emoji discovery** - search a named 64-emoji catalog by keyword/category, paste custom emoji or ZWJ sequences, and reuse browser-local recent choices without remote fonts or requests
 - **All icon formats** - PNG, ICO (multi-resolution), SVG (with dark mode CSS), JPG, WebP, AVIF
 - **Platform bundles** - one-click exports for Modern Web, PWA, Chrome Extension, Android adaptive icons, iOS AppIcon.appiconset, Windows tiles, or All Sizes
 - **Advanced role artwork** - optionally supply separate local-only splash, Android foreground, and Android background sources with independent contain/center-crop and padding controls; omitted roles use explicit defaults

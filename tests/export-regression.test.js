@@ -206,6 +206,9 @@ class ElementMock {
     this.children.push(child);
     return child;
   }
+  replaceChildren(...children) {
+    this.children = children;
+  }
   removeChild(child) {
     this.children = this.children.filter((item) => item !== child);
   }
@@ -650,6 +653,10 @@ async function main() {
   assert(flatLegibility.warnings.includes('low-detail'));
   const api = await loadApp(core);
   assert.strictEqual(api.APP_VERSION, declaredVersion);
+  assert.strictEqual(api.EMOJIS.length, 64);
+  assert(api.EMOJIS.every((entry) => entry.emoji && entry.name && entry.category && entry.keywords));
+  assert.strictEqual(api.inspectCustomEmoji('👩‍💻'), '👩‍💻');
+  assert.strictEqual(api.inspectCustomEmoji('hello'), null);
   for (const metadata of Object.values(api.PLATFORM_MATRIX_METADATA)) {
     assert.match(metadata.source, /^https:\/\//);
     assert.match(metadata.lastVerified, /^\d{4}-\d{2}-\d{2}$/);
@@ -823,13 +830,13 @@ async function main() {
     .filter(Boolean)
     .filter((value) => !/^(?:\d+%?|\d+x\d+)$/.test(value));
   const attributeLiterals = Array.from(
-    shellWithoutComments.matchAll(/\b(?:aria-label|placeholder|title|alt)=(["'])(.*?)\1/gi),
+    shellWithoutComments.matchAll(/(?:^|\s)(?:aria-label|placeholder|title|alt)=(["'])(.*?)\1/gi),
     (match) => decodeHtml(match[2]).trim()
   ).filter((value) => value && !/^(?:A|256)$/.test(value));
   const uncatalogedLiterals = [...new Set([...visibleLiterals, ...attributeLiterals])]
     .filter((value) => !catalogValues.has(value));
   assert.deepStrictEqual(uncatalogedLiterals, [], `uncataloged UI literals: ${uncatalogedLiterals.join(' | ')}`);
-  const catalogHookKeys = Array.from(htmlSource.matchAll(/\bdata-i18n(?:-title|-aria-label)?=["']([^"']+)["']/gi), (match) => match[1]);
+  const catalogHookKeys = Array.from(htmlSource.matchAll(/\bdata-i18n(?:-title|-aria-label|-placeholder)?=["']([^"']+)["']/gi), (match) => match[1]);
   catalogHookKeys.forEach((key) => assert.strictEqual(typeof api.getUiString(key), 'string', `missing UI catalog key: ${key}`));
   assert.deepStrictEqual(
     JSON.parse(JSON.stringify(api.inspectAssetBase('https://cdn.example.com/assets'))),

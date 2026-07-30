@@ -178,6 +178,21 @@ const UI_STRINGS = Object.freeze({
         square: 'Square',
         useAsSource: 'Use This as Source',
         pickEmoji: 'Pick an Emoji',
+        searchEmoji: 'Search emoji',
+        emojiSearchPlaceholder: 'Name or keyword',
+        emojiCategory: 'Category',
+        allCategories: 'All categories',
+        symbolsCategory: 'Symbols',
+        natureCategory: 'Nature',
+        animalsCategory: 'Animals',
+        foodCategory: 'Food',
+        activitiesCategory: 'Activities',
+        objectsCategory: 'Objects',
+        travelCategory: 'Travel',
+        customEmojiSequence: 'Custom emoji sequence',
+        customEmojiPlaceholder: 'Paste an emoji or ZWJ sequence',
+        useCustomEmoji: 'Use custom',
+        recentEmoji: 'Recent',
         outputOptions: 'Output Options',
         reforgePreviousExport: 'Reforge Previous Export',
         noManifestSelected: 'No manifest selected',
@@ -488,6 +503,11 @@ const UI_STRINGS = Object.freeze({
         cropRegionDimensions: '{width} x {height} (from {sourceWidth} x {sourceHeight})',
         fullImageDimensions: 'Full image ({width} x {height})',
         selectEmoji: 'Select emoji {emoji}',
+        selectNamedEmoji: 'Select {name} emoji {emoji}',
+        emojiResults: '{count} emoji choices',
+        emojiNoResults: 'No local emoji match these filters.',
+        emojiCustomInvalid: 'Paste an emoji sequence with no letters or numbers.',
+        customEmojiName: 'custom sequence',
         downloadFile: 'Download {name}',
         copyFile: 'Copy {name} as Base64 data URL',
         download: 'Download',
@@ -1470,11 +1490,7 @@ function applyDraftControls(draft) {
         selectedEmoji = draft.sourceTools.emoji.value || selectedEmoji;
         emojiBgColor.value = draft.sourceTools.emoji.backgroundColor || emojiBgColor.value;
         emojiShape = setShapeSelection('#emojiShapeOptions', draft.sourceTools.emoji.shape);
-        emojiGrid.querySelectorAll('.emoji-btn').forEach(btn => {
-            const selected = btn.textContent === selectedEmoji;
-            btn.classList.toggle('selected', selected);
-            btn.setAttribute('aria-pressed', String(selected));
-        });
+        renderEmojiChoices();
         renderEmojiPreview();
     }
 
@@ -2291,32 +2307,190 @@ document.getElementById('btnUseTextIcon').addEventListener('click', () => {
 renderTextPreview();
 
 // Emoji-to-favicon
-const EMOJIS = ['🔥','⚡','🚀','💎','🎯','🎨','🔒','🌟','💡','🎵','🎮','🏆','💬','📦','🔧','⚙️',
-    '🌍','🌈','❤️','🍕','☕','🎲','🐱','🐶','🦊','🐸','🌸','🌺','🍀','🎄','⭐','🌙',
-    '✨','🎁','🎪','🛡️','⚔️','🏠','🔔','📱','💻','🖥️','📊','📈','🎓','📚','✏️','🔍',
-    '🗂️','📋','🎤','🎸','🎹','🎬','📷','🖼️','🧩','🏗️','🚗','✈️','🚢','🏔️','🌊','🔮'];
+const EMOJIS = Object.freeze([
+    ['🔥', 'Fire', 'symbols', 'hot flame'],
+    ['⚡', 'High voltage', 'symbols', 'lightning energy'],
+    ['🚀', 'Rocket', 'travel', 'launch space'],
+    ['💎', 'Gem stone', 'objects', 'diamond jewel'],
+    ['🎯', 'Bullseye', 'activities', 'target focus'],
+    ['🎨', 'Artist palette', 'activities', 'design paint'],
+    ['🔒', 'Locked', 'objects', 'security privacy'],
+    ['🌟', 'Glowing star', 'nature', 'favorite shine'],
+    ['💡', 'Light bulb', 'objects', 'idea'],
+    ['🎵', 'Musical note', 'activities', 'audio music'],
+    ['🎮', 'Video game', 'activities', 'controller gaming'],
+    ['🏆', 'Trophy', 'activities', 'winner award'],
+    ['💬', 'Speech balloon', 'symbols', 'chat message'],
+    ['📦', 'Package', 'objects', 'box delivery'],
+    ['🔧', 'Wrench', 'objects', 'tool settings'],
+    ['⚙️', 'Gear', 'objects', 'settings configuration'],
+    ['🌍', 'Globe', 'nature', 'earth world'],
+    ['🌈', 'Rainbow', 'nature', 'color weather'],
+    ['❤️', 'Red heart', 'symbols', 'love favorite'],
+    ['🍕', 'Pizza', 'food', 'meal slice'],
+    ['☕', 'Hot beverage', 'food', 'coffee tea'],
+    ['🎲', 'Game die', 'activities', 'dice random'],
+    ['🐱', 'Cat face', 'animals', 'pet feline'],
+    ['🐶', 'Dog face', 'animals', 'pet canine'],
+    ['🦊', 'Fox', 'animals', 'wildlife'],
+    ['🐸', 'Frog', 'animals', 'amphibian'],
+    ['🌸', 'Cherry blossom', 'nature', 'flower spring'],
+    ['🌺', 'Hibiscus', 'nature', 'flower tropical'],
+    ['🍀', 'Four leaf clover', 'nature', 'lucky plant'],
+    ['🎄', 'Christmas tree', 'nature', 'holiday evergreen'],
+    ['⭐', 'Star', 'symbols', 'favorite'],
+    ['🌙', 'Crescent moon', 'nature', 'night'],
+    ['✨', 'Sparkles', 'symbols', 'shine magic'],
+    ['🎁', 'Wrapped gift', 'objects', 'present celebration'],
+    ['🎪', 'Circus tent', 'activities', 'event show'],
+    ['🛡️', 'Shield', 'objects', 'security protection'],
+    ['⚔️', 'Crossed swords', 'objects', 'battle game'],
+    ['🏠', 'House', 'objects', 'home'],
+    ['🔔', 'Bell', 'objects', 'notification alert'],
+    ['📱', 'Mobile phone', 'objects', 'device app'],
+    ['💻', 'Laptop', 'objects', 'computer code'],
+    ['🖥️', 'Desktop computer', 'objects', 'monitor device'],
+    ['📊', 'Bar chart', 'objects', 'analytics data'],
+    ['📈', 'Chart increasing', 'objects', 'growth analytics'],
+    ['🎓', 'Graduation cap', 'objects', 'education school'],
+    ['📚', 'Books', 'objects', 'library learning'],
+    ['✏️', 'Pencil', 'objects', 'write edit'],
+    ['🔍', 'Magnifying glass', 'objects', 'search inspect'],
+    ['🗂️', 'Card index dividers', 'objects', 'files organize'],
+    ['📋', 'Clipboard', 'objects', 'tasks checklist'],
+    ['🎤', 'Microphone', 'activities', 'voice audio'],
+    ['🎸', 'Guitar', 'activities', 'music instrument'],
+    ['🎹', 'Musical keyboard', 'activities', 'piano instrument'],
+    ['🎬', 'Clapper board', 'activities', 'movie video'],
+    ['📷', 'Camera', 'objects', 'photo image'],
+    ['🖼️', 'Framed picture', 'objects', 'image gallery'],
+    ['🧩', 'Puzzle piece', 'activities', 'plugin game'],
+    ['🏗️', 'Building construction', 'objects', 'build crane'],
+    ['🚗', 'Car', 'travel', 'vehicle drive'],
+    ['✈️', 'Airplane', 'travel', 'flight'],
+    ['🚢', 'Ship', 'travel', 'boat ocean'],
+    ['🏔️', 'Snow capped mountain', 'nature', 'landscape'],
+    ['🌊', 'Water wave', 'nature', 'ocean sea'],
+    ['🔮', 'Crystal ball', 'objects', 'magic future']
+].map(([emoji, name, category, keywords]) => Object.freeze({ emoji, name, category, keywords })));
 
+const EMOJI_RECENTS_KEY = 'iconforge-emoji-recents-v1';
+const MAX_EMOJI_RECENTS = 8;
 const emojiGrid = document.getElementById('emojiGrid');
+const emojiSearch = document.getElementById('emojiSearch');
+const emojiCategory = document.getElementById('emojiCategory');
+const emojiSearchStatus = document.getElementById('emojiSearchStatus');
+const emojiRecentSection = document.getElementById('emojiRecentSection');
+const emojiRecentGrid = document.getElementById('emojiRecentGrid');
+const emojiCustomInput = document.getElementById('emojiCustomInput');
+const btnUseCustomEmoji = document.getElementById('btnUseCustomEmoji');
 let selectedEmoji = '🔥';
 
-EMOJIS.forEach(em => {
-    const btn = document.createElement('button');
-    btn.className = 'emoji-btn' + (em === selectedEmoji ? ' selected' : '');
-    btn.textContent = em;
-    btn.setAttribute('aria-label', uiText('runtime.selectEmoji', { emoji: em }));
-    btn.setAttribute('aria-pressed', String(em === selectedEmoji));
-        btn.addEventListener('click', () => {
-            emojiGrid.querySelectorAll('.emoji-btn').forEach(b => {
-                const selected = b === btn;
-                b.classList.toggle('selected', selected);
-                b.setAttribute('aria-pressed', String(selected));
-            });
-            selectedEmoji = em;
-            renderEmojiPreview();
-            queueDraftSave();
-        });
-    emojiGrid.appendChild(btn);
+function readEmojiRecents() {
+    try {
+        const parsed = JSON.parse(draftStorage()?.getItem(EMOJI_RECENTS_KEY) || '[]');
+        return Array.isArray(parsed)
+            ? parsed.filter(value => typeof value === 'string' && value.trim()).slice(0, MAX_EMOJI_RECENTS)
+            : [];
+    } catch {
+        return [];
+    }
+}
+
+function addEmojiRecent(emoji) {
+    const next = [emoji, ...readEmojiRecents().filter(value => value !== emoji)].slice(0, MAX_EMOJI_RECENTS);
+    try {
+        draftStorage()?.setItem(EMOJI_RECENTS_KEY, JSON.stringify(next));
+    } catch {
+        // Recent choices are best-effort when storage is unavailable or full.
+    }
+    return next;
+}
+
+function emojiEntryFor(value) {
+    return EMOJIS.find(entry => entry.emoji === value) || {
+        emoji: value,
+        name: uiText('runtime.customEmojiName'),
+        category: 'custom',
+        keywords: ''
+    };
+}
+
+function emojiMatches(entry, query, category) {
+    if (category !== 'all' && entry.category !== category) return false;
+    if (!query) return true;
+    return `${entry.name} ${entry.category} ${entry.keywords} ${entry.emoji}`.toLocaleLowerCase().includes(query);
+}
+
+function createEmojiButton(entry, className = 'emoji-btn') {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `${className}${entry.emoji === selectedEmoji ? ' selected' : ''}`;
+    button.textContent = entry.emoji;
+    button.title = entry.name;
+    button.dataset.emoji = entry.emoji;
+    button.dataset.category = entry.category;
+    button.setAttribute('aria-label', uiText('runtime.selectNamedEmoji', { name: entry.name, emoji: entry.emoji }));
+    button.setAttribute('aria-pressed', String(entry.emoji === selectedEmoji));
+    button.addEventListener('click', () => selectEmojiChoice(entry.emoji));
+    return button;
+}
+
+function renderEmojiChoices() {
+    const query = String(emojiSearch?.value || '').trim().toLocaleLowerCase();
+    const category = emojiCategory?.value || 'all';
+    const catalog = EMOJIS.filter(entry => emojiMatches(entry, query, category));
+    const recents = readEmojiRecents()
+        .map(emojiEntryFor)
+        .filter(entry => emojiMatches(entry, query, category));
+
+    emojiGrid.replaceChildren(...catalog.map(entry => createEmojiButton(entry)));
+    emojiRecentGrid.replaceChildren(...recents.map(entry => createEmojiButton(entry, 'emoji-btn emoji-recent-btn')));
+    setElementVisible(emojiRecentSection, recents.length > 0, 'block');
+    const total = catalog.length + recents.length;
+    emojiSearchStatus.textContent = total
+        ? uiText('runtime.emojiResults', { count: total })
+        : uiText('runtime.emojiNoResults');
+}
+
+function selectEmojiChoice(emoji, { remember = true } = {}) {
+    selectedEmoji = emoji;
+    if (remember) addEmojiRecent(emoji);
+    renderEmojiChoices();
+    renderEmojiPreview();
+    queueDraftSave();
+}
+
+function inspectCustomEmoji(value) {
+    const emoji = String(value || '').trim();
+    if (!emoji || Array.from(emoji).length > 16 || /[\u0000-\u001f\u007f]/.test(emoji)) return null;
+    const hasEmoji = /[\p{Extended_Pictographic}\p{Regional_Indicator}\p{Emoji_Presentation}]/u.test(emoji) ||
+        /[0-9#*]\uFE0F?\u20E3/u.test(emoji);
+    const hasPlainText = /[\p{Letter}]/u.test(emoji.replace(/\u200D/g, ''));
+    return hasEmoji && !hasPlainText ? emoji : null;
+}
+
+function useCustomEmoji() {
+    const emoji = inspectCustomEmoji(emojiCustomInput.value);
+    if (!emoji) {
+        emojiSearchStatus.textContent = uiText('runtime.emojiCustomInvalid');
+        emojiCustomInput.setAttribute('aria-invalid', 'true');
+        emojiCustomInput.focus();
+        return;
+    }
+    emojiCustomInput.removeAttribute('aria-invalid');
+    selectEmojiChoice(emoji);
+}
+
+emojiSearch.addEventListener('input', renderEmojiChoices);
+emojiCategory.addEventListener('change', renderEmojiChoices);
+btnUseCustomEmoji.addEventListener('click', useCustomEmoji);
+emojiCustomInput.addEventListener('keydown', event => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    useCustomEmoji();
 });
+renderEmojiChoices();
 
 const emojiPreviewCanvas = document.getElementById('emojiPreviewCanvas');
 const emojiPreviewCtx = emojiPreviewCanvas.getContext('2d');
@@ -7500,6 +7674,8 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         APP_VERSION,
         PLATFORM_MATRIX_METADATA,
         UI_STRINGS,
+        EMOJIS,
+        inspectCustomEmoji,
         LOCALE_CATALOGS,
         SUPPORTED_LOCALES,
         uiText,
