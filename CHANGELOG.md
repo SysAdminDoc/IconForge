@@ -15,6 +15,7 @@ All notable changes to IconForge will be documented in this file.
 - Android exports now include density-correct round launcher PNGs, black-alpha monochrome themed-icon layers, v26 regular/round adaptive XML, API 33 monochrome XML, and an `AndroidManifest.xml` handoff with `android:icon` and `android:roundIcon`.
 - Android validation now proves all launcher XML references resolve across mdpi–xxxhdpi and checks themed monochrome pixel semantics.
 - Reforge Previous Export now previews and restores reproducible settings from `iconforge-export.json`, migrates v1 in memory, fails closed on malformed or future schemas, and requests source-artwork re-selection.
+- Persistent BCP 47 interface locales now update document language/direction with deterministic English fallback; pseudo-expanded and pseudo-RTL catalogs cover shell/runtime text and generated-manifest defaults without claiming production translations.
 
 ### Fixed
 - Hidden progress and output states now remain hidden until their owning workflow explicitly reveals them.
@@ -28,6 +29,7 @@ All notable changes to IconForge will be documented in this file.
 
 ### Accessibility
 - Text shapes and emoji choices now maintain one `aria-pressed` selection, the workflow rail advances a single `aria-current` step, and every generated download/copy action includes its filename.
+- Pseudo-RTL keeps logical keyboard order intact, while localized output actions retain filename-specific accessible names.
 
 ## [v0.4.24] - 2026-07-25
 

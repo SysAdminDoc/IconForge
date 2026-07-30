@@ -113,8 +113,8 @@ assert.strictEqual(shapeButtons.length, 6, 'text and emoji source tools should e
 assert.strictEqual(shapeButtons.filter((button) => button['aria-pressed'] === 'true').length, 2, 'each shape group should expose one default pressed toggle');
 assert(shapeButtons.every((button) => ['true', 'false'].includes(button['aria-pressed'])), 'every shape toggle should declare aria-pressed');
 assert(app.includes("btn.setAttribute('aria-pressed', String(selected));"), 'runtime selection changes should synchronize aria-pressed');
-assert(app.includes('aria-label="Download ${safeName}"'), 'generated downloads should include their filename in the accessible name');
-assert(app.includes('aria-label="Copy ${safeName} as Base64 data URL"'), 'generated copy actions should include their filename in the accessible name');
+assert(app.includes("uiText('runtime.downloadFile', { name: fileName })"), 'generated downloads should localize an accessible name that includes the filename');
+assert(app.includes("uiText('runtime.copyFile', { name: fileName })"), 'generated copy actions should localize an accessible name that includes the filename');
 
 const sourceTabList = documentHtml.match(/<div\b[^>]*\bclass=["'][^"']*\binput-mode-tabs\b[^"']*["'][^>]*>/i);
 assert(sourceTabList, 'source tablist should exist');
@@ -157,6 +157,10 @@ const i18nKeys = new Set(
   'shell.appName',
   'shell.tagline',
   'shell.trustSignal',
+  'shell.interfaceLanguage',
+  'shell.english',
+  'shell.pseudoExpanded',
+  'shell.pseudoRtl',
   'shell.sourceImage',
   'shell.draftRecovery',
   'shell.draftPrivacy'

@@ -21,9 +21,19 @@
                 </div>
                 <p class="tagline" data-i18n="shell.tagline">Generate favicons, PWA icons, and extension assets in seconds</p>
             </div>
-            <div class="trust-signal">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span data-i18n="shell.trustSignal">Your images stay in this browser</span>
+            <div class="header-actions">
+                <label class="locale-picker" for="localeSelect">
+                    <span data-i18n="shell.interfaceLanguage">Interface Language</span>
+                    <select id="localeSelect">
+                        <option value="en" data-i18n="shell.english">English</option>
+                        <option value="en-XA" data-i18n="shell.pseudoExpanded">Pseudo Expanded</option>
+                        <option value="ar-XB" data-i18n="shell.pseudoRtl">Pseudo RTL</option>
+                    </select>
+                </label>
+                <div class="trust-signal">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <span data-i18n="shell.trustSignal">Your images stay in this browser</span>
+                </div>
             </div>
         </header>
 

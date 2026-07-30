@@ -130,7 +130,7 @@ function setPreviewInfo(name, width, height, suffix) {
     previewInfo.appendChild(document.createTextNode(` — ${width} × ${height}`));
     if (suffix) {
         const small = document.createElement('small');
-        small.textContent = ` (${suffix})`;
+        small.textContent = ` (${localeLiteral(suffix)})`;
         previewInfo.appendChild(small);
     }
 }
@@ -164,7 +164,11 @@ const UI_STRINGS = Object.freeze({
         saveDraft: 'Save settings for recovery',
         restoreSourceImage: 'Restore source image after reload',
         clearDraftOnExport: 'Clear saved draft after ZIP or folder export',
-        draftPrivacy: 'Settings save locally in this browser. Source images are stored only when this box is enabled.'
+        draftPrivacy: 'Settings save locally in this browser. Source images are stored only when this box is enabled.',
+        interfaceLanguage: 'Interface Language',
+        english: 'English',
+        pseudoExpanded: 'Pseudo Expanded',
+        pseudoRtl: 'Pseudo RTL'
     },
     shellText: {
         pageTitle: 'Icon Forge — Favicon, PWA & Extension Icon Generator',
@@ -482,7 +486,69 @@ const UI_STRINGS = Object.freeze({
         restoredWithSource: 'Draft restored locally, including the saved source image.',
         restoredSettings: 'Draft settings restored locally. Enable source restore to keep the image across reloads.',
         sourceLoadFailed: 'Draft settings restored, but the saved source image could not be loaded.',
-        broken: 'Saved draft could not be restored. Clear Draft removes the broken local copy.'
+        broken: 'Saved draft could not be restored. Clear Draft removes the broken local copy.',
+        migrationSaveFailed: 'Draft migration could not be saved.',
+        sourceOverLimit: 'Source image exceeded the 4 MB draft limit; settings were saved without image bytes.',
+        settingsOverLimit: 'Draft settings exceed the 4 MB local storage limit.',
+        disabled: 'Draft recovery is disabled. Nothing will be saved locally.'
+    },
+    runtime: {
+        replacementLoaded: '{count} target filenames loaded',
+        replacementFailed: 'Template scan failed',
+        cropInvalid: 'Invalid crop dimensions',
+        cropApplied: 'Crop applied!',
+        cropAnalyzing: 'Analyzing...',
+        cropAutoApplied: 'Auto-crop applied!',
+        cropNoSpace: 'No empty space detected',
+        cropDraw: 'Draw a crop rectangle on the image',
+        cropConfirm: 'Click "Apply Crop" to confirm',
+        cropReset: 'Crop reset',
+        cropRegionDimensions: '{width} x {height} (from {sourceWidth} x {sourceHeight})',
+        fullImageDimensions: 'Full image ({width} x {height})',
+        selectEmoji: 'Select emoji {emoji}',
+        downloadFile: 'Download {name}',
+        copyFile: 'Copy {name} as Base64 data URL',
+        download: 'Download',
+        copyBase64: 'Copy Base64',
+        scalable: 'Scalable',
+        generating: 'Generating...',
+        generateIcons: 'Generate Icons',
+        allFormats: 'All formats',
+        fileSingular: 'file',
+        filePlural: 'files',
+        fileSummary: '{count} {fileWord} • {size}',
+        manifestReady: 'Manifest ready: {name}',
+        replacementRestored: '{count} target filenames restored',
+        noReplacementTargets: 'No replacement targets',
+        noManifestSelected: 'No manifest selected',
+        legacyManifestReady: 'Legacy manifest ready',
+        manifestReadyShort: 'Manifest ready',
+        settingsApplied: 'Settings applied',
+        reforgeApplied: 'Settings applied. Re-select source artwork to reforge.',
+        zipCreating: 'Creating ZIP...',
+        relativeUrls: 'Relative URLs',
+        customBase: 'Custom base: {base}',
+        rootRelativeUrls: 'Root-relative URLs',
+        shaQueries: '{mode}, SHA-256 queries',
+        reforgePreset: '{preset} preset',
+        reforgeSummary: '{count} {sizeWord} • {formats}{migration}',
+        sizeSingular: 'size',
+        sizePlural: 'sizes',
+        legacyMigration: ' • legacy v1 migrated in memory',
+        noFormats: 'no formats',
+        reforgeSourceNotice: 'Applying clears the current source. Re-select source artwork to reforge.',
+        updateWaiting: 'A new offline shell is ready. Reload to use it.',
+        updateActivated: 'Icon Forge was updated in the background. Reload to refresh this tab.'
+    },
+    outputGroups: {
+        pwaIcons: 'PWA install icons',
+        pwaSplash: 'Apple startup images',
+        android: 'Android launcher resources',
+        ios: 'iOS AppIcon set',
+        windows: 'Windows tiles',
+        social: 'Social previews',
+        extension: 'Extension icons',
+        core: 'Core web icons'
     },
     validation: {
         titles: {
@@ -539,11 +605,92 @@ const UI_STRINGS = Object.freeze({
         iosMissing: 'Run the iOS preset to generate AppIcon.appiconset PNGs and Contents.json.'
     }
 });
-const FORMAT_LABELS = UI_STRINGS.formats;
-const PRESET_LABELS = UI_STRINGS.presets;
+const LOCALE_STORAGE_KEY = 'iconforge-locale';
+const DEFAULT_LOCALE = 'en';
+const SUPPORTED_LOCALES = Object.freeze({
+    en: { dir: 'ltr', label: 'English' },
+    'en-XA': { dir: 'ltr', label: 'Pseudo Expanded' },
+    'ar-XB': { dir: 'rtl', label: 'Pseudo RTL' }
+});
 
-function getUiString(path) {
-    return path.split('.').reduce((value, part) => value?.[part], UI_STRINGS);
+function pseudoTransform(value, locale) {
+    const text = String(value);
+    if (locale === DEFAULT_LOCALE || !text) return text;
+    const accentMap = {
+        a: 'à', b: 'ƀ', c: 'ç', d: 'ð', e: 'ë', f: 'ƒ', g: 'ğ', h: 'ħ', i: 'ï', j: 'ĵ',
+        k: 'ķ', l: 'ľ', m: 'ɱ', n: 'ñ', o: 'ô', p: 'þ', q: 'ɋ', r: 'ř', s: 'š', t: 'ţ',
+        u: 'ü', v: 'ṽ', w: 'ŵ', x: 'ẋ', y: 'ÿ', z: 'ž'
+    };
+    const transformed = text.split(/(\{\w+\})/g).map(part => {
+        if (/^\{\w+\}$/.test(part)) return part;
+        return Array.from(part, char => {
+            const replacement = accentMap[char.toLowerCase()];
+            if (!replacement) return char;
+            return char === char.toUpperCase() ? replacement.toUpperCase() : replacement;
+        }).join('');
+    }).join('');
+    if (locale === 'ar-XB') return `\u2067\u27e6${transformed}\u27e7\u2069`;
+    const letters = (text.match(/[a-z]/gi) || []).length;
+    return `\uff3b${transformed}${'~'.repeat(Math.ceil(letters * 0.3))}\uff3d`;
+}
+
+function localeLiteral(value) {
+    const text = String(value ?? '');
+    if (currentLocale === DEFAULT_LOCALE || !text) return text;
+    if ((currentLocale === 'en-XA' && text.startsWith('\uff3b') && text.endsWith('\uff3d')) ||
+        (currentLocale === 'ar-XB' && text.startsWith('\u2067') && text.endsWith('\u2069'))) {
+        return text;
+    }
+    return pseudoTransform(text, currentLocale);
+}
+
+function mapLocaleCatalog(value, locale) {
+    if (typeof value === 'string') return pseudoTransform(value, locale);
+    if (Array.isArray(value)) return value.map(item => mapLocaleCatalog(item, locale));
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, mapLocaleCatalog(item, locale)]));
+    }
+    return value;
+}
+
+const LOCALE_CATALOGS = Object.freeze({
+    en: UI_STRINGS,
+    'en-XA': mapLocaleCatalog(UI_STRINGS, 'en-XA'),
+    'ar-XB': mapLocaleCatalog(UI_STRINGS, 'ar-XB')
+});
+const SHELL_LITERAL_PATHS = new Map();
+const localizedTextNodePaths = new WeakMap();
+const localizedAttributePaths = new WeakMap();
+let shellLocalizationInitialized = false;
+
+function indexCatalogLiterals(value, prefix = '') {
+    if (typeof value === 'string') {
+        if (!SHELL_LITERAL_PATHS.has(value)) SHELL_LITERAL_PATHS.set(value, prefix);
+        return;
+    }
+    if (Array.isArray(value)) {
+        value.forEach((item, index) => indexCatalogLiterals(item, `${prefix}.${index}`));
+        return;
+    }
+    if (value && typeof value === 'object') {
+        Object.entries(value).forEach(([key, item]) => indexCatalogLiterals(item, prefix ? `${prefix}.${key}` : key));
+    }
+}
+indexCatalogLiterals(UI_STRINGS);
+
+function storedLocale() {
+    try {
+        const value = localStorage.getItem(LOCALE_STORAGE_KEY);
+        return Object.prototype.hasOwnProperty.call(SUPPORTED_LOCALES, value) ? value : DEFAULT_LOCALE;
+    } catch {
+        return DEFAULT_LOCALE;
+    }
+}
+
+let currentLocale = storedLocale();
+function getUiString(path, locale = currentLocale) {
+    const catalog = LOCALE_CATALOGS[locale] || LOCALE_CATALOGS[DEFAULT_LOCALE];
+    return path.split('.').reduce((value, part) => value?.[part], catalog);
 }
 
 function uiText(path, replacements = {}, fallback = '') {
@@ -556,6 +703,11 @@ function uiText(path, replacements = {}, fallback = '') {
 }
 
 function applyUiStrings(root = document) {
+    if (root === document) {
+        document.documentElement?.setAttribute('lang', currentLocale);
+        document.documentElement?.setAttribute('dir', SUPPORTED_LOCALES[currentLocale]?.dir || 'ltr');
+        document.title = getUiString('shellText.pageTitle');
+    }
     root.querySelectorAll('[data-i18n]').forEach(element => {
         const value = getUiString(element.dataset.i18n);
         if (typeof value === 'string') element.textContent = value;
@@ -568,16 +720,54 @@ function applyUiStrings(root = document) {
         const value = getUiString(element.dataset.i18nAriaLabel);
         if (typeof value === 'string') element.setAttribute('aria-label', value);
     });
+    root.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+        const value = getUiString(element.dataset.i18nPlaceholder);
+        if (typeof value === 'string') element.setAttribute('placeholder', value);
+    });
+    if (root.createTreeWalker) {
+        const discover = !shellLocalizationInitialized;
+        const walker = root.createTreeWalker(root.body || root, NodeFilter.SHOW_TEXT);
+        let node;
+        while ((node = walker.nextNode())) {
+            let path = localizedTextNodePaths.get(node);
+            const trimmed = node.nodeValue.trim();
+            if (!path && discover) {
+                path = SHELL_LITERAL_PATHS.get(trimmed);
+                if (path) localizedTextNodePaths.set(node, path);
+            }
+            if (!path) continue;
+            const value = getUiString(path);
+            const leading = node.nodeValue.match(/^\s*/)?.[0] || '';
+            const trailing = node.nodeValue.match(/\s*$/)?.[0] || '';
+            node.nodeValue = `${leading}${value}${trailing}`;
+        }
+        const localizableAttributes = ['aria-label', 'placeholder', 'title', 'alt'];
+        root.querySelectorAll('*').forEach(element => {
+            let paths = localizedAttributePaths.get(element);
+            if (!paths && discover) {
+                paths = {};
+                localizableAttributes.forEach(attribute => {
+                    const path = SHELL_LITERAL_PATHS.get(element.getAttribute(attribute));
+                    if (path) paths[attribute] = path;
+                });
+                if (Object.keys(paths).length) localizedAttributePaths.set(element, paths);
+            }
+            Object.entries(paths || {}).forEach(([attribute, path]) => {
+                element.setAttribute(attribute, getUiString(path));
+            });
+        });
+        if (root === document) shellLocalizationInitialized = true;
+    }
 }
 const HANDOFF_SNIPPET_TABS = [
-    { key: 'plain', label: uiText('handoffTabs.plain'), tabId: 'handoffTabPlain' },
-    { key: 'vite', label: uiText('handoffTabs.vite'), tabId: 'handoffTabVite' },
-    { key: 'next', label: uiText('handoffTabs.next'), tabId: 'handoffTabNext' },
-    { key: 'astro', label: uiText('handoffTabs.astro'), tabId: 'handoffTabAstro' },
-    { key: 'chrome', label: uiText('handoffTabs.chrome'), tabId: 'handoffTabChrome' },
-    { key: 'firefox', label: uiText('handoffTabs.firefox'), tabId: 'handoffTabFirefox' },
-    { key: 'android', label: uiText('handoffTabs.android'), tabId: 'handoffTabAndroid' },
-    { key: 'ios', label: uiText('handoffTabs.ios'), tabId: 'handoffTabIos' }
+    { key: 'plain', labelKey: 'handoffTabs.plain', tabId: 'handoffTabPlain' },
+    { key: 'vite', labelKey: 'handoffTabs.vite', tabId: 'handoffTabVite' },
+    { key: 'next', labelKey: 'handoffTabs.next', tabId: 'handoffTabNext' },
+    { key: 'astro', labelKey: 'handoffTabs.astro', tabId: 'handoffTabAstro' },
+    { key: 'chrome', labelKey: 'handoffTabs.chrome', tabId: 'handoffTabChrome' },
+    { key: 'firefox', labelKey: 'handoffTabs.firefox', tabId: 'handoffTabFirefox' },
+    { key: 'android', labelKey: 'handoffTabs.android', tabId: 'handoffTabAndroid' },
+    { key: 'ios', labelKey: 'handoffTabs.ios', tabId: 'handoffTabIos' }
 ];
 const featureSupport = {
     workerApi: typeof Worker !== 'undefined',
@@ -691,6 +881,7 @@ const draftEnabledToggle = document.getElementById('draftEnabledToggle');
 const draftClearOnExportToggle = document.getElementById('draftClearOnExportToggle');
 const btnClearDraft = document.getElementById('btnClearDraft');
 const draftStatus = document.getElementById('draftStatus');
+const localeSelect = document.getElementById('localeSelect');
 
 // Crop DOM Elements
 const cropSection = document.getElementById('cropSection');
@@ -713,12 +904,53 @@ const cropHInput = document.getElementById('cropH');
 const btnApplyNumericCrop = document.getElementById('btnApplyNumericCrop');
 
 applyUiStrings();
+if (localeSelect) localeSelect.value = currentLocale;
 
 function setElementVisible(element, visible, display = '') {
     if (!element) return;
     element.classList.toggle('is-hidden', !visible);
     element.style.display = visible ? display : 'none';
 }
+
+function setLocale(locale, { persist = true, syncManifest = true } = {}) {
+    let canonical;
+    try {
+        canonical = Intl.getCanonicalLocales(locale)[0];
+    } catch {
+        canonical = DEFAULT_LOCALE;
+    }
+    currentLocale = Object.prototype.hasOwnProperty.call(SUPPORTED_LOCALES, canonical)
+        ? canonical
+        : DEFAULT_LOCALE;
+    if (persist) {
+        try {
+            localStorage.setItem(LOCALE_STORAGE_KEY, currentLocale);
+        } catch {
+            // The interface still updates when locale persistence is unavailable.
+        }
+    }
+    if (localeSelect) localeSelect.value = currentLocale;
+    applyUiStrings();
+    if (syncManifest && manifestLang && manifestDir) {
+        if (currentLocale !== DEFAULT_LOCALE && ['en', 'en-XA', 'ar-XB'].includes(manifestLang.value)) {
+            manifestLang.value = currentLocale;
+            manifestDir.value = SUPPORTED_LOCALES[currentLocale].dir;
+        } else if (currentLocale === DEFAULT_LOCALE && ['en-XA', 'ar-XB'].includes(manifestLang.value)) {
+            manifestLang.value = DEFAULT_LOCALE;
+            manifestDir.value = 'auto';
+        }
+        validateManifestMetadata();
+    }
+    renderGenerationPreflight();
+    renderHandoffSnippetTabs();
+    if (generatedFiles.length) {
+        validateGeneratedExport({ artifactChecks: false }).then(renderOutputGroups).catch(() => {});
+    }
+    queueDraftSave();
+    return currentLocale;
+}
+
+localeSelect?.addEventListener('change', () => setLocale(localeSelect.value));
 
 let draftSaveTimer = null;
 let isRestoringDraft = false;
@@ -735,7 +967,7 @@ function draftStorage() {
 
 function setDraftStatus(message, type = '') {
     if (!draftStatus) return;
-    draftStatus.textContent = message;
+    draftStatus.textContent = localeLiteral(message);
     draftStatus.classList.toggle('warning', type === 'warning');
     draftStatus.classList.toggle('success', type === 'success');
 }
@@ -1072,7 +1304,7 @@ function readDraftSnapshot({ nowMs = Date.now(), reportStatus = true } = {}) {
             storage.setItem(DRAFT_STORAGE_KEY, result.serialized);
             for (const key of LEGACY_DRAFT_STORAGE_KEYS) storage.removeItem(key);
         } catch {
-            if (reportStatus) setDraftStatus('Draft migration could not be saved.', 'warning');
+            if (reportStatus) setDraftStatus(uiText('draft.migrationSaveFailed'), 'warning');
         }
     }
     return result.draft;
@@ -1087,10 +1319,10 @@ function saveDraftState({ silent = false } = {}) {
     if (draftByteLength(raw) > MAX_DRAFT_BYTES && snapshot.sourceImage) {
         snapshot = { ...snapshot, restoreSourceImage: false, sourceImage: null };
         raw = JSON.stringify(snapshot);
-        if (!silent) setDraftStatus('Source image exceeded the 4 MB draft limit; settings were saved without image bytes.', 'warning');
+        if (!silent) setDraftStatus(uiText('draft.sourceOverLimit'), 'warning');
     }
     if (draftByteLength(raw) > MAX_DRAFT_BYTES) {
-        if (!silent) setDraftStatus('Draft settings exceed the 4 MB local storage limit.', 'warning');
+        if (!silent) setDraftStatus(uiText('draft.settingsOverLimit'), 'warning');
         return null;
     }
     try {
@@ -1258,7 +1490,7 @@ async function restoreDraftSourceImage(draft) {
 async function restoreDraftState() {
     const draft = readDraftSnapshot();
     if (!draft) {
-        if (!draftEnabledToggle?.checked) setDraftStatus('Draft recovery is disabled. Nothing will be saved locally.', '');
+        if (!draftEnabledToggle?.checked) setDraftStatus(uiText('draft.disabled'), '');
         return;
     }
     isRestoringDraft = true;
@@ -1307,7 +1539,11 @@ function noteCanvasFallback(reason) {
 }
 
 function formatLabel(format) {
-    return FORMAT_LABELS[format] || format.toUpperCase();
+    return getUiString(`formats.${format}`) || format.toUpperCase();
+}
+
+function presetLabel(key) {
+    return getUiString(`presets.${key}`) || 'Custom';
 }
 
 function supportCheck(label, supported, detailSupported, detailUnsupported, pending = false) {
@@ -1409,9 +1645,9 @@ function buildGenerationDiagnostics({ selectedFormats = getSelectedFormats(), va
 
     return {
         title: error ? uiText('diagnostics.failedTitle') : uiText('diagnostics.title'),
-        detail: error ? error.message : uiText('diagnostics.detail', { count: fileCountText, preset: PRESET_LABELS[activePresetKey] || 'Custom' }),
+        detail: error ? error.message : uiText('diagnostics.detail', { count: fileCountText, preset: presetLabel(activePresetKey) }),
         metrics: [
-            { label: metricLabels.selectedPreset, value: PRESET_LABELS[activePresetKey] || 'Custom' },
+            { label: metricLabels.selectedPreset, value: presetLabel(activePresetKey) },
             { label: metricLabels.selectedFormats, value: selectedFormatText },
             { label: metricLabels.skippedFormats, value: skippedFormats.length ? skippedFormats.join('; ') : 'None' },
             { label: metricLabels.workerFallback, value: getWorkerDiagnostics() },
@@ -1537,7 +1773,7 @@ function buildDiagnosticsSupportReport({ selectedFormats = getSelectedFormats(),
         },
         preset: {
             key: activePresetKey || 'custom',
-            label: PRESET_LABELS[activePresetKey] || 'Custom'
+            label: presetLabel(activePresetKey)
         },
         selectedFormats: [...selectedFormats],
         selectedSizes: getSelectedSizes(),
@@ -1584,9 +1820,9 @@ function appendMetric(container, label, value) {
     const item = document.createElement('div');
     item.className = 'diagnostics-metric';
     const labelEl = document.createElement('span');
-    labelEl.textContent = label;
+    labelEl.textContent = localeLiteral(label);
     const valueEl = document.createElement('strong');
-    valueEl.textContent = value;
+    valueEl.textContent = localeLiteral(value);
     item.appendChild(labelEl);
     item.appendChild(valueEl);
     container.appendChild(item);
@@ -1599,7 +1835,7 @@ function appendFeature(container, feature) {
     dot.className = `diagnostics-state ${feature.status}`;
     const body = document.createElement('span');
     const label = document.createElement('strong');
-    label.textContent = feature.label;
+    label.textContent = localeLiteral(feature.label);
     body.appendChild(label);
     body.appendChild(document.createTextNode(feature.detail));
     item.appendChild(dot);
@@ -1620,9 +1856,9 @@ function renderGenerationDiagnostics(options = {}) {
     setElementVisible(diagnosticsSection, true, 'block');
     diagnosticsSummary.textContent = '';
     const title = document.createElement('strong');
-    title.textContent = diagnostics.title;
+    title.textContent = localeLiteral(diagnostics.title);
     const detail = document.createElement('span');
-    detail.textContent = diagnostics.detail;
+    detail.textContent = localeLiteral(diagnostics.detail);
     diagnosticsSummary.appendChild(title);
     diagnosticsSummary.appendChild(detail);
 
@@ -1979,7 +2215,7 @@ EMOJIS.forEach(em => {
     const btn = document.createElement('button');
     btn.className = 'emoji-btn' + (em === selectedEmoji ? ' selected' : '');
     btn.textContent = em;
-    btn.setAttribute('aria-label', `Select emoji ${em}`);
+    btn.setAttribute('aria-label', uiText('runtime.selectEmoji', { emoji: em }));
     btn.setAttribute('aria-pressed', String(em === selectedEmoji));
         btn.addEventListener('click', () => {
             emojiGrid.querySelectorAll('.emoji-btn').forEach(b => {
@@ -2165,7 +2401,8 @@ if ('showDirectoryPicker' in window) {
 }
 
 function getHandoffTabMeta(key) {
-    return HANDOFF_SNIPPET_TABS.find(tab => tab.key === key) || null;
+    const tab = HANDOFF_SNIPPET_TABS.find(candidate => candidate.key === key);
+    return tab ? { ...tab, label: uiText(tab.labelKey) } : null;
 }
 
 function activateHandoffSnippetTab(key, focusTab = false) {
@@ -2339,10 +2576,10 @@ async function handleReplacementTemplate(e) {
                 replacementTargetNames.add(normalizeTemplateName(rel));
             }
         }
-        replaceStatus.textContent = `${replacementTargetNames.size} target filenames loaded`;
+        replaceStatus.textContent = uiText('runtime.replacementLoaded', { count: replacementTargetNames.size });
     } catch (error) {
         replacementTargetNames = new Set();
-        replaceStatus.textContent = 'Template scan failed';
+        replaceStatus.textContent = uiText('runtime.replacementFailed');
         showStatus(uiText('status.replacementTemplateError', { message: error.message }), 'error');
     }
 }
@@ -2869,9 +3106,17 @@ function drawCropCanvas() {
 
 function updateCropInfo() {
     if (cropRegion) {
-        cropDimensions.textContent = `${cropRegion.width} x ${cropRegion.height} (from ${sourceImage.naturalWidth} x ${sourceImage.naturalHeight})`;
+        cropDimensions.textContent = uiText('runtime.cropRegionDimensions', {
+            width: cropRegion.width,
+            height: cropRegion.height,
+            sourceWidth: sourceImage.naturalWidth,
+            sourceHeight: sourceImage.naturalHeight
+        });
     } else {
-        cropDimensions.textContent = `Full image (${sourceImage.naturalWidth} x ${sourceImage.naturalHeight})`;
+        cropDimensions.textContent = uiText('runtime.fullImageDimensions', {
+            width: sourceImage.naturalWidth,
+            height: sourceImage.naturalHeight
+        });
     }
     syncCropInputs();
 }
@@ -2903,7 +3148,7 @@ function applyNumericCrop() {
     const w = Math.min(parseInt(cropWInput.value) || sourceImage.naturalWidth, sourceImage.naturalWidth - x);
     const h = Math.min(parseInt(cropHInput.value) || sourceImage.naturalHeight, sourceImage.naturalHeight - y);
     if (w < 1 || h < 1) {
-        cropStatus.textContent = 'Invalid crop dimensions';
+        cropStatus.textContent = uiText('runtime.cropInvalid');
         setTimeout(() => { cropStatus.textContent = ''; }, 2000);
         return;
     }
@@ -2916,7 +3161,7 @@ function applyNumericCrop() {
     updateCropInfo();
     updatePreviewWithCrop();
     updateMaskPreview();
-    cropStatus.textContent = 'Crop applied!';
+    cropStatus.textContent = uiText('runtime.cropApplied');
     saveDraftState({ silent: true });
     setTimeout(() => { cropStatus.textContent = ''; }, 2000);
 }
@@ -2924,7 +3169,7 @@ function applyNumericCrop() {
 function performAutoCrop() {
     if (!sourceImage) return;
     
-    cropStatus.textContent = 'Analyzing...';
+    cropStatus.textContent = uiText('runtime.cropAnalyzing');
     
     // Use setTimeout to allow UI to update
     setTimeout(() => {
@@ -2936,14 +3181,14 @@ function performAutoCrop() {
             currentCropRect = null;
             drawCropCanvas();
             updateCropInfo();
-            cropStatus.textContent = 'Auto-crop applied!';
+            cropStatus.textContent = uiText('runtime.cropAutoApplied');
             
             // Update preview
             updatePreviewWithCrop();
             updateMaskPreview();
             saveDraftState({ silent: true });
         } else {
-            cropStatus.textContent = 'No empty space detected';
+            cropStatus.textContent = uiText('runtime.cropNoSpace');
         }
         
         setTimeout(() => { cropStatus.textContent = ''; }, 2000);
@@ -3033,7 +3278,7 @@ function toggleManualCropMode() {
     setElementVisible(btnApplyCrop, isManualCropMode, 'flex');
     
     if (isManualCropMode) {
-        cropStatus.textContent = 'Draw a crop rectangle on the image';
+        cropStatus.textContent = uiText('runtime.cropDraw');
         currentCropRect = null;
     } else {
         cropStatus.textContent = '';
@@ -3091,7 +3336,7 @@ function endCropDrag() {
     isDragging = false;
     
     if (currentCropRect && currentCropRect.width > 10 && currentCropRect.height > 10) {
-        cropStatus.textContent = 'Click "Apply Crop" to confirm';
+        cropStatus.textContent = uiText('runtime.cropConfirm');
     } else {
         currentCropRect = null;
         drawCropCanvas();
@@ -3111,7 +3356,7 @@ function applyCrop() {
         updatePreviewWithCrop();
         updateMaskPreview();
         
-        cropStatus.textContent = 'Crop applied!';
+        cropStatus.textContent = uiText('runtime.cropApplied');
         saveDraftState({ silent: true });
         setTimeout(() => { cropStatus.textContent = ''; }, 2000);
     }
@@ -3133,7 +3378,7 @@ function resetCrop() {
     drawCropCanvas();
     updateCropInfo();
     updateMaskPreview();
-    cropStatus.textContent = 'Crop reset';
+    cropStatus.textContent = uiText('runtime.cropReset');
     saveDraftState({ silent: true });
     setTimeout(() => { cropStatus.textContent = ''; }, 2000);
 }
@@ -3587,7 +3832,7 @@ function setOperationProgress(stage, fileName, completed, total) {
     if (generationProgressFill) generationProgressFill.style.width = `${percent}%`;
     if (generationProgressLabel) {
         const detail = fileName ? ` — ${fileName}` : '';
-        generationProgressLabel.textContent = `${stage}${detail} (${safeCompleted}/${safeTotal})`;
+        generationProgressLabel.textContent = localeLiteral(`${stage}${detail} (${safeCompleted}/${safeTotal})`);
     }
 }
 
@@ -3815,7 +4060,7 @@ async function generateIcons() {
     btnGenerate.disabled = true;
     btnDownloadAll.disabled = true;
     if (btnSaveToFolder) btnSaveToFolder.disabled = true;
-    btnGenerate.innerHTML = '<span class="spinner"></span> Generating...';
+    btnGenerate.innerHTML = `<span class="spinner"></span> ${escapeHtml(uiText('runtime.generating'))}`;
     showStatus(uiText('status.preparingGeneration'), 'info');
 
     if (featureSupport.workerApi && featureSupport.offscreenCanvas && !resizeWorker) initWorker();
@@ -3903,7 +4148,7 @@ async function generateIcons() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
-            Generate Icons
+            ${escapeHtml(uiText('runtime.generateIcons'))}
         `;
     }
 }
@@ -4390,14 +4635,14 @@ async function generateWindowsBundle(img, crop, operation) {
 }
 
 const OUTPUT_GROUP_DEFINITIONS = Object.freeze({
-    'pwa-icons': 'PWA install icons',
-    'pwa-splash': 'Apple startup images',
-    android: 'Android launcher resources',
-    ios: 'iOS AppIcon set',
-    windows: 'Windows tiles',
-    social: 'Social previews',
-    extension: 'Extension icons',
-    core: 'Core web icons'
+    'pwa-icons': 'outputGroups.pwaIcons',
+    'pwa-splash': 'outputGroups.pwaSplash',
+    android: 'outputGroups.android',
+    ios: 'outputGroups.ios',
+    windows: 'outputGroups.windows',
+    social: 'outputGroups.social',
+    extension: 'outputGroups.extension',
+    core: 'outputGroups.core'
 });
 
 function outputGroupKey(fileName) {
@@ -4436,9 +4681,18 @@ function outputGroupValidationStatus(items, validationResult) {
 }
 
 function statusLabel(statusValue) {
-    if (statusValue === 'fail') return 'Failed';
-    if (statusValue === 'warn') return 'Warnings';
-    return 'Passed';
+    if (statusValue === 'fail') return uiText('shellText.failed');
+    if (statusValue === 'warn') return uiText('shellText.warnings');
+    return uiText('shellText.passed');
+}
+
+function resetOutputFormatFilterOptions() {
+    if (!outputFormatFilter) return;
+    outputFormatFilter.textContent = '';
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = uiText('runtime.allFormats');
+    outputFormatFilter.appendChild(option);
 }
 
 function applyOutputFilters() {
@@ -4462,9 +4716,7 @@ function applyOutputFilters() {
 
 function resetOutputFilters() {
     if (outputNameFilter) outputNameFilter.value = '';
-    if (outputFormatFilter) {
-        outputFormatFilter.innerHTML = '<option value="">All formats</option>';
-    }
+    resetOutputFormatFilterOptions();
     if (outputStatusFilter) outputStatusFilter.value = '';
     setElementVisible(resultToolbar, false);
 }
@@ -4500,10 +4752,14 @@ function renderOutputGroups(validationResult = null) {
         summary.className = 'output-group-summary';
         const title = document.createElement('span');
         title.className = 'output-group-title';
-        title.textContent = OUTPUT_GROUP_DEFINITIONS[key] || key;
+        title.textContent = OUTPUT_GROUP_DEFINITIONS[key] ? uiText(OUTPUT_GROUP_DEFINITIONS[key]) : key;
         const meta = document.createElement('span');
         meta.className = 'output-group-meta';
-        meta.textContent = `${groupItems.length} file${groupItems.length === 1 ? '' : 's'} • ${formatFileSize(totalBytes)}`;
+        meta.textContent = uiText('runtime.fileSummary', {
+            count: groupItems.length,
+            fileWord: uiText(groupItems.length === 1 ? 'runtime.fileSingular' : 'runtime.filePlural'),
+            size: formatFileSize(totalBytes)
+        });
         const badge = document.createElement('span');
         badge.className = `output-group-status ${validationStatus}`;
         badge.textContent = statusLabel(validationStatus);
@@ -4527,11 +4783,11 @@ function renderOutputGroups(validationResult = null) {
     }
 
     if (outputFormatFilter) {
-        outputFormatFilter.innerHTML = '<option value="">All formats</option>';
+        resetOutputFormatFilterOptions();
         Array.from(formats).sort().forEach(format => {
             const option = document.createElement('option');
             option.value = format;
-            option.textContent = format.toUpperCase();
+            option.textContent = formatLabel(format);
             outputFormatFilter.appendChild(option);
         });
     }
@@ -4558,26 +4814,28 @@ function addOutputItem(fileName, blob, size, format, icoSizes = null, fileSize =
     const blobUrl = URL.createObjectURL(blob);
     const sizeText = size.width === 'multi'
         ? icoSizes.map(s => `${s.width}`).join(', ')
-        : size.width === 'svg' ? 'Scalable' : `${size.width}x${size.height}`;
+        : size.width === 'svg' ? uiText('runtime.scalable') : `${size.width}x${size.height}`;
 
     const safeName = escapeHtml(fileName);
     const shortName = escapeHtml(baseName(fileName));
     const sizeDisplay = fileSize > 0 ? `<br><span class="output-file-size">${formatFileSize(fileSize)}</span>` : '';
+    const downloadLabel = escapeAttribute(uiText('runtime.downloadFile', { name: fileName }));
+    const copyLabel = escapeAttribute(uiText('runtime.copyFile', { name: fileName }));
 
     item.innerHTML = `
         <div class="output-preview">
             <img src="${blobUrl}" alt="${safeName}">
         </div>
-        <div class="output-info" title="${safeName}">${shortName}<br>${sizeText}<br>${format.toUpperCase()}${sizeDisplay}</div>
-        <button class="btn-download" data-filename="${safeName}" aria-label="Download ${safeName}">Download</button>
+        <div class="output-info" title="${safeName}">${shortName}<br>${sizeText}<br>${escapeHtml(formatLabel(format))}${sizeDisplay}</div>
+        <button class="btn-download" data-filename="${safeName}" aria-label="${downloadLabel}">${escapeHtml(uiText('runtime.download'))}</button>
         <div class="base64-section">
             <div class="base64-container">
-                <button class="btn-copy" title="Copy ${safeName} as Base64 data URL" aria-label="Copy ${safeName} as Base64 data URL">
+                <button class="btn-copy" title="${copyLabel}" aria-label="${copyLabel}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                     </svg>
-                    Copy Base64
+                    ${escapeHtml(uiText('runtime.copyBase64'))}
                 </button>
             </div>
         </div>
@@ -4719,13 +4977,13 @@ function validateDeploymentUrlOptions() {
     };
     if (!deploymentUrlStatus) return result;
     const modeLabel = deployment.mode === 'relative'
-        ? 'Relative URLs'
+        ? uiText('runtime.relativeUrls')
         : deployment.mode === 'custom'
             ? customBase.valid
-                ? `Custom base: ${customBase.normalized}`
+                ? uiText('runtime.customBase', { base: customBase.normalized })
                 : customBase.error
-            : 'Root-relative URLs';
-    deploymentUrlStatus.textContent = deployment.cacheBust ? `${modeLabel}, SHA-256 queries` : modeLabel;
+            : uiText('runtime.rootRelativeUrls');
+    deploymentUrlStatus.textContent = deployment.cacheBust ? uiText('runtime.shaQueries', { mode: modeLabel }) : localeLiteral(modeLabel);
     deploymentUrlStatus.classList.toggle('error', !customBase.valid);
     return result;
 }
@@ -5035,8 +5293,8 @@ function validateManifestMetadata() {
     const result = getManifestMetadata();
     if (manifestMetadataStatus) {
         manifestMetadataStatus.textContent = result.errors.length
-            ? result.errors[0]
-            : `Manifest ready: ${result.metadata.name}`;
+            ? localeLiteral(result.errors[0])
+            : uiText('runtime.manifestReady', { name: result.metadata.name });
         manifestMetadataStatus.classList.toggle('error', result.errors.length > 0);
     }
     return result;
@@ -5781,9 +6039,16 @@ function reforgePreviewText(inspection) {
         const normalized = normalizeSizeEntry(size);
         return `${normalized.width}×${normalized.height}`;
     });
-    const preset = manifest.preset && PRESETS[manifest.preset] ? manifest.preset : 'custom';
-    const migrated = inspection.migrated ? ' • legacy v1 migrated in memory' : '';
-    return `<strong>${escapeHtml(preset)} preset</strong> • ${sizes.length} size${sizes.length === 1 ? '' : 's'} • ${manifest.options.formats.map(escapeHtml).join(', ') || 'no formats'}${migrated}<br>Applying clears the current source. Re-select source artwork to reforge.`;
+    const preset = manifest.preset && PRESETS[manifest.preset] ? presetLabel(manifest.preset) : localeLiteral('custom');
+    const migrated = inspection.migrated ? uiText('runtime.legacyMigration') : '';
+    const heading = uiText('runtime.reforgePreset', { preset });
+    const summary = uiText('runtime.reforgeSummary', {
+        count: sizes.length,
+        sizeWord: uiText(sizes.length === 1 ? 'runtime.sizeSingular' : 'runtime.sizePlural'),
+        formats: manifest.options.formats.map(formatLabel).join(', ') || uiText('runtime.noFormats'),
+        migration: migrated
+    });
+    return `<strong>${escapeHtml(heading)}</strong> • ${escapeHtml(summary)}<br>${escapeHtml(uiText('runtime.reforgeSourceNotice'))}`;
 }
 
 function applyReforgeManifest(input) {
@@ -5799,8 +6064,8 @@ function applyReforgeManifest(input) {
     replacementTargetNames = new Set((options.replacementTemplate?.targets || []).map(normalizeTemplateName));
     replaceInput.value = '';
     replaceStatus.textContent = replacementTargetNames.size
-        ? `${replacementTargetNames.size} target filenames restored`
-        : 'No replacement targets';
+        ? uiText('runtime.replacementRestored', { count: replacementTargetNames.size })
+        : uiText('runtime.noReplacementTargets');
     if (options.deploymentUrls) {
         assetUrlMode.value = options.deploymentUrls.mode || 'root';
         assetUrlBase.value = options.deploymentUrls.customBase ?? '/assets/';
@@ -5813,16 +6078,16 @@ function applyReforgeManifest(input) {
     saveDraftState({ silent: true });
     return {
         ...inspection,
-        message: 'Settings applied. Re-select source artwork to reforge.'
+        message: uiText('runtime.reforgeApplied')
     };
 }
 
-function clearReforgePreview(message = 'No manifest selected', error = false) {
+function clearReforgePreview(message = uiText('runtime.noManifestSelected'), error = false) {
     pendingReforgeManifest = null;
     btnApplyReforge.disabled = true;
-    reforgeStatus.textContent = message;
+    reforgeStatus.textContent = localeLiteral(message);
     reforgeStatus.classList.toggle('error', error);
-    reforgePreview.textContent = error ? message : '';
+    reforgePreview.textContent = error ? localeLiteral(message) : '';
     reforgePreview.classList.toggle('error', error);
     setElementVisible(reforgePreview, error, 'block');
 }
@@ -5851,7 +6116,7 @@ async function handleReforgeManifestSelection(event) {
     }
     pendingReforgeManifest = inspection.manifest;
     btnApplyReforge.disabled = false;
-    reforgeStatus.textContent = inspection.migrated ? 'Legacy manifest ready' : 'Manifest ready';
+    reforgeStatus.textContent = uiText(inspection.migrated ? 'runtime.legacyManifestReady' : 'runtime.manifestReadyShort');
     reforgeStatus.classList.remove('error');
     reforgePreview.innerHTML = reforgePreviewText(inspection);
     reforgePreview.classList.remove('error');
@@ -5868,7 +6133,7 @@ btnApplyReforge?.addEventListener('click', () => {
     }
     pendingReforgeManifest = null;
     btnApplyReforge.disabled = true;
-    reforgeStatus.textContent = 'Settings applied';
+    reforgeStatus.textContent = uiText('runtime.settingsApplied');
     reforgePreview.textContent = result.message;
     showStatus(result.message, 'success');
 });
@@ -6586,9 +6851,9 @@ async function renderExportValidation(options = {}) {
     summary.className = `validation-summary ${result.status}`;
     summary.textContent = '';
     const title = document.createElement('strong');
-    title.textContent = result.title;
+    title.textContent = localeLiteral(result.title);
     const detail = document.createElement('span');
-    detail.textContent = result.detail;
+    detail.textContent = localeLiteral(result.detail);
     summary.appendChild(title);
     summary.appendChild(detail);
 
@@ -6600,9 +6865,9 @@ async function renderExportValidation(options = {}) {
         dot.className = `validation-state ${check.status}`;
         const body = document.createElement('span');
         const label = document.createElement('strong');
-        label.textContent = check.label;
+        label.textContent = localeLiteral(check.label);
         body.appendChild(label);
-        body.appendChild(document.createTextNode(check.detail));
+        body.appendChild(document.createTextNode(localeLiteral(check.detail)));
         item.appendChild(dot);
         item.appendChild(body);
         list.appendChild(item);
@@ -6630,7 +6895,7 @@ async function downloadAll() {
     if (generatedFiles.length === 0) return;
 
     btnDownloadAll.disabled = true;
-    btnDownloadAll.innerHTML = '<span class="spinner"></span> Creating ZIP...';
+    btnDownloadAll.innerHTML = `<span class="spinner"></span> ${escapeHtml(uiText('runtime.zipCreating'))}`;
     btnGenerate.disabled = true;
     if (btnSaveToFolder) btnSaveToFolder.disabled = true;
     let operation = null;
@@ -6689,7 +6954,7 @@ async function downloadAll() {
                 <polyline points="7 10 12 15 17 10"/>
                 <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
-            Download All as ZIP
+            ${escapeHtml(uiText('shellText.downloadZip'))}
         `;
     }
 }
@@ -6972,7 +7237,7 @@ function showStatus(message, type) {
         return;
     }
     status.className = `status visible ${type}`;
-    status.textContent = message;
+    status.textContent = localeLiteral(message);
     const isError = type === 'error';
     status.setAttribute('role', isError ? 'alert' : 'status');
     status.setAttribute('aria-live', isError ? 'assertive' : 'polite');
@@ -6988,7 +7253,7 @@ let reloadOnControllerChange = false;
 
 function showUpdateNotice(message, worker = null) {
     if (worker) pendingServiceWorker = worker;
-    updateNoticeText.textContent = message;
+    updateNoticeText.textContent = localeLiteral(message);
     updateNotice.hidden = false;
 }
 
@@ -7010,7 +7275,7 @@ btnDismissUpdate.addEventListener('click', hideUpdateNotice);
 
 function watchServiceWorker(registration, hadController) {
     if (registration.waiting && hadController) {
-        showUpdateNotice('A new offline shell is ready. Reload to use it.', registration.waiting);
+        showUpdateNotice(uiText('runtime.updateWaiting'), registration.waiting);
     }
 
     registration.addEventListener('updatefound', () => {
@@ -7018,9 +7283,9 @@ function watchServiceWorker(registration, hadController) {
         if (!worker) return;
         worker.addEventListener('statechange', () => {
             if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-                showUpdateNotice('A new offline shell is ready. Reload to use it.', worker);
+                showUpdateNotice(uiText('runtime.updateWaiting'), worker);
             } else if (worker.state === 'activated' && hadController && !reloadOnControllerChange) {
-                showUpdateNotice('Icon Forge was updated in the background. Reload to refresh this tab.');
+                showUpdateNotice(uiText('runtime.updateActivated'));
             }
         });
     });
@@ -7046,8 +7311,12 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         APP_VERSION,
         PLATFORM_MATRIX_METADATA,
         UI_STRINGS,
+        LOCALE_CATALOGS,
+        SUPPORTED_LOCALES,
         uiText,
         getUiString,
+        setLocale,
+        pseudoTransform,
         createICO,
         cleanPathSegment,
         baseName,
@@ -7147,6 +7416,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         MAX_SOURCE_EDGE,
         setState(next = {}) {
             if (Object.prototype.hasOwnProperty.call(next, 'sourceFileName')) sourceFileName = next.sourceFileName;
+            if (Object.prototype.hasOwnProperty.call(next, 'locale')) setLocale(next.locale, { persist: false });
             if (Object.prototype.hasOwnProperty.call(next, 'sourceMode')) sourceMode = next.sourceMode;
             if (Object.prototype.hasOwnProperty.call(next, 'originalImageData')) originalImageData = next.originalImageData;
             if (Object.prototype.hasOwnProperty.call(next, 'sourceImageSize')) {
@@ -7228,6 +7498,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
         getState() {
             return {
                 sourceFileName,
+                locale: currentLocale,
                 sourceMode,
                 originalImageData,
                 cropRegion,
@@ -7270,12 +7541,12 @@ if ('serviceWorker' in navigator) {
             return;
         }
         if (hadController) {
-            showUpdateNotice('Icon Forge was updated in the background. Reload to refresh this tab.');
+            showUpdateNotice(uiText('runtime.updateActivated'));
         }
     });
     navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data?.type === 'ICONFORGE_SW_ACTIVATED' && hadController && !reloadOnControllerChange) {
-            showUpdateNotice('Icon Forge was updated in the background. Reload to refresh this tab.');
+            showUpdateNotice(uiText('runtime.updateActivated'));
         }
     });
     navigator.serviceWorker.register('./sw.js')

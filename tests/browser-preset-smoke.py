@@ -698,13 +698,144 @@ def check_image_fixture_corpus(page, url: str, include_goldens: bool = False) ->
     return report, failures
 
 
+def check_localization_boundary(page, url: str) -> tuple[dict, list[str]]:
+    page.goto(url, wait_until="networkidle")
+    failures = []
+
+    def layout_snapshot() -> dict:
+        return page.evaluate(
+            """() => ({
+                lang: document.documentElement.lang,
+                dir: document.documentElement.dir,
+                horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+                outsideControls: Array.from(document.querySelectorAll("button, input, select, textarea"))
+                    .filter(element => {
+                        const rect = element.getBoundingClientRect();
+                        return rect.width > 0 && (rect.left < -1 || rect.right > innerWidth + 1);
+                    })
+                    .map(element => element.id || element.getAttribute("aria-label") || element.textContent.trim())
+                    .slice(0, 10),
+                workflowSource: document.querySelector('[data-workflow-step="source"] strong')?.textContent || "",
+                manifestPlaceholder: document.querySelector("#manifestName")?.placeholder || "",
+                title: document.title
+            })"""
+        )
+
+    page.locator("#localeSelect").select_option("en-XA")
+    page.wait_for_function("() => document.documentElement.lang === 'en-XA'")
+    expanded_desktop = layout_snapshot()
+    page.set_viewport_size({"width": 390, "height": 844})
+    expanded_mobile = layout_snapshot()
+    page.reload(wait_until="networkidle")
+    persisted = page.evaluate(
+        """() => ({
+            locale: document.querySelector("#localeSelect")?.value,
+            lang: document.documentElement.lang,
+            dir: document.documentElement.dir
+        })"""
+    )
+    page.locator("#localeSelect").select_option("ar-XB")
+    page.wait_for_function("() => document.documentElement.dir === 'rtl'")
+    rtl_mobile = layout_snapshot()
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    rtl_desktop = layout_snapshot()
+    page.locator("#localeSelect").focus()
+    page.keyboard.press("Tab")
+    rtl_focus_next = page.evaluate("() => document.activeElement?.id")
+    manifest_localization = page.evaluate(
+        """() => {
+            const api = window.__ICONFORGE_TEST__;
+            api.setState({
+                generatedFiles: [{
+                    name: "icon-192.png",
+                    format: "png",
+                    size: { width: 192, height: 192 },
+                    purpose: "any",
+                    blob: new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" })
+                }],
+                manifestMetadata: {
+                    name: "Localized App",
+                    shortName: "Localized",
+                    startUrl: "./index.html",
+                    scope: "./",
+                    display: "standalone",
+                    shortcuts: "",
+                    screenshots: "",
+                    localized: ""
+                }
+            });
+            const metadata = api.getManifestMetadata();
+            const manifest = JSON.parse(api.buildManifestSnippet());
+            return {
+                locale: api.getState().locale,
+                metadataLang: metadata.metadata.lang,
+                metadataDir: metadata.metadata.dir,
+                manifestLang: manifest.lang,
+                manifestDir: manifest.dir
+            };
+        }"""
+    )
+    fallback = page.evaluate(
+        """() => {
+            const api = window.__ICONFORGE_TEST__;
+            return {
+                locale: api.setLocale("fr-FR", { persist: false, syncManifest: false }),
+                appName: api.getUiString("shell.appName"),
+                lang: document.documentElement.lang,
+                dir: document.documentElement.dir
+            };
+        }"""
+    )
+    page.evaluate("() => window.__ICONFORGE_TEST__.setLocale('en')")
+
+    for label, snapshot in (
+        ("expanded desktop", expanded_desktop),
+        ("expanded mobile", expanded_mobile),
+        ("RTL desktop", rtl_desktop),
+        ("RTL mobile", rtl_mobile),
+    ):
+        if snapshot["horizontalOverflow"] or snapshot["outsideControls"]:
+            failures.append(f"{label} localization layout overflowed: {snapshot}")
+    if not expanded_desktop["workflowSource"].startswith("［") or not expanded_desktop["manifestPlaceholder"].startswith("［"):
+        failures.append(f"pseudo-expanded catalog did not cover hooked and unhooked shell text: {expanded_desktop}")
+    if persisted != {"locale": "en-XA", "lang": "en-XA", "dir": "ltr"}:
+        failures.append(f"locale preference did not persist across reload: {persisted}")
+    if rtl_mobile["lang"] != "ar-XB" or rtl_mobile["dir"] != "rtl":
+        failures.append(f"pseudo-RTL did not update document language and direction: {rtl_mobile}")
+    if rtl_focus_next != "sourceTabUpload":
+        failures.append(f"RTL mode changed logical focus order; next control was {rtl_focus_next}")
+    if manifest_localization != {
+        "locale": "ar-XB",
+        "metadataLang": "ar-XB",
+        "metadataDir": "rtl",
+        "manifestLang": "ar-XB",
+        "manifestDir": "rtl",
+    }:
+        failures.append(f"generated manifest did not follow pseudo locale metadata: {manifest_localization}")
+    if fallback != {"locale": "en", "appName": "Icon Forge", "lang": "en", "dir": "ltr"}:
+        failures.append(f"unsupported locale fallback was not deterministic: {fallback}")
+    return {
+        "expandedDesktop": expanded_desktop,
+        "expandedMobile": expanded_mobile,
+        "persisted": persisted,
+        "rtlDesktop": rtl_desktop,
+        "rtlMobile": rtl_mobile,
+        "rtlFocusNext": rtl_focus_next,
+        "manifest": manifest_localization,
+        "fallback": fallback,
+    }, failures
+
+
 def check_accessibility_interactions(page, url: str) -> tuple[dict, list[str]]:
     page.goto(url, wait_until="networkidle")
     failures = []
     upload_tab = page.locator("#sourceTabUpload")
     page.keyboard.press("Tab")
+    if page.evaluate("() => document.activeElement?.id") != "localeSelect":
+        failures.append("first keyboard tab stop should be the interface locale selector")
+    page.keyboard.press("Tab")
     if page.evaluate("() => document.activeElement?.id") != "sourceTabUpload":
-        failures.append("first keyboard tab stop should be the selected Upload source tab")
+        failures.append("selected Upload source tab should follow the header locale selector")
     upload_tab.press("ArrowRight")
     arrow_state = page.evaluate(
         """() => ({
@@ -1222,6 +1353,7 @@ def main() -> int:
     results = []
     failures = []
     accessibility = {}
+    localization = {}
     reforge = {}
     engine_matrix = {}
 
@@ -1235,6 +1367,8 @@ def main() -> int:
             accessibility_page.on("pageerror", lambda exc: page_errors.append(str(exc)))
             accessibility, accessibility_failures = check_accessibility_interactions(accessibility_page, url)
             failures.extend(accessibility_failures)
+            localization, localization_failures = check_localization_boundary(accessibility_page, url)
+            failures.extend(localization_failures)
             reforge, reforge_failures = check_reforge_import(accessibility_page, url)
             failures.extend(reforge_failures)
             accessibility_context.close()
@@ -1376,6 +1510,7 @@ def main() -> int:
             for item in results
         ],
         "accessibility": accessibility,
+        "localization": localization,
         "reforge": reforge,
         "engines": engine_matrix,
         "failures": failures,

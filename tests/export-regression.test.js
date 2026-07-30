@@ -704,6 +704,19 @@ async function main() {
   assert.strictEqual(api.uiText('diagnostics.metrics.workerFallback'), 'Worker fallback state');
   assert.strictEqual(api.uiText('status.launchedFileOpened', { name: 'logo.png' }), 'Opened logo.png from the operating system.');
   assert.strictEqual(api.uiText('snippets.androidMissing'), 'Run the Android preset to generate adaptive icon PNGs and ic_launcher.xml handoff files.');
+  assert.deepStrictEqual(Object.keys(api.SUPPORTED_LOCALES), ['en', 'en-XA', 'ar-XB']);
+  assert.strictEqual(api.setLocale('en-XA', { persist: false, syncManifest: false }), 'en-XA');
+  assert(api.getUiString('shell.appName').startsWith('［'), 'expanded pseudo locale should resolve through its generated catalog');
+  assert(api.uiText('runtime.fileSummary', { count: 3, fileWord: 'files', size: '12 KB' }).includes('3'));
+  assert.strictEqual(
+    api.pseudoTransform('Hello {name}', 'en-XA'),
+    api.pseudoTransform('Hello {name}', 'en-XA'),
+    'pseudo localization should be deterministic'
+  );
+  assert.strictEqual(api.setLocale('ar-XB', { persist: false, syncManifest: false }), 'ar-XB');
+  assert(api.getUiString('shell.appName').startsWith('\u2067'), 'RTL pseudo locale should use bidi isolation');
+  assert.strictEqual(api.setLocale('not-a-locale', { persist: false, syncManifest: false }), 'en');
+  assert.strictEqual(api.getUiString('shell.appName'), 'Icon Forge', 'unsupported locales should fall back to English');
   assert.deepStrictEqual(
     JSON.parse(JSON.stringify(api.inspectSourceFile({ name: 'icon.png', type: 'image/png', size: 1024 }))),
     { valid: true, code: 'SOURCE_ACCEPTED', message: '', warning: '' }

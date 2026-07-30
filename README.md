@@ -36,6 +36,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Draft recovery controls** - saves versioned settings with visible age/size and a 30-day TTL, optionally restores source bytes, supports disable/clear, and can clear automatically after ZIP or folder export
 - **Installed file handling** - installed Chrome/Edge PWAs can open supported image files from the operating system
 - **UI string catalog** - shell, status, diagnostic, validation, and snippet text now route through default English catalog keys for future localization
+- **Localization test modes** - persistent BCP 47 locale selection includes deterministic pseudo-expanded and pseudo-RTL catalogs that exercise shell/runtime copy, bidirectional layout, focus order, and generated-manifest `lang`/`dir`
 - **Drop-replace template matching** - load an existing folder or ZIP filename map and export only matching generated assets
 - **File size display** - see per-icon and total file sizes after generation
 - **Grouped result explorer** - scan artifact families by count, bytes, and validation state; collapse large sets or filter by filename, format, and status
@@ -55,7 +56,7 @@ No build step, no package manager, no dependencies.
 
 ### Localization contract
 
-The **Localized Fields JSON** manifest input accepts `name_localized`, `short_name_localized`, and `description_localized` language maps. Each BCP 47 key maps to a non-empty string or a `{ "value", "lang", "dir" }` object; language tags are canonicalized and `dir` is limited to `auto`, `ltr`, or `rtl`. Unknown localized members and malformed values fail closed. The default English UI catalog is also regression-checked against every visible shell literal and every catalog hook.
+The **Localized Fields JSON** manifest input accepts `name_localized`, `short_name_localized`, and `description_localized` language maps. Each BCP 47 key maps to a non-empty string or a `{ "value", "lang", "dir" }` object; language tags are canonicalized and `dir` is limited to `auto`, `ltr`, or `rtl`. Unknown localized members and malformed values fail closed. The interface locale persists locally, updates document `lang`/`dir`, and falls back to English for unsupported tags. `en-XA` pseudo-expanded and `ar-XB` pseudo-RTL are test catalogs rather than production translations; they cover cataloged shell/runtime strings and synchronize default manifest language/direction so clipping, interpolation, focus order, and generated metadata remain regression-testable.
 
 ### Export compatibility
 
