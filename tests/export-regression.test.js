@@ -784,6 +784,86 @@ async function main() {
     ['pwa/icons/icon-192x192.png', 'snippets/head.html']
   );
 
+  const blobZipResult = await api.buildZipFromBlobs([
+    { name: 'icons/icon-界.png', blob: new Blob([new Uint8Array([4, 5, 6])], { type: 'image/png' }) },
+    { name: 'README.txt', blob: new Blob(['local export']) }
+  ]);
+  assert.deepStrictEqual(readZipCentralDirectory(await blobBytes(blobZipResult.blob)), [
+    'icons/icon-界.png',
+    'README.txt'
+  ]);
+  assert.strictEqual(blobZipResult.plan.entryCount, 2);
+  assert(blobZipResult.plan.estimatedPeakWorkingBytes >= blobZipResult.plan.archiveBytes);
+
+  const zipLimitOverhead = 30 + 1 + 46 + 1 + 22;
+  const nearZip32Plan = api.inspectZipPlan(
+    [{ name: 'a', blob: { size: api.ZIP32_MAX - zipLimitOverhead } }],
+    { maxWorkingBytes: Infinity }
+  );
+  assert.strictEqual(nearZip32Plan.archiveBytes, api.ZIP32_MAX);
+  assert.throws(
+    () => api.inspectZipPlan(
+      [{ name: 'a', blob: { size: api.ZIP32_MAX - zipLimitOverhead + 1 } }],
+      { maxWorkingBytes: Infinity }
+    ),
+    (error) => error.code === 'ZIP_ARCHIVE_SIZE_LIMIT'
+  );
+  assert.throws(
+    () => api.inspectZipPlan([{ name: 'too-large.bin', blob: { size: api.ZIP32_MAX + 1 } }], { maxWorkingBytes: Infinity }),
+    (error) => error.code === 'ZIP_FILE_SIZE_LIMIT'
+  );
+  assert.throws(
+    () => api.inspectZipPlan([{ name: 'budget.bin', blob: { size: 1024 } }], { maxWorkingBytes: 1024 }),
+    (error) => error.code === 'ZIP_MEMORY_BUDGET' && /Save to Folder/.test(error.message)
+  );
+
+  const generatedSentinel = [{ name: 'kept.png', blob: new Blob([new Uint8Array([9])]) }];
+  api.setState({ generatedFiles: generatedSentinel });
+  const zipAbort = new AbortController();
+  await assert.rejects(
+    api.buildZipFromBlobs(
+      [{ name: 'cancel.bin', blob: new Blob([new Uint8Array(2 * 1024 * 1024)]) }],
+      {
+        signal: zipAbort.signal,
+        onProgress() {
+          zipAbort.abort();
+        }
+      }
+    ),
+    (error) => error.name === 'AbortError'
+  );
+  assert.strictEqual(api.getState().generatedFiles[0].name, 'kept.png', 'cancelled ZIP work must retain generated files');
+
+  const pwaGenerationPlan = api.inspectGenerationPlan({
+    sizes: [72, 96, 128, 144, 152, 192, 384, 512].map((size) => ({ width: size, height: size })),
+    formats: ['png'],
+    presetKey: 'pwa',
+    sourceWidth: 1024,
+    sourceHeight: 1024,
+    monochrome: false
+  });
+  assert.strictEqual(pwaGenerationPlan.allowed, true);
+  assert.strictEqual(pwaGenerationPlan.operationCount, 66);
+  assert(pwaGenerationPlan.estimatedPeakWorkingBytes > 0);
+  assert.strictEqual(
+    api.inspectGenerationPlan({
+      sizes: [{ width: 4096, height: 4096 }],
+      formats: ['png'],
+      presetKey: null,
+      maxOperations: 2
+    }).allowed,
+    false,
+    'operation preflight should reject work above its operation limit'
+  );
+  const memoryBlockedPlan = api.inspectGenerationPlan({
+    sizes: [{ width: 4096, height: 4096 }],
+    formats: ['png'],
+    presetKey: null,
+    maxWorkingBytes: 1024
+  });
+  assert.strictEqual(memoryBlockedPlan.allowed, false);
+  assert.match(memoryBlockedPlan.reason, /memory safety budget/);
+
   let oversizedZipRead = false;
   await assert.rejects(
     api.readZipFileNames({

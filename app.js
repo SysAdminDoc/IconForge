@@ -1,67 +1,28 @@
 function buildZip(files) {
-    const enc = new TextEncoder();
-    const localHeaders = [];
+    const plan = inspectZipPlan(files);
+    const parts = [];
     const centralEntries = [];
     let offset = 0;
 
-    for (const { name, data } of files) {
-        const nameBytes = enc.encode(name);
+    for (const entry of plan.entries) {
+        const { data } = entry.file;
+        if (!data || typeof data.length !== 'number') {
+            throw new Error(`ZIP entry "${entry.name}" must provide byte data.`);
+        }
+        const nameBytes = entry.nameBytes;
         const crc = crc32(data);
-        const local = new Uint8Array(30 + nameBytes.length + data.length);
-        const v = new DataView(local.buffer);
-        v.setUint32(0, 0x04034b50, true);
-        v.setUint16(4, 20, true);
-        v.setUint16(6, 0, true);
-        v.setUint16(8, 0, true);
-        v.setUint16(10, 0, true);
-        v.setUint16(12, 0, true);
-        v.setUint32(14, crc, true);
-        v.setUint32(18, data.length, true);
-        v.setUint32(22, data.length, true);
-        v.setUint16(26, nameBytes.length, true);
-        v.setUint16(28, 0, true);
-        local.set(nameBytes, 30);
-        local.set(data, 30 + nameBytes.length);
-        localHeaders.push(local);
-
-        const central = new Uint8Array(46 + nameBytes.length);
-        const cv = new DataView(central.buffer);
-        cv.setUint32(0, 0x02014b50, true);
-        cv.setUint16(4, 20, true);
-        cv.setUint16(6, 20, true);
-        cv.setUint16(12, 0, true);
-        cv.setUint16(14, 0, true);
-        cv.setUint32(16, crc, true);
-        cv.setUint32(20, data.length, true);
-        cv.setUint32(24, data.length, true);
-        cv.setUint16(28, nameBytes.length, true);
-        cv.setUint32(42, offset, true);
-        central.set(nameBytes, 46);
+        const local = createZipLocalHeader(nameBytes, entry.size, crc);
+        const central = createZipCentralEntry(nameBytes, entry.size, crc, offset);
+        parts.push(local, data);
         centralEntries.push(central);
-
-        offset += local.length;
+        offset += local.length + entry.size;
     }
 
-    const centralSize = centralEntries.reduce((s, e) => s + e.length, 0);
-    const eocd = new Uint8Array(22);
-    const ev = new DataView(eocd.buffer);
-    ev.setUint32(0, 0x06054b50, true);
-    ev.setUint16(8, files.length, true);
-    ev.setUint16(10, files.length, true);
-    ev.setUint32(12, centralSize, true);
-    ev.setUint32(16, offset, true);
-
-    const total = offset + centralSize + 22;
-    const out = new Uint8Array(total);
-    let pos = 0;
-    for (const h of localHeaders) { out.set(h, pos); pos += h.length; }
-    for (const c of centralEntries) { out.set(c, pos); pos += c.length; }
-    out.set(eocd, pos);
-    return new Blob([out], { type: 'application/zip' });
+    parts.push(...centralEntries, createZipEndRecord(files.length, plan.centralSize, offset));
+    return new Blob(parts, { type: 'application/zip' });
 }
 
-function crc32(data) {
-    let crc = 0xFFFFFFFF;
+function crc32Update(crc, data) {
     if (!crc32.table) {
         crc32.table = new Uint32Array(256);
         for (let i = 0; i < 256; i++) {
@@ -71,7 +32,54 @@ function crc32(data) {
         }
     }
     for (let i = 0; i < data.length; i++) crc = crc32.table[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
-    return (crc ^ 0xFFFFFFFF) >>> 0;
+    return crc >>> 0;
+}
+
+function crc32(data) {
+    return (crc32Update(0xFFFFFFFF, data) ^ 0xFFFFFFFF) >>> 0;
+}
+
+function createZipLocalHeader(nameBytes, size, crc) {
+    const local = new Uint8Array(30 + nameBytes.length);
+    const view = new DataView(local.buffer);
+    view.setUint32(0, 0x04034b50, true);
+    view.setUint16(4, 20, true);
+    view.setUint16(6, 0x0800, true);
+    view.setUint16(8, 0, true);
+    view.setUint32(14, crc, true);
+    view.setUint32(18, size, true);
+    view.setUint32(22, size, true);
+    view.setUint16(26, nameBytes.length, true);
+    local.set(nameBytes, 30);
+    return local;
+}
+
+function createZipCentralEntry(nameBytes, size, crc, offset) {
+    const central = new Uint8Array(46 + nameBytes.length);
+    const view = new DataView(central.buffer);
+    view.setUint32(0, 0x02014b50, true);
+    view.setUint16(4, 20, true);
+    view.setUint16(6, 20, true);
+    view.setUint16(8, 0x0800, true);
+    view.setUint16(10, 0, true);
+    view.setUint32(16, crc, true);
+    view.setUint32(20, size, true);
+    view.setUint32(24, size, true);
+    view.setUint16(28, nameBytes.length, true);
+    view.setUint32(42, offset, true);
+    central.set(nameBytes, 46);
+    return central;
+}
+
+function createZipEndRecord(entryCount, centralSize, centralOffset) {
+    const end = new Uint8Array(22);
+    const view = new DataView(end.buffer);
+    view.setUint32(0, 0x06054b50, true);
+    view.setUint16(8, entryCount, true);
+    view.setUint16(10, entryCount, true);
+    view.setUint32(12, centralSize, true);
+    view.setUint32(16, centralOffset, true);
+    return end;
 }
 
 const APP_VERSION = globalThis.ICONFORGE_VERSION;
@@ -79,6 +87,13 @@ if (!/^v\d+\.\d+\.\d+$/.test(APP_VERSION || '')) {
     throw new Error('IconForge version metadata is missing or invalid.');
 }
 const MAX_CANVAS_PIXELS = 16_777_216; // Safari limit
+const MAX_SIZE_OPTIONS = 64;
+const MAX_GENERATION_OPERATIONS = 512;
+const MAX_GENERATION_WORKING_BYTES = 768 * 1024 * 1024;
+const ZIP16_MAX = 0xFFFF;
+const ZIP32_MAX = 0xFFFFFFFF;
+const ZIP_CRC_CHUNK_BYTES = 1024 * 1024;
+const MAX_ZIP_WORKING_BYTES = 768 * 1024 * 1024;
 const DRAFT_STORAGE_KEY = 'iconforge-draft-v2';
 const LEGACY_DRAFT_STORAGE_KEYS = Object.freeze(['iconforge-draft-v1']);
 const DRAFT_PREFERENCES_KEY = 'iconforge-draft-preferences-v1';
@@ -301,6 +316,7 @@ const UI_STRINGS = Object.freeze({
         exportStageHelp: 'Forge, validate, and download',
         readyToForge: 'Ready to forge',
         generationPromise: 'Generate a complete, validated bundle from your current source and settings.',
+        generationPreflightPrompt: 'Preflight: choose sizes and formats to estimate work.',
         dropZoneLabel: 'Drop, paste, or press Enter to browse for an image. Supported formats: PNG, JPG, GIF, WebP, SVG, BMP, TIFF',
         chooseImage: 'Choose image file',
         preview: 'Preview',
@@ -416,11 +432,14 @@ const UI_STRINGS = Object.freeze({
         invalidDimensions: 'Please enter valid dimensions (1-4096)',
         duplicateSize: 'Size {width}x{height} already exists and has been selected',
         customSizeAdded: 'Added custom size {width}x{height}',
+        customSizeLimit: 'A maximum of {count} size options is supported. Remove an existing custom size before adding another.',
         cancelling: 'Cancelling {operation}…',
         manifestMetadataError: 'Manifest metadata: {message}',
         selectSize: 'Please select at least one size',
         selectFormat: 'Please select at least one format',
         preparingGeneration: 'Preparing icon generation…',
+        generationPreflight: 'Preflight: {operations} operations, estimated peak {peak}.',
+        generationLimitExceeded: 'Generation blocked by preflight: {reason} Existing generated files were kept.',
         generationComplete: 'Generated {count} files ({total} total{budgetImpact})',
         generationCancelled: 'Generation cancelled. No partial output was retained; Generate Icons is ready to retry.',
         genericError: 'Error: {message}',
@@ -429,6 +448,8 @@ const UI_STRINGS = Object.freeze({
         manifestUpdateFailed: 'Manifest update failed: {message}',
         deploymentUpdateFailed: 'Deployment URL update failed: {message}',
         zipFailed: 'Error creating ZIP: {message}',
+        zipCancelled: 'ZIP export cancelled. Generated files are still available.',
+        zipComplete: 'ZIP ready: {count} files, {size}.',
         folderSaved: 'Saved {count} files to new folder "{directory}"{conflictNote}.',
         folderSaveFailed: 'Error saving: {message}'
     },
@@ -577,6 +598,7 @@ const generationProgress = document.getElementById('generationProgress');
 const generationProgressBar = document.getElementById('generationProgressBar');
 const generationProgressFill = document.getElementById('generationProgressFill');
 const generationProgressLabel = document.getElementById('generationProgressLabel');
+const generationPreflight = document.getElementById('generationPreflight');
 const status = document.getElementById('status');
 const outputSection = document.getElementById('outputSection');
 const outputGrid = document.getElementById('outputGrid');
@@ -1130,6 +1152,7 @@ async function restoreDraftSourceImage(draft) {
     try {
         const img = await loadImageElement(draft.sourceImage.dataUrl);
         sourceImage = img;
+        renderGenerationPreflight();
         sourceFileName = draft.sourceImage.name || 'restored-image';
         sourceMode = draft.sourceImage.mode || 'upload';
         originalImageData = draft.sourceImage.dataUrl;
@@ -1842,6 +1865,7 @@ document.getElementById('btnUseTextIcon').addEventListener('click', () => {
     const img = new Image();
     img.onload = () => {
         sourceImage = img;
+        renderGenerationPreflight();
         sourceFileName = `icon-${textInput.value || 'A'}`;
         sourceMode = 'text';
         originalImageData = textPreviewCanvas.toDataURL('image/png');
@@ -1929,6 +1953,7 @@ document.getElementById('btnUseEmojiIcon').addEventListener('click', () => {
     const img = new Image();
     img.onload = () => {
         sourceImage = img;
+        renderGenerationPreflight();
         sourceFileName = `icon-emoji`;
         sourceMode = 'emoji';
         originalImageData = emojiPreviewCanvas.toDataURL('image/png');
@@ -2126,6 +2151,7 @@ document.getElementById('presetButtons').addEventListener('click', (e) => {
 
     setElementVisible(svgDarkmodeSection, preset.formats.includes('svg'), 'block');
     updateMaskPreview();
+    renderGenerationPreflight();
     saveDraftState({ silent: true });
 });
 
@@ -2165,6 +2191,7 @@ btnApplyNumericCrop.addEventListener('click', applyNumericCrop);
 sizeGrid.addEventListener('change', (e) => {
     if (e.target.type === 'checkbox') {
         e.target.closest('.size-option').classList.toggle('selected', e.target.checked);
+        renderGenerationPreflight();
         queueDraftSave();
     }
 });
@@ -2177,6 +2204,7 @@ formatOptions.addEventListener('change', (e) => {
     }
     const svgChecked = formatOptions.querySelector('input[value="svg"]')?.checked;
     setElementVisible(svgDarkmodeSection, svgChecked, 'block');
+    renderGenerationPreflight();
     queueDraftSave();
 });
 
@@ -2412,6 +2440,7 @@ function reportImageInputError(error) {
 
 function activateLoadedImage(file, img, previewSrc, detail = '') {
     sourceImage = img;
+    renderGenerationPreflight();
     originalImageData = previewSrc;
     previewImage.src = previewSrc;
     setPreviewInfo(file.name, img.naturalWidth, img.naturalHeight, detail);
@@ -2500,6 +2529,7 @@ initFileHandlingLaunch();
 
 function resetInput() {
     sourceImage = null;
+    renderGenerationPreflight();
     sourceFileName = '';
     sourceMode = 'upload';
     originalImageData = null;
@@ -3065,7 +3095,8 @@ function findSizeInput(size) {
 
 function ensureSizeOption(entry) {
     const size = normalizeSizeEntry(entry);
-    if (findSizeInput(size)) return;
+    if (findSizeInput(size)) return true;
+    if (sizeGrid.querySelectorAll('input[type="checkbox"]').length >= MAX_SIZE_OPTIONS) return false;
 
     const label = document.createElement('label');
     label.className = 'size-option';
@@ -3079,6 +3110,7 @@ function ensureSizeOption(entry) {
         <span class="size-label">${size.width}x${size.height} <small>preset</small></span>
     `;
     sizeGrid.appendChild(label);
+    return true;
 }
 
 function addCustomSize() {
@@ -3087,6 +3119,10 @@ function addCustomSize() {
     
     if (!w || !h || w < 1 || h < 1 || w > 4096 || h > 4096) {
         showStatus(uiText('status.invalidDimensions'), 'warning');
+        return;
+    }
+    if (sizeGrid.querySelectorAll('input[type="checkbox"]').length >= MAX_SIZE_OPTIONS) {
+        showStatus(uiText('status.customSizeLimit', { count: MAX_SIZE_OPTIONS }), 'warning');
         return;
     }
 
@@ -3115,6 +3151,7 @@ function addCustomSize() {
     customWidth.value = '';
     customHeight.value = '';
     showStatus(uiText('status.customSizeAdded', { width: w, height: h }), 'success');
+    renderGenerationPreflight();
     saveDraftState({ silent: true });
 }
 
@@ -3174,6 +3211,138 @@ function throwIfOperationCancelled(signal) {
     if (signal?.aborted) throw new OperationCancelledError();
 }
 
+class ExportLimitError extends Error {
+    constructor(code, message, plan = null) {
+        super(message);
+        this.name = 'ExportLimitError';
+        this.code = code;
+        this.plan = plan;
+    }
+}
+
+function inspectZipPlan(files, { maxWorkingBytes = MAX_ZIP_WORKING_BYTES } = {}) {
+    if (!Array.isArray(files)) throw new TypeError('ZIP files must be an array.');
+    if (files.length > ZIP16_MAX) {
+        throw new ExportLimitError('ZIP_ENTRY_COUNT_LIMIT', `ZIP32 supports at most ${ZIP16_MAX.toLocaleString()} entries.`);
+    }
+
+    const encoder = new TextEncoder();
+    const entries = [];
+    let localSize = 0;
+    let centralSize = 0;
+    let totalInputBytes = 0;
+    let largestFileBytes = 0;
+
+    for (const file of files) {
+        const name = String(file?.name || '');
+        if (!name) throw new Error('Every ZIP entry needs a filename.');
+        const nameBytes = encoder.encode(name);
+        if (nameBytes.length > ZIP16_MAX) {
+            throw new ExportLimitError('ZIP_FILENAME_LIMIT', `ZIP entry "${name}" exceeds the ${ZIP16_MAX.toLocaleString()}-byte filename limit.`);
+        }
+        const rawSize = file?.data?.length ?? file?.blob?.size;
+        const size = Number(rawSize);
+        if (!Number.isSafeInteger(size) || size < 0) {
+            throw new Error(`ZIP entry "${name}" has an invalid byte size.`);
+        }
+        if (size > ZIP32_MAX) {
+            throw new ExportLimitError('ZIP_FILE_SIZE_LIMIT', `ZIP entry "${name}" exceeds the 4 GiB ZIP32 file limit.`);
+        }
+
+        const localRecordSize = 30 + nameBytes.length + size;
+        const centralRecordSize = 46 + nameBytes.length;
+        if (localSize + localRecordSize > ZIP32_MAX) {
+            throw new ExportLimitError('ZIP_OFFSET_LIMIT', 'Archive payload offsets exceed the 4 GiB ZIP32 limit. Use Save to Folder instead.');
+        }
+        localSize += localRecordSize;
+        centralSize += centralRecordSize;
+        totalInputBytes += size;
+        largestFileBytes = Math.max(largestFileBytes, size);
+        entries.push({ file, name, nameBytes, size });
+    }
+
+    const archiveBytes = localSize + centralSize + 22;
+    if (centralSize > ZIP32_MAX || archiveBytes > ZIP32_MAX) {
+        throw new ExportLimitError('ZIP_ARCHIVE_SIZE_LIMIT', 'Archive metadata exceeds the 4 GiB ZIP32 limit. Use Save to Folder instead.');
+    }
+    const estimatedPeakWorkingBytes = totalInputBytes + archiveBytes + Math.min(largestFileBytes, ZIP_CRC_CHUNK_BYTES);
+    const plan = {
+        entryCount: entries.length,
+        entries,
+        totalInputBytes,
+        largestFileBytes,
+        localSize,
+        centralSize,
+        archiveBytes,
+        estimatedPeakWorkingBytes
+    };
+    if (Number.isFinite(maxWorkingBytes) && estimatedPeakWorkingBytes > maxWorkingBytes) {
+        throw new ExportLimitError(
+            'ZIP_MEMORY_BUDGET',
+            `ZIP export needs an estimated ${formatFileSize(estimatedPeakWorkingBytes)} peak working memory, above the ${formatFileSize(maxWorkingBytes)} safety budget. Use Save to Folder instead.`,
+            plan
+        );
+    }
+    return plan;
+}
+
+async function yieldToMainThread(signal = null) {
+    throwIfOperationCancelled(signal);
+    if (globalThis.scheduler?.yield) {
+        await globalThis.scheduler.yield();
+    } else {
+        await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    throwIfOperationCancelled(signal);
+}
+
+async function crc32Blob(blob, signal = null) {
+    let crc = 0xFFFFFFFF;
+    for (let offset = 0; offset < blob.size; offset += ZIP_CRC_CHUNK_BYTES) {
+        throwIfOperationCancelled(signal);
+        const chunk = new Uint8Array(await blob.slice(offset, offset + ZIP_CRC_CHUNK_BYTES).arrayBuffer());
+        crc = crc32Update(crc, chunk);
+        await yieldToMainThread(signal);
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+async function buildZipFromBlobs(files, {
+    signal = null,
+    maxWorkingBytes = MAX_ZIP_WORKING_BYTES,
+    onProgress = null
+} = {}) {
+    const plan = inspectZipPlan(files, { maxWorkingBytes });
+    const parts = [];
+    const centralEntries = [];
+    let offset = 0;
+
+    for (let index = 0; index < plan.entries.length; index++) {
+        const entry = plan.entries[index];
+        throwIfOperationCancelled(signal);
+        const blob = entry.file.blob;
+        if (!blob || typeof blob.slice !== 'function') {
+            throw new Error(`ZIP entry "${entry.name}" must provide a Blob.`);
+        }
+        onProgress?.({ stage: 'Building ZIP', fileName: entry.name, completed: index, total: plan.entryCount + 1 });
+        const crc = await crc32Blob(blob, signal);
+        const local = createZipLocalHeader(entry.nameBytes, entry.size, crc);
+        const central = createZipCentralEntry(entry.nameBytes, entry.size, crc, offset);
+        parts.push(local, blob);
+        centralEntries.push(central);
+        offset += local.length + entry.size;
+        onProgress?.({ stage: 'Building ZIP', fileName: entry.name, completed: index + 1, total: plan.entryCount + 1 });
+    }
+
+    throwIfOperationCancelled(signal);
+    onProgress?.({ stage: 'Finalizing ZIP', fileName: '', completed: plan.entryCount, total: plan.entryCount + 1 });
+    await yieldToMainThread(signal);
+    const end = createZipEndRecord(plan.entryCount, plan.centralSize, offset);
+    const blob = new Blob([...parts, ...centralEntries, end], { type: 'application/zip' });
+    onProgress?.({ stage: 'Finalizing ZIP', fileName: '', completed: plan.entryCount + 1, total: plan.entryCount + 1 });
+    return { blob, plan };
+}
+
 function setOperationProgress(stage, fileName, completed, total) {
     const safeTotal = Math.max(1, total || 1);
     const safeCompleted = Math.min(safeTotal, Math.max(0, completed || 0));
@@ -3206,7 +3375,12 @@ function beginOperation(kind, total) {
     activeOperation = operation;
     setElementVisible(generationProgress, true);
     setElementVisible(btnCancelOperation, true);
-    setOperationProgress(kind === 'generation' ? 'Preparing generation' : 'Preparing folder export', '', 0, operation.total);
+    const preparationStage = kind === 'generation'
+        ? 'Preparing generation'
+        : kind === 'ZIP export'
+            ? 'Preparing ZIP export'
+            : 'Preparing folder export';
+    setOperationProgress(preparationStage, '', 0, operation.total);
     return operation;
 }
 
@@ -3272,14 +3446,99 @@ async function runOperationStep(operation, stage, fileName, action) {
     return result;
 }
 
-function getPlatformGenerationOperationCount() {
-    let count = 0;
-    if (activePresetKey === 'pwa') count = PWA_ICON_SIZES.length * 2 + PWA_SPLASH_SPECS.length * 2;
-    else if (activePresetKey === 'android') count = ANDROID_DENSITY_SPECS.length * 3;
-    else if (activePresetKey === 'ios') count = IOS_ICON_SPECS.length;
-    else if (activePresetKey === 'windows') count = WINDOWS_TILE_SPECS.length;
-    if (manifestMonochromeEnabled() && ['web', 'pwa', 'all'].includes(activePresetKey)) count++;
-    return count;
+function inspectGenerationPlan({
+    sizes = [],
+    formats = [],
+    presetKey = activePresetKey,
+    sourceWidth = sourceImage?.naturalWidth || 0,
+    sourceHeight = sourceImage?.naturalHeight || 0,
+    monochrome = manifestMonochromeEnabled(),
+    maxOperations = MAX_GENERATION_OPERATIONS,
+    maxWorkingBytes = MAX_GENERATION_WORKING_BYTES
+} = {}) {
+    const normalizedSizes = sizes.map(normalizeSizeEntry);
+    let operationCount = formats.reduce((count, format) => (
+        count + (format === 'ico' || format === 'svg' ? 1 : normalizedSizes.length)
+    ), 0);
+    let totalPixels = 0;
+    let largestOutputPixels = 0;
+    const addPixels = (width, height, count = 1) => {
+        const pixels = Math.max(0, Number(width) * Number(height));
+        totalPixels += pixels * count;
+        largestOutputPixels = Math.max(largestOutputPixels, pixels);
+    };
+
+    for (const format of formats) {
+        if (format === 'ico') {
+            normalizedSizes
+                .filter(size => size.width <= 256 && size.width === size.height)
+                .forEach(size => addPixels(size.width, size.height));
+        } else if (format === 'svg') {
+            addPixels(32, 32);
+        } else {
+            normalizedSizes.forEach(size => addPixels(size.width, size.height));
+        }
+    }
+
+    if (presetKey === 'pwa') {
+        operationCount += PWA_ICON_SIZES.length * 2 + PWA_SPLASH_SPECS.length * 2;
+        PWA_ICON_SIZES.forEach(size => addPixels(size, size, 2));
+        PWA_SPLASH_SPECS.forEach(spec => addPixels(spec.width, spec.height, 2));
+    } else if (presetKey === 'android') {
+        operationCount += ANDROID_DENSITY_SPECS.length * 3;
+        ANDROID_DENSITY_SPECS.forEach(spec => {
+            addPixels(spec.adaptive, spec.adaptive, 2);
+            addPixels(spec.legacy, spec.legacy);
+        });
+    } else if (presetKey === 'ios') {
+        operationCount += IOS_ICON_SPECS.length;
+        IOS_ICON_SPECS.forEach(spec => addPixels(spec[3], spec[3]));
+    } else if (presetKey === 'windows') {
+        operationCount += WINDOWS_TILE_SPECS.length;
+        WINDOWS_TILE_SPECS.forEach(spec => addPixels(spec.width, spec.height));
+    }
+    if (monochrome && ['web', 'pwa', 'all'].includes(presetKey)) {
+        operationCount++;
+        addPixels(512, 512);
+    }
+    operationCount += 2;
+
+    const sourcePixels = Math.max(0, Number(sourceWidth) * Number(sourceHeight));
+    const retainedOutputBytes = totalPixels * 4;
+    const activeCanvasBytes = largestOutputPixels * 8;
+    const sourceBytes = sourcePixels * 4;
+    const estimatedPeakWorkingBytes = retainedOutputBytes + activeCanvasBytes + sourceBytes;
+    let reason = '';
+    if (operationCount > maxOperations) {
+        reason = `${operationCount.toLocaleString()} operations exceed the ${maxOperations.toLocaleString()} operation safety limit.`;
+    } else if (estimatedPeakWorkingBytes > maxWorkingBytes) {
+        reason = `estimated peak ${formatFileSize(estimatedPeakWorkingBytes)} exceeds the ${formatFileSize(maxWorkingBytes)} memory safety budget.`;
+    }
+    return {
+        allowed: !reason,
+        reason,
+        operationCount,
+        totalPixels,
+        largestOutputPixels,
+        sourcePixels,
+        estimatedPeakWorkingBytes,
+        limits: { maxOperations, maxWorkingBytes }
+    };
+}
+
+function renderGenerationPreflight(plan = null) {
+    if (!generationPreflight) return null;
+    const nextPlan = plan || inspectGenerationPlan({
+        sizes: getSelectedSizes(),
+        formats: getSelectedFormats()
+    });
+    generationPreflight.textContent = uiText('status.generationPreflight', {
+        operations: nextPlan.operationCount.toLocaleString(),
+        peak: formatFileSize(nextPlan.estimatedPeakWorkingBytes)
+    });
+    generationPreflight.classList.toggle('warning', !nextPlan.allowed);
+    generationPreflight.title = nextPlan.reason || '';
+    return nextPlan;
 }
 
 async function generateIcons() {
@@ -3309,8 +3568,13 @@ async function generateIcons() {
         return;
     }
 
-    const baseOps = formats.reduce((n, f) => n + (f === 'ico' || f === 'svg' ? 1 : sizes.length), 0);
-    const operation = beginOperation('generation', baseOps + getPlatformGenerationOperationCount() + 2);
+    const plan = renderGenerationPreflight(inspectGenerationPlan({ sizes, formats }));
+    if (!plan.allowed) {
+        showStatus(uiText('status.generationLimitExceeded', { reason: plan.reason }), 'error');
+        return;
+    }
+
+    const operation = beginOperation('generation', plan.operationCount);
     btnGenerate.disabled = true;
     btnDownloadAll.disabled = true;
     if (btnSaveToFolder) btnSaveToFolder.disabled = true;
@@ -3500,7 +3764,9 @@ async function generateImage(img, size, format, crop = null, bitmap = null) {
 
 function formatFileSize(bytes) {
     if (bytes < 1024) return bytes + ' B';
-    return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
 }
 
 function addGeneratedFile(name, blob, size, format, meta = {}) {
@@ -5634,16 +5900,29 @@ async function downloadAll() {
 
     btnDownloadAll.disabled = true;
     btnDownloadAll.innerHTML = '<span class="spinner"></span> Creating ZIP...';
+    btnGenerate.disabled = true;
+    if (btnSaveToFolder) btnSaveToFolder.disabled = true;
+    let operation = null;
 
     try {
-        const zipFiles = [];
+        inspectZipPlan(getExportFiles());
         const exportFiles = await getExportFilesWithManifest();
-        for (const file of exportFiles) {
-            const buf = await file.blob.arrayBuffer();
-            zipFiles.push({ name: file.name, data: new Uint8Array(buf) });
-        }
-
-        const zipBlob = buildZip(zipFiles);
+        const plan = inspectZipPlan(exportFiles);
+        operation = beginOperation('ZIP export', plan.entryCount + 1);
+        const result = await buildZipFromBlobs(exportFiles, {
+            signal: operation.controller.signal,
+            onProgress(progress) {
+                operation.currentStage = progress.stage;
+                operation.currentFile = progress.fileName || null;
+                operation.completed = progress.completed;
+                operation.total = progress.total;
+                setOperationProgress(progress.stage, progress.fileName, progress.completed, progress.total);
+            }
+        });
+        operation.status = 'completed';
+        operation.currentStage = null;
+        operation.currentFile = null;
+        const zipBlob = result.blob;
         const url = URL.createObjectURL(zipBlob);
 
         const link = document.createElement('a');
@@ -5651,21 +5930,37 @@ async function downloadAll() {
         link.download = `${sourceFileName}-icons.zip`;
         link.click();
 
-        URL.revokeObjectURL(url);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
         clearDraftAfterExportIfRequested();
+        showStatus(uiText('status.zipComplete', {
+            count: result.plan.entryCount,
+            size: formatFileSize(result.plan.archiveBytes)
+        }), 'success');
     } catch (error) {
-        showStatus(uiText('status.zipFailed', { message: error.message }), 'error');
+        if (operation) {
+            operation.status = error.name === 'AbortError' ? 'cancelled' : 'failed';
+            operation.error = structuredDiagnosticError(error, operation.currentStage || 'zip-export');
+        }
+        showStatus(
+            error.name === 'AbortError'
+                ? uiText('status.zipCancelled')
+                : uiText('status.zipFailed', { message: error.message }),
+            error.name === 'AbortError' ? 'warning' : 'error'
+        );
+    } finally {
+        if (operation) finishOperation(operation);
+        btnGenerate.disabled = false;
+        if (btnSaveToFolder) btnSaveToFolder.disabled = false;
+        btnDownloadAll.disabled = false;
+        btnDownloadAll.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download All as ZIP
+        `;
     }
-
-    btnDownloadAll.disabled = false;
-    btnDownloadAll.innerHTML = `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        Download All as ZIP
-    `;
 }
 
 async function saveToFolder() {
@@ -6005,7 +6300,15 @@ function watchServiceWorker(registration, hadController) {
 if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
     window.__ICONFORGE_TEST__ = {
         buildZip,
+        buildZipFromBlobs,
+        inspectZipPlan,
+        inspectGenerationPlan,
         crc32,
+        ZIP16_MAX,
+        ZIP32_MAX,
+        MAX_ZIP_WORKING_BYTES,
+        MAX_GENERATION_OPERATIONS,
+        MAX_GENERATION_WORKING_BYTES,
         APP_VERSION,
         PLATFORM_MATRIX_METADATA,
         UI_STRINGS,
@@ -6214,6 +6517,7 @@ if (typeof window !== 'undefined' && window.__ICONFORGE_ENABLE_TEST_API__) {
 
 applyDraftPreferenceControls();
 restoreDraftState();
+renderGenerationPreflight();
 window.addEventListener?.('beforeunload', () => saveDraftState({ silent: true }));
 
 if ('serviceWorker' in navigator) {

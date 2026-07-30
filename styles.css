@@ -2347,6 +2347,17 @@ button:focus-visible {
     background: linear-gradient(90deg, var(--accent), #ffca79);
 }
 
+.generation-preflight {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+    margin-top: 0.45rem;
+}
+
+.generation-preflight.warning {
+    color: var(--warning);
+}
+
 .output-section {
     margin-top: 1rem;
     padding: 1rem;

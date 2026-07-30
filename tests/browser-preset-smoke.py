@@ -216,11 +216,31 @@ async (preset) => {
   }
 
   const exportFiles = await api.getExportFilesWithManifest();
-  const zipItems = [];
-  for (const file of exportFiles) {
-    zipItems.push({ name: file.name, data: new Uint8Array(await file.blob.arrayBuffer()) });
+  const zipProgress = [];
+  const zipResult = await api.buildZipFromBlobs(exportFiles, {
+    onProgress(update) {
+      zipProgress.push({ stage: update.stage, completed: update.completed, total: update.total });
+    }
+  });
+  const zipBlob = zipResult.blob;
+  const beforeCancelledZipCount = api.getState().generatedFiles.length;
+  const zipAbort = new AbortController();
+  let zipCancelled = false;
+  let zipCancelProgressEvents = 0;
+  try {
+    await api.buildZipFromBlobs(
+      [{ name: "synthetic-cancel.bin", blob: new Blob([new Uint8Array(2 * 1024 * 1024)]) }],
+      {
+        signal: zipAbort.signal,
+        onProgress() {
+          zipCancelProgressEvents += 1;
+          zipAbort.abort();
+        }
+      }
+    );
+  } catch (error) {
+    zipCancelled = error.name === "AbortError";
   }
-  const zipBlob = api.buildZip(zipItems);
   const zipBytes = new Uint8Array(await zipBlob.arrayBuffer());
   const validation = await api.validateGeneratedExport();
   const diagnostics = api.buildGenerationDiagnostics({ selectedFormats: [], validationResult: validation });
@@ -236,6 +256,12 @@ async (preset) => {
     decoded,
     zipNames: zipNames(zipBytes),
     zipSize: zipBlob.size,
+    zipProgress,
+    zipCancellation: {
+      cancelled: zipCancelled,
+      progressEvents: zipCancelProgressEvents,
+      generatedFilesPreserved: api.getState().generatedFiles.length === beforeCancelledZipCount
+    },
     desktopOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
     diagnosticsText: document.querySelector("#diagnosticsSummary")?.textContent || ""
   };
@@ -445,6 +471,15 @@ def validate_result(result: dict) -> list[str]:
 
     if result["validation"]["status"] != "pass":
         failures.append(f"{preset}: validation did not pass: {result['validation']}")
+    zip_progress = result.get("zipProgress") or []
+    if not zip_progress or zip_progress[-1].get("completed") != zip_progress[-1].get("total"):
+        failures.append(f"{preset}: ZIP progress did not reach completion: {zip_progress[-1:]}")
+    if result.get("zipCancellation") != {
+        "cancelled": True,
+        "progressEvents": 1,
+        "generatedFilesPreserved": True,
+    }:
+        failures.append(f"{preset}: ZIP cancellation did not preserve generated files: {result.get('zipCancellation')}")
     support_report = result["supportReport"]
     if support_report.get("schema") != "iconforge-diagnostics" or support_report.get("schemaVersion") != 2:
         failures.append(f"{preset}: diagnostics schema contract was incorrect")

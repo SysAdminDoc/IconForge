@@ -26,6 +26,7 @@ Generate favicons, PWA icons, mobile app icon sets, Windows tiles, and browser e
 - **Export manifest** - ZIP and folder exports include `iconforge-export.json` schema v2 with app-version compatibility metadata, file inventory, dimensions, MIME types, byte sizes, and SHA-256 hashes
 - **Export validation** - decodes generated PNG/JPG/WebP/AVIF/ICO/SVG bytes, verifies MIME types and dimensions, parses support files, and checks manifest-purpose semantics before deployment
 - **Observable, cancellable generation** - shows the current stage and filename for large bundles, cancels promptly, clears partial output, and supports immediate retry
+- **Resource-safe exports** - preflights operation count and peak memory, enforces ZIP32 limits, builds ZIPs incrementally with progress/cancellation, and preserves generated files when export is stopped
 - **Conflict-safe folder exports** - writes each bundle into a new collision-free folder and removes the entire folder after a failed or cancelled write
 - **Keyboard-accessible source modes** - Upload, Text, and Emoji use APG tabs with Arrow/Home/End navigation, high-visibility focus rings, assertive error focus, and WCAG-compliant muted text
 - **Generation diagnostics** - reports browser and service-worker support, selected preset/formats, stable errors, per-stage timings, worker fallback state, folder-write recovery, file count, byte total, and validation status
