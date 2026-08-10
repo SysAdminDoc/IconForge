@@ -1,13 +1,5 @@
 # IconForge Roadmap
 
-Blocked or product-gated items live in `Roadmap_Blocked.md`.
+Actionable work only. Historical and completed roadmap material is archived in CHANGELOG.md; blocked work is kept in Roadmap_Blocked.md.
 
-## Research-Driven Additions
-
-### P0 — Now
-
-### P1 — Next
-
-### P2 — Later
-
-### P3 — Under Consideration
+No actionable roadmap items remain.

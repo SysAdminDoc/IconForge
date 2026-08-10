@@ -310,3 +310,26 @@ All notable changes to IconForge will be documented in this file.
 ## [v0.1.0] - 2026-06-14
 
 - Initial static icon generator seed.
+
+## Roadmap archive — 2026-08-10 — ROADMAP.md
+
+<details>
+<summary>Original roadmap snapshot</summary>
+
+```markdown
+# IconForge Roadmap
+
+Blocked or product-gated items live in `Roadmap_Blocked.md`.
+
+## Research-Driven Additions
+
+### P0 — Now
+
+### P1 — Next
+
+### P2 — Later
+
+### P3 — Under Consideration
+```
+
+</details>
